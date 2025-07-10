@@ -165,25 +165,31 @@ function main() {
 	function parallax() {
 		const parallaxTriggers = document.querySelectorAll(".anim-parallax-trigger");
 		if (parallaxTriggers.length === 0) return;
-		// use gsap scroll trigger to create a parallax effect for all elements with attribute data-parallax inside each trigger, and use the trigger element as the start and end point, and use the data-parallax attribute to set the speed of the parallax effect
 		parallaxTriggers.forEach((trigger) => {
 			const parallaxElements = trigger.querySelectorAll("[data-parallax]");
 			if (parallaxElements.length === 0) return;
 
 			gsap.utils.toArray(parallaxElements).forEach((el) => {
+				// Set the initial position of the element based on the speed
 				const speed = parseFloat(el.getAttribute("data-parallax")) || 0.5;
+				const scalingFactor = 5; // just to tweak feel
+				let startY = 50 * speed * scalingFactor;
+				let endY = -50 * speed * scalingFactor;
+				const xSpeed = parseFloat(el.getAttribute("data-parallax-x")) || 0;
+				let startX = 50 * xSpeed;
+				let endX = -50 * xSpeed;
 				gsap.fromTo(
 					el,
-					{ y: "0%" },
+					{ yPercent: startY, xPercent: startX },
 					{
-						y: "100%",
+						yPercent: endY,
+						xPercent: endX,
 						ease: "none",
 						scrollTrigger: {
 							trigger: trigger,
-							start: "top top",
-							end: "bottom bottom",
+							start: "top bottom",
+							end: "bottom top",
 							scrub: true,
-							markers: false,
 						},
 					}
 				);
@@ -191,5 +197,203 @@ function main() {
 		});
 	}
 
+	function loadVideos_intersectionObs() {
+		const videos = document.querySelectorAll("video");
+		const mediaQuery = window.matchMedia("(max-width: 768px)");
+		let isMobile = () => mediaQuery.matches;
+		const PLAY_THRESHOLD = 0.5;
+
+		// Helper: apply src/type/codecs based on mode, but only once per load
+		function updateSources(video, mode) {
+			if (video.dataset.videoLoaded) return; // ← skip if already done
+
+			video.querySelectorAll("source").forEach((srcEl) => {
+				const { srcMobile, srcDesktop, typeMobile, typeDesktop, codecsMobile, codecsDesktop } =
+					srcEl.dataset;
+
+				const url = mode === "mobile" ? srcMobile || srcDesktop : srcDesktop;
+				const mime = mode === "mobile" ? typeMobile || typeDesktop : typeDesktop;
+				const codecs = mode === "mobile" ? codecsMobile || codecsDesktop : codecsDesktop;
+
+				if (!url) return;
+				srcEl.src = url;
+
+				let typeAttr = mime || "";
+				if (codecs) typeAttr += `; codecs="${codecs}"`;
+				if (typeAttr) srcEl.setAttribute("type", typeAttr);
+			});
+
+			video.load();
+			video.dataset.videoLoaded = "true"; // ← mark it loaded
+		}
+
+		// PRELOAD when within ±1 viewport
+		const getMargin = () => `${window.innerHeight}px 0px ${window.innerHeight}px 0px`;
+		const preloadObs = new IntersectionObserver(
+			(entries, obs) => {
+				entries.forEach((entry) => {
+					if (!entry.isIntersecting) return;
+					updateSources(entry.target, isMobile() ? "mobile" : "desktop");
+					obs.unobserve(entry.target); // ← only preload once
+				});
+			},
+			{
+				rootMargin: getMargin(),
+				threshold: 0,
+			}
+		);
+
+		// PLAY/PAUSE at 50%
+		const playObs = new IntersectionObserver(
+			(entries) => {
+				entries.forEach((entry) => {
+					entry.intersectionRatio >= PLAY_THRESHOLD ? entry.target.play() : entry.target.pause();
+					console.log(
+						`Video ${entry.target.id} is ${
+							entry.intersectionRatio >= PLAY_THRESHOLD ? "playing" : "paused"
+						}`
+					);
+				});
+			},
+			{
+				threshold: PLAY_THRESHOLD,
+			}
+		);
+
+		videos.forEach((video) => {
+			preloadObs.observe(video);
+			playObs.observe(video);
+		});
+
+		// On window-resize, update the preload margin
+		window.addEventListener("resize", () => {
+			preloadObs.rootMargin = getMargin();
+		});
+
+		// On mode‐flip: clear all loaded flags and re-observe so updateSources can run again
+		mediaQuery.addEventListener("change", (e) => {
+			const newMode = e.matches ? "mobile" : "desktop";
+			videos.forEach((video) => {
+				video.removeAttribute("data-video-loaded"); // ← clear the flag
+				preloadObs.observe(video); // ← re-arm preload
+			});
+		});
+	}
+
+	function loadVideos() {
+		// Grab all videos on the page
+		const videos = gsap.utils.toArray("video");
+		const mediaQuery = window.matchMedia("(max-width: 768px)");
+		const PLAY_ZONE_PADDING = "100%"; // = one full viewport
+
+		// Helper to know current mode
+		const isMobile = () => mediaQuery.matches;
+
+		console.log(`Initial mode: ${isMobile() ? "mobile" : "desktop"}`);
+
+		// update sources once per mode
+		function updateSources(video, mode) {
+			if (video.dataset.videoLoaded) return; // skip if already done
+			console.log(`Loading video sources for`, video, `mode=${mode}`);
+
+			video.querySelectorAll("source").forEach((srcEl) => {
+				const { srcMobile, srcDesktop, typeMobile, typeDesktop, codecsMobile, codecsDesktop } =
+					srcEl.dataset;
+
+				// pick URL + MIME + codecs
+				const url = mode === "mobile" ? srcMobile || srcDesktop : srcDesktop;
+				const mime = mode === "mobile" ? typeMobile || typeDesktop : typeDesktop;
+				const codecs = mode === "mobile" ? codecsMobile || codecsDesktop : codecsDesktop;
+
+				if (!url) return;
+				srcEl.src = url;
+
+				let typeAttr = mime || "";
+				if (codecs) typeAttr += `; codecs="${codecs}"`;
+				if (typeAttr) srcEl.setAttribute("type", typeAttr);
+			});
+
+			video.load();
+			video.dataset.videoLoaded = "true";
+		}
+
+		// preload triggers (±1 viewport)
+		let preloadTriggers = videos.map((video) =>
+			ScrollTrigger.create({
+				trigger: video,
+				start: `top bottom+=${PLAY_ZONE_PADDING}`, // 1 viewport below
+				end: `bottom top-=${PLAY_ZONE_PADDING}`, // 1 viewport above
+				onEnter(self) {
+					updateSources(video, isMobile() ? "mobile" : "desktop");
+					self.kill(); // don’t fire again until mode change
+				},
+				onEnterBack(self) {
+					updateSources(video, isMobile() ? "mobile" : "desktop");
+					self.kill();
+				},
+				// markers: true,
+			})
+		);
+
+		// play / pause triggers
+		videos.forEach((video) => {
+			ScrollTrigger.create({
+				trigger: video,
+				start: "top 90%",
+				end: "bottom 10%",
+				onEnter: () => {
+					console.log("Playing", video);
+					video.play();
+				},
+				onLeave: () => {
+					console.log("Pausing", video);
+					video.pause();
+				},
+				onEnterBack: () => {
+					console.log("Playing back", video);
+					video.play();
+				},
+				onLeaveBack: () => {
+					console.log("Pausing back", video);
+					video.pause();
+				},
+				// markers: true
+			});
+		});
+
+		// mode change
+		mediaQuery.addEventListener("change", () => {
+			const newMode = isMobile() ? "mobile" : "desktop";
+			console.log(`Mode changed to: ${newMode}`);
+
+			// Clear loaded flags so videos will reload in new mode
+			videos.forEach((video) => {
+				delete video.dataset.videoLoaded;
+			});
+
+			// Kill old preload triggers, then recreate them
+			preloadTriggers.forEach((t) => t.kill());
+			preloadTriggers = videos.map((video) =>
+				ScrollTrigger.create({
+					trigger: video,
+					start: `top bottom+=${PLAY_ZONE_PADDING}`,
+					end: `bottom top-=${PLAY_ZONE_PADDING}`,
+					onEnter(self) {
+						updateSources(video, newMode);
+						self.kill();
+					},
+					onEnterBack(self) {
+						updateSources(video, newMode);
+						self.kill();
+					},
+				})
+			);
+
+			// Refresh all ScrollTriggers to recalc positions
+			ScrollTrigger.refresh();
+		});
+	}
+
 	parallax();
+	loadVideos();
 }
