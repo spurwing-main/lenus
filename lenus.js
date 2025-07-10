@@ -1,4 +1,35 @@
 function main() {
+	// splide defaults
+	Splide.defaults = {
+		perMove: 1,
+		gap: "0rem",
+		arrows: false,
+		pagination: false,
+		focus: 0,
+		speed: 600,
+		dragAngleThreshold: 60,
+		autoWidth: false,
+		rewind: false,
+		rewindSpeed: 400,
+		waitForTransition: false,
+		updateOnMove: true,
+		trimSpace: "move",
+		type: "loop",
+		drag: true,
+		snap: true,
+		autoWidth: false,
+		autoplay: true,
+	};
+
+	// GSAP register
+	gsap.registerPlugin(ScrollTrigger);
+
+	// GSAP defaults
+	gsap.defaults({
+		ease: "power2.out",
+		duration: 0.5,
+	});
+
 	function logoSwap() {
 		/*
     - loop through all c-logo-swap components on page, then within each component:
@@ -130,4 +161,35 @@ function main() {
 			window.addEventListener("resize", resizeHandler);
 		});
 	}
+
+	function parallax() {
+		const parallaxTriggers = document.querySelectorAll(".anim-parallax-trigger");
+		if (parallaxTriggers.length === 0) return;
+		// use gsap scroll trigger to create a parallax effect for all elements with attribute data-parallax inside each trigger, and use the trigger element as the start and end point, and use the data-parallax attribute to set the speed of the parallax effect
+		parallaxTriggers.forEach((trigger) => {
+			const parallaxElements = trigger.querySelectorAll("[data-parallax]");
+			if (parallaxElements.length === 0) return;
+
+			gsap.utils.toArray(parallaxElements).forEach((el) => {
+				const speed = parseFloat(el.getAttribute("data-parallax")) || 0.5;
+				gsap.fromTo(
+					el,
+					{ y: "0%" },
+					{
+						y: "100%",
+						ease: "none",
+						scrollTrigger: {
+							trigger: trigger,
+							start: "top top",
+							end: "bottom bottom",
+							scrub: true,
+							markers: false,
+						},
+					}
+				);
+			});
+		});
+	}
+
+	parallax();
 }
