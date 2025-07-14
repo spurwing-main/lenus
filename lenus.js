@@ -55,7 +55,8 @@ function main() {
 			let logoSlots = Array.from(logoList.querySelectorAll(".logo-swap_slot"));
 			const logoEls = Array.from(component.querySelectorAll(".logo-swap_logo"));
 			let logoCount = getLogoCount(component);
-			console.log("Logo count:", logoCount);
+			let timerId;
+			let tl;
 
 			let logosArray = [];
 			logoEls.forEach((logoEl) => {
@@ -167,16 +168,24 @@ function main() {
 				console.log("Logo slots created:", logoSlots.length);
 			}
 
+			function cleanUp() {
+				logoSlots.forEach((slot) => {
+					slot.querySelectorAll("[data-logo-swap='outgoing']").forEach((el) => el.remove());
+				});
+			}
+
+			function scheduleNext() {
+				timerId = setTimeout(() => {
+					updateLogos();
+					animateLogos();
+				}, 4000);
+			}
+
 			function animateLogos() {
-				const tl = gsap.timeline({
+				tl = gsap.timeline({
 					onComplete: () => {
-						// after the animation is complete, remove the old logos
-						logoSlots.forEach((slot) => {
-							const outgoingLogo = slot.querySelector("[data-logo-swap='outgoing']");
-							if (outgoingLogo) {
-								outgoingLogo.remove();
-							}
-						});
+						cleanUp();
+						scheduleNext();
 					},
 				});
 				tl.to("[data-logo-swap='outgoing']", {
@@ -200,6 +209,13 @@ function main() {
 				);
 			}
 
+			function clearTimeline() {
+				if (tl) {
+					tl.kill();
+					tl = null;
+				}
+			}
+
 			function clearAllLogos() {
 				logoSlots.forEach((slot) => {
 					const logo = slot.querySelector(".logo-swap_logo");
@@ -219,26 +235,32 @@ function main() {
 			}
 
 			const onResize = debounce(() => {
+				clearTimeout(timerId);
+				clearTimeline();
 				logoCount = getLogoCount(component);
 				createLogoSlots();
 				clearAllLogos();
 				updateLogos();
 				animateLogos();
 			}, 200);
-
 			window.addEventListener("resize", onResize);
+
+			// pause/resume when user tabs away
+			document.addEventListener("visibilitychange", () => {
+				if (document.hidden) {
+					clearTimeout(timerId);
+					// gsap.globalPause();
+				} else {
+					// gsap.globalResume();
+					scheduleNext();
+				}
+			});
 
 			// Initial setup
 			createLogoSlots();
 			clearAllLogos();
 			updateLogos();
 			animateLogos();
-
-			// every X seconds, update the logos
-			const interval = setInterval(() => {
-				updateLogos();
-				animateLogos();
-			}, 4000); // every 5 seconds
 		});
 	}
 
