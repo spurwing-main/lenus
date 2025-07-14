@@ -31,25 +31,6 @@ function main() {
 	});
 
 	function logoSwap() {
-		/*
-    - loop through all c-logo-swap components on page, then within each component:
-    - get list element to hold logos .logo-swap_list
-    - get all logos to show .logo-swap_logo
-    - get the number of logos to show at the current breakpoint, this will be a CSS variable --logo-swap--count
-    - get a random selection of logos from logo array and shuffle them
-    - add logos to the list element in a hidden state
-    - after a set time interval, fade out each current logo and fade in the new logo with a stagger across the list
-    - ensure that the new logo is different from the current logo
-    - ensure that the same logo is not shown more than once in the list at the same time
-    - repeat the process indefinitely
-    - update on resize
-
-    
-
-
-
-    */
-
 		document.querySelectorAll(".c-logo-swap").forEach((component) => {
 			const logoList = component.querySelector(".logo-swap_list");
 			let logoSlots = Array.from(logoList.querySelectorAll(".logo-swap_slot"));
@@ -391,12 +372,12 @@ function main() {
 		// Helper to know current mode
 		const isMobile = () => mediaQuery.matches;
 
-		console.log(`Initial mode: ${isMobile() ? "mobile" : "desktop"}`);
+		// console.log(`Initial mode: ${isMobile() ? "mobile" : "desktop"}`);
 
 		// update sources once per mode
 		function updateSources(video, mode) {
 			if (video.dataset.videoLoaded) return; // skip if already done
-			console.log(`Loading video sources for`, video, `mode=${mode}`);
+			// console.log(`Loading video sources for`, video, `mode=${mode}`);
 
 			video.querySelectorAll("source").forEach((srcEl) => {
 				const { srcMobile, srcDesktop, typeMobile, typeDesktop, codecsMobile, codecsDesktop } =
@@ -409,7 +390,7 @@ function main() {
 
 				if (!url) return;
 				srcEl.src = url;
-				console.log(`Setting source for ${video.id}:`, url);
+				// console.log(`Setting source for ${video.id}:`, url);
 
 				let typeAttr = mime || "";
 				if (codecs) typeAttr += `; codecs="${codecs}"`;
@@ -440,24 +421,26 @@ function main() {
 
 		// play / pause triggers
 		videos.forEach((video) => {
+			// only play if autoplay is enabled
+			if (video.autoplay === false) return;
 			ScrollTrigger.create({
 				trigger: video,
 				start: "top 90%",
 				end: "bottom 10%",
 				onEnter: () => {
-					console.log("Playing", video);
+					// console.log("Playing", video);
 					video.play();
 				},
 				onLeave: () => {
-					console.log("Pausing", video);
+					// console.log("Pausing", video);
 					video.pause();
 				},
 				onEnterBack: () => {
-					console.log("Playing back", video);
+					// console.log("Playing back", video);
 					video.play();
 				},
 				onLeaveBack: () => {
-					console.log("Pausing back", video);
+					// console.log("Pausing back", video);
 					video.pause();
 				},
 				// markers: true
@@ -467,9 +450,9 @@ function main() {
 		// mode change
 		mediaQuery.addEventListener("change", () => {
 			const newMode = isMobile() ? "mobile" : "desktop";
-			console.log(`Mode changed to: ${newMode}`);
+			// console.log(`Mode changed to: ${newMode}`);
 
-			console.log("Updating video sources for new mode:", newMode);
+			// console.log("Updating video sources for new mode:", newMode);
 
 			// Clear loaded flags so videos will reload in new mode
 			videos.forEach((video) => {
@@ -496,6 +479,171 @@ function main() {
 
 			// Refresh all ScrollTriggers to recalc positions
 			ScrollTrigger.refresh();
+		});
+	}
+
+	function videoCarousel() {
+		// for each video carousel component .c-testim-carousel.splide
+		document.querySelectorAll(".c-testim-carousel.splide").forEach((component) => {
+			// initalise Splide
+			var splideInstance = new Splide(component, {
+				type: "loop",
+				autoplay: false,
+				autoScroll: {
+					speed: 1,
+					pauseOnHover: false,
+				},
+				intersection: {
+					inView: {
+						autoScroll: true,
+					},
+					outView: {
+						autoScroll: false,
+					},
+				},
+				breakpoints: {
+					767: {
+						perPage: 1,
+						gap: "1rem",
+						autoWidth: false,
+					},
+				},
+				clones: 5,
+				arrows: true,
+				trimSpace: "move",
+				pagination: false,
+				snap: false,
+				drag: "free",
+				autoWidth: true,
+				focus: "center",
+			});
+			splideInstance.mount(window.splide.Extensions);
+			let autoScroll = splideInstance.Components.AutoScroll;
+
+			const { Slides } = splideInstance.Components;
+			const cards = component.querySelectorAll(".coach-card");
+
+			function showVideo(card, bool = true) {
+				const video = card.querySelector("video");
+				const img = card.querySelector(".coach-card_bg img");
+				if (!video || !img) return;
+				let toShow = bool ? video : img;
+				let toHide = bool ? img : video;
+
+				// hide image and show video
+				gsap.to(toHide, {
+					autoAlpha: 0,
+					duration: 0.3,
+					ease: "power2.out",
+				});
+				gsap.to(toShow, {
+					autoAlpha: 1,
+					duration: 0.3,
+					ease: "power2.out",
+				});
+			}
+
+			function resetCard(card, video = null) {
+				showVideo(card, false); // show image, hide video
+				card.classList.remove("playing");
+				if (video) {
+					video.pause();
+					video.currentTime = 0;
+					video.controls = false;
+				}
+			}
+
+			function setUpProgressBar() {
+				const progress = component.querySelector(".testim-carousel_progress");
+				if (!progress) return;
+
+				// create a ".testim-carousel_progress-line" element for each slide and add to progress and clear existing ones
+				progress.innerHTML = ""; // clear existing progress lines
+
+				Slides.get().forEach((slideObj) => {
+					const progressLine = document.createElement("div");
+					progressLine.classList.add("testim-carousel_progress-line");
+					progress.appendChild(progressLine);
+				});
+
+				const progressLines = progress.querySelectorAll(".testim-carousel_progress-line");
+
+				splideInstance.on("active", function () {
+					// on active slide change, update the progress bar
+					const activeIndex = splideInstance.index;
+
+					console.log("Active slide index:", activeIndex);
+
+					progressLines.forEach((line, index) => {
+						if (index === activeIndex) {
+							gsap.to(line, {
+								backgroundColor: "#DDDDD6",
+								duration: 0.3,
+								ease: "power2.out",
+							});
+						} else {
+							gsap.to(line, {
+								backgroundColor: "#EFEFE8",
+								duration: 0.3,
+								ease: "power2.out",
+							});
+						}
+					});
+				});
+			}
+
+			setUpProgressBar();
+
+			Slides.get().forEach((slideObj) => {
+				const slideEl = slideObj.slide; // the actual DOM node
+
+				const card = slideObj.slide.querySelector(".coach-card");
+				const playBtn = card.querySelector("btn[name='play']");
+				if (!playBtn) return;
+				const video = card.querySelector("video");
+				if (!video) return;
+				const img = card.querySelector(".coach-card_bg img");
+				if (!img) return;
+
+				// hide video and show image by default. Then when card is clicked, show video and hide image
+				gsap.set(video, {
+					autoAlpha: 0,
+				});
+
+				// on click, play video and pause others
+				playBtn.addEventListener("click", () => {
+					const idx = slideObj.index;
+
+					cards.forEach((c) => {
+						const v = c.querySelector("video");
+						resetCard(c, v);
+					});
+					// jump to slide
+					// const cardIndex = getSlideIndex(card);
+					// if (cardIndex !== -1) {
+					splideInstance.go(idx);
+					// }
+					showVideo(card, true); // show video and hide image
+					video.play();
+					video.controls = true;
+					card.classList.add("playing");
+					autoScroll.pause();
+				});
+
+				// on video pause, resume autoScroll
+				video.addEventListener("pause", () => {
+					if (card.classList.contains("playing")) {
+						resetCard(card, video);
+						autoScroll.play();
+					}
+				});
+
+				// on video end, reset card
+				video.addEventListener("ended", () => {
+					resetCard(card, video);
+					autoScroll.play();
+				});
+			});
 		});
 	}
 
@@ -532,4 +680,5 @@ function main() {
 	loadVideos();
 	gradTest1();
 	logoSwap();
+	videoCarousel();
 }
