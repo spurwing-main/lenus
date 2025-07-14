@@ -52,9 +52,10 @@ function main() {
 
 		document.querySelectorAll(".c-logo-swap").forEach((component) => {
 			const logoList = component.querySelector(".logo-swap_list");
-			const logoSlots = Array.from(logoList.querySelectorAll(".logo-swap_slot"));
+			let logoSlots = Array.from(logoList.querySelectorAll(".logo-swap_slot"));
 			const logoEls = Array.from(component.querySelectorAll(".logo-swap_logo"));
 			let logoCount = getLogoCount(component);
+			console.log("Logo count:", logoCount);
 
 			let logosArray = [];
 			logoEls.forEach((logoEl) => {
@@ -71,13 +72,6 @@ function main() {
 				);
 				return isNaN(logoCount) ? 5 : logoCount;
 			}
-
-			let currentLogos = [];
-
-			// function getRandomLogos() {
-			// 	const shuffledLogos = logos.sort(() => 0.5 - Math.random());
-			// 	return shuffledLogos.slice(0, logoCount);
-			// }
 
 			function shuffleArray(array) {
 				//https://bost.ocks.org/mike/shuffle/
@@ -101,12 +95,12 @@ function main() {
 
 			function getNewLogos() {
 				// first shuffle the logos array
-				shuffleArray(logosArray);
+				logosArray = shuffleArray(logosArray);
 
-				// get the first `logoCount` logos from the shuffled array that are not currently visible
+				// get the first X logos from the shuffled array that are not currently visible
 				const newLogos = logosArray.filter((logo) => !logo.visibleNow).slice(0, logoCount);
 
-				// reset the visibility of the logos
+				// clear visibility status of all logos
 				logosArray.forEach((logo) => {
 					logo.visibleNow = false;
 				});
@@ -118,11 +112,16 @@ function main() {
 
 				if (newLogos.length < logoCount) {
 					// If not enough unique logos are available, add some more from logosArray
+					console.log("Not enough unique logos, adding some from last time.");
 					const additionalLogos = logosArray
-						.filter((logo) => !newLogos.includes(logo))
+						.filter((logo) => !logo.visibleNow)
 						.slice(0, logoCount - newLogos.length);
+					// and mark as visible
+					additionalLogos.forEach((logo) => {
+						logo.visibleNow = true;
+					});
+					// and add to newLogos
 					newLogos.push(...additionalLogos);
-					console.log("Not enough unique logos, adding more from the array.");
 				}
 
 				return newLogos.map((logo) => logo.el);
@@ -145,20 +144,101 @@ function main() {
 					if (newLogo) {
 						const clonedLogo = newLogo.cloneNode(true);
 						clonedLogo.setAttribute("data-logo-swap", "incoming");
-						gsap.set(clonedLogo, { autoAlpha: 0 }); // start hidden
+						gsap.set(clonedLogo, {
+							autoAlpha: 0,
+							filter: "blur(5px) grayscale()",
+							scale: 0.8,
+							transformOrigin: "50% 50%",
+						}); // start hidden
 						slot.appendChild(clonedLogo);
 					}
 				});
 			}
 
-			function animateLogos() {}
-
-			function resizeHandler() {
-				logoCount = getLogoCount(component);
-				updateLogos();
+			function createLogoSlots() {
+				logoList.innerHTML = "";
+				for (let i = 0; i < logoCount; i++) {
+					const slot = document.createElement("div");
+					slot.classList.add("logo-swap_slot");
+					logoList.appendChild(slot);
+				}
+				// update the logoSlots variable
+				logoSlots = Array.from(logoList.querySelectorAll(".logo-swap_slot"));
+				console.log("Logo slots created:", logoSlots.length);
 			}
 
-			window.addEventListener("resize", resizeHandler);
+			function animateLogos() {
+				const tl = gsap.timeline({
+					onComplete: () => {
+						// after the animation is complete, remove the old logos
+						logoSlots.forEach((slot) => {
+							const outgoingLogo = slot.querySelector("[data-logo-swap='outgoing']");
+							if (outgoingLogo) {
+								outgoingLogo.remove();
+							}
+						});
+					},
+				});
+				tl.to("[data-logo-swap='outgoing']", {
+					autoAlpha: 0,
+					scale: 0.8,
+					filter: "blur(5px) grayscale()",
+					duration: 0.5,
+					stagger: 0.05,
+					ease: "power2.inOut",
+				}).to(
+					"[data-logo-swap='incoming']",
+					{
+						autoAlpha: 1,
+						scale: 1,
+						filter: "blur(0px) grayscale()",
+						duration: 0.5,
+						stagger: 0.05,
+						ease: "power2.inOut",
+					},
+					"<+0.1" // start at the same time as the fade out
+				);
+			}
+
+			function clearAllLogos() {
+				logoSlots.forEach((slot) => {
+					const logo = slot.querySelector(".logo-swap_logo");
+					if (logo) {
+						logo.remove();
+					}
+				});
+			}
+
+			// simple debounce utility
+			function debounce(fn, delay = 200) {
+				let id;
+				return (...args) => {
+					clearTimeout(id);
+					id = setTimeout(() => fn.apply(this, args), delay);
+				};
+			}
+
+			const onResize = debounce(() => {
+				logoCount = getLogoCount(component);
+				createLogoSlots();
+				clearAllLogos();
+				updateLogos();
+				animateLogos();
+			}, 200);
+
+			window.addEventListener("resize", onResize);
+
+			// Initial setup
+			createLogoSlots();
+			clearAllLogos();
+			updateLogos();
+			animateLogos();
+
+			// every X seconds, update the logos
+			const interval = setInterval(() => {
+				updateLogos();
+				animateLogos();
+			}, 4000); // every 5 seconds
 		});
 	}
 
@@ -299,7 +379,7 @@ function main() {
 			video.querySelectorAll("source").forEach((srcEl) => {
 				const { srcMobile, srcDesktop, typeMobile, typeDesktop, codecsMobile, codecsDesktop } =
 					srcEl.dataset;
-
+				srcEl.src = ""; // reset src to avoid stale data
 				// pick URL + MIME + codecs
 				const url = mode === "mobile" ? srcMobile || srcDesktop : srcDesktop;
 				const mime = mode === "mobile" ? typeMobile || typeDesktop : typeDesktop;
@@ -307,6 +387,7 @@ function main() {
 
 				if (!url) return;
 				srcEl.src = url;
+				console.log(`Setting source for ${video.id}:`, url);
 
 				let typeAttr = mime || "";
 				if (codecs) typeAttr += `; codecs="${codecs}"`;
@@ -366,6 +447,8 @@ function main() {
 			const newMode = isMobile() ? "mobile" : "desktop";
 			console.log(`Mode changed to: ${newMode}`);
 
+			console.log("Updating video sources for new mode:", newMode);
+
 			// Clear loaded flags so videos will reload in new mode
 			videos.forEach((video) => {
 				delete video.dataset.videoLoaded;
@@ -394,6 +477,37 @@ function main() {
 		});
 	}
 
+	function gradTest1() {
+		// grab the gradients by ID
+		const grad2 = document.querySelector("#paint1_linear_0_1");
+
+		// original gradient values in SVG from Figma
+		const orig0 = { x1: 719.5, y1: 1169, x2: 719.5, y2: 269 };
+
+		let tl = gsap.timeline({
+			scrollTrigger: {
+				trigger: ".bg-lines-wrap",
+				start: "top center",
+				end: "bottom center",
+				scrub: true,
+			},
+		});
+
+		tl.fromTo(
+			grad2,
+			{
+				attr: { x1: 719.5, y1: 0, x2: 719.5, y2: 0 },
+				duration: 1,
+				ease: "none",
+			},
+			{
+				attr: orig0,
+			}
+		);
+	}
+
 	parallax();
 	loadVideos();
+	gradTest1();
+	logoSwap();
 }
