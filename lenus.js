@@ -485,6 +485,7 @@ function main() {
 	function videoCarousel() {
 		// for each video carousel component .c-testim-carousel.splide
 		document.querySelectorAll(".c-testim-carousel.splide").forEach((component) => {
+			console.log("Initialising video carousel:", component);
 			// initalise Splide
 			var splideInstance = new Splide(component, {
 				type: "loop",
