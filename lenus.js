@@ -365,7 +365,7 @@ function main() {
 
 	function loadVideos() {
 		// Grab all videos on the page
-		const videos = gsap.utils.toArray("video");
+		const videos = gsap.utils.toArray(".media video");
 		const mediaQuery = window.matchMedia("(max-width: 768px)");
 		const PLAY_ZONE_PADDING = "100%"; // = one full viewport
 
@@ -504,7 +504,6 @@ function main() {
 				},
 				breakpoints: {
 					767: {
-						perPage: 1,
 						gap: "1rem",
 						autoWidth: false,
 					},
@@ -544,9 +543,10 @@ function main() {
 				});
 			}
 
-			function resetCard(card, video = null) {
+			function resetCard(card) {
 				showVideo(card, false); // show image, hide video
 				card.classList.remove("playing");
+				const video = card.querySelector("video");
 				if (video) {
 					video.pause();
 					video.currentTime = 0;
@@ -554,18 +554,25 @@ function main() {
 				}
 			}
 
+			function resetAllCards() {
+				cards.forEach((c) => {
+					resetCard(c);
+				});
+			}
+
 			function setUpProgressBar() {
 				const progress = component.querySelector(".testim-carousel_progress");
 				if (!progress) return;
 
-				// create a ".testim-carousel_progress-line" element for each slide and add to progress and clear existing ones
 				progress.innerHTML = ""; // clear existing progress lines
+				const slideLength = Slides.getLength((excludeClones = true));
 
-				Slides.get().forEach((slideObj) => {
+				// create progress lines based on the number of slides
+				for (let i = 0; i < slideLength; i++) {
 					const progressLine = document.createElement("div");
 					progressLine.classList.add("testim-carousel_progress-line");
 					progress.appendChild(progressLine);
-				});
+				}
 
 				const progressLines = progress.querySelectorAll(".testim-carousel_progress-line");
 
@@ -573,22 +580,28 @@ function main() {
 					// on active slide change, update the progress bar
 					const activeIndex = splideInstance.index;
 
-					console.log("Active slide index:", activeIndex);
-
 					progressLines.forEach((line, index) => {
 						if (index === activeIndex) {
 							gsap.to(line, {
-								backgroundColor: "#DDDDD6",
+								color: "#DDDDD6",
 								duration: 0.3,
 								ease: "power2.out",
 							});
 						} else {
 							gsap.to(line, {
-								backgroundColor: "#EFEFE8",
+								color: "#EFEFE8",
 								duration: 0.3,
 								ease: "power2.out",
 							});
 						}
+					});
+				});
+
+				// on click on each progress line, jump to the corresponding slide and pause any playing video
+				progressLines.forEach((line, index) => {
+					line.addEventListener("click", () => {
+						splideInstance.go(index);
+						resetAllCards();
 					});
 				});
 			}
@@ -615,15 +628,10 @@ function main() {
 				playBtn.addEventListener("click", () => {
 					const idx = slideObj.index;
 
-					cards.forEach((c) => {
-						const v = c.querySelector("video");
-						resetCard(c, v);
-					});
+					resetAllCards();
 					// jump to slide
-					// const cardIndex = getSlideIndex(card);
-					// if (cardIndex !== -1) {
 					splideInstance.go(idx);
-					// }
+
 					showVideo(card, true); // show video and hide image
 					video.play();
 					video.controls = true;
@@ -634,14 +642,14 @@ function main() {
 				// on video pause, resume autoScroll
 				video.addEventListener("pause", () => {
 					if (card.classList.contains("playing")) {
-						resetCard(card, video);
+						resetCard(card);
 						autoScroll.play();
 					}
 				});
 
 				// on video end, reset card
 				video.addEventListener("ended", () => {
-					resetCard(card, video);
+					resetCard(card);
 					autoScroll.play();
 				});
 			});
@@ -675,6 +683,10 @@ function main() {
 				attr: orig0,
 			}
 		);
+	}
+
+	function ctaImage() {
+		// .cta_img is pinned with GSAP ScrollTrigger and scales down from full screen to a defined square size
 	}
 
 	parallax();
