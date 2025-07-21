@@ -94,7 +94,7 @@ function main() {
 
 				if (newLogos.length < logoCount) {
 					// If not enough unique logos are available, add some more from logosArray
-					console.log("Not enough unique logos, adding some from last time.");
+					// console.log("Not enough unique logos, adding some from last time.");
 					const additionalLogos = logosArray
 						.filter((logo) => !logo.visibleNow)
 						.slice(0, logoCount - newLogos.length);
@@ -112,7 +112,7 @@ function main() {
 			function updateLogos() {
 				const newLogos = getNewLogos();
 				if (newLogos.length === 0) {
-					console.warn("No logos available to display.");
+					// console.warn("No logos available to display.");
 					return;
 				}
 
@@ -146,7 +146,7 @@ function main() {
 				}
 				// update the logoSlots variable
 				logoSlots = Array.from(logoList.querySelectorAll(".logo-swap_slot"));
-				console.log("Logo slots created:", logoSlots.length);
+				// console.log("Logo slots created:", logoSlots.length);
 			}
 
 			function cleanUp() {
@@ -485,7 +485,6 @@ function main() {
 	function videoCarousel() {
 		// for each video carousel component .c-testim-carousel.splide
 		document.querySelectorAll(".c-testim-carousel.splide").forEach((component) => {
-			console.log("Initialising video carousel:", component);
 			// initalise Splide
 			var splideInstance = new Splide(component, {
 				type: "loop",
@@ -686,7 +685,73 @@ function main() {
 	}
 
 	function ctaImage() {
-		// .cta_img is pinned with GSAP ScrollTrigger and scales down from full screen to a defined square size
+		document.querySelectorAll(".c-cta").forEach((component) => {
+			const img = component.querySelector(".cta_img");
+			const pinned = component.querySelector(".cta_pinned");
+			const endParent = component.querySelector(".cta_spacer");
+
+			let ctx; // context
+
+			const createTimeline = () => {
+				ctx && ctx.revert();
+				ctx = gsap.context(() => {
+					// start with image at full size
+					gsap.set(img, {
+						width: "100%",
+						height: "100%",
+						scale: 1.05,
+					});
+
+					// }
+					const tl = gsap.timeline({
+						scrollTrigger: {
+							trigger: component,
+							start: "top top",
+							end: "+=100%",
+							scrub: 0.5,
+							pin: pinned,
+						},
+					});
+
+					tl.add(Flip.fit(img, endParent, { duration: 0.5 }));
+				});
+			};
+			createTimeline();
+
+			window.addEventListener("resize", createTimeline);
+		});
+	}
+
+	function randomTestimonial() {
+		const sources = Array.from(document.querySelectorAll('[data-lenus-source="testimonial-img"]'));
+
+		document.querySelectorAll('[data-lenus-target="testimonial-group"]').forEach((group) => {
+			const targets = Array.from(group.querySelectorAll('[data-lenus-target="testimonial-img"]'));
+
+			// clone & shuffle a fresh copy of the sources
+			const pool = sources.slice();
+			gsap.utils.shuffle(pool);
+			targets.forEach((targetEl, idx) => {
+				const srcEl = pool[idx];
+				if (!srcEl) return; // in case there are more targets than sources
+
+				// keep the target's original classList
+				const cls = Array.from(targetEl.classList).join(" ");
+
+				// clone the source node (deep)
+				const clone = srcEl.cloneNode(true);
+
+				// re-apply the target's classes and data attr
+				clone.className = cls;
+				clone.setAttribute("data-lenus-target", "testimonial-img");
+
+				// swap it in
+				targetEl.replaceWith(clone);
+			});
+			gsap.set(group, {
+				autoAlpha: 1,
+			});
+		});
 	}
 
 	parallax();
@@ -694,4 +759,6 @@ function main() {
 	gradTest1();
 	logoSwap();
 	videoCarousel();
+	ctaImage();
+	randomTestimonial();
 }
