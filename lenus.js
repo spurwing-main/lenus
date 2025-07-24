@@ -483,6 +483,8 @@ function main() {
 	}
 
 	function videoCarousel() {
+		const imgSelector = ".coach-card_bg img";
+		const videoSelector = "video";
 		// for each video carousel component .c-testim-carousel.splide
 		document.querySelectorAll(".c-testim-carousel.splide").forEach((component) => {
 			// initalise Splide
@@ -522,28 +524,8 @@ function main() {
 			const { Slides } = splideInstance.Components;
 			const cards = component.querySelectorAll(".coach-card");
 
-			function showVideo(card, bool = true) {
-				const video = card.querySelector("video");
-				const img = card.querySelector(".coach-card_bg img");
-				if (!video || !img) return;
-				let toShow = bool ? video : img;
-				let toHide = bool ? img : video;
-
-				// hide image and show video
-				gsap.to(toHide, {
-					autoAlpha: 0,
-					duration: 0.3,
-					ease: "power2.out",
-				});
-				gsap.to(toShow, {
-					autoAlpha: 1,
-					duration: 0.3,
-					ease: "power2.out",
-				});
-			}
-
 			function resetCard(card) {
-				showVideo(card, false); // show image, hide video
+				showVideo(card, videoSelector, imgSelector, false); // show image, hide video
 				card.classList.remove("playing");
 				const video = card.querySelector("video");
 				if (video) {
@@ -631,7 +613,7 @@ function main() {
 					// jump to slide
 					splideInstance.go(idx);
 
-					showVideo(card, true); // show video and hide image
+					showVideo(card, videoSelector, imgSelector, true); // show video, hide image
 					video.play();
 					video.controls = true;
 					card.classList.add("playing");
@@ -754,6 +736,205 @@ function main() {
 		});
 	}
 
+	function accordion() {
+		document.querySelectorAll(".c-accordion").forEach((container) => {
+			const items = gsap.utils.toArray(".accordion-item", container);
+			const images = gsap.utils.toArray(".accordion-img", container);
+
+			items.forEach((item, index) => {
+				const header = item.querySelector(".accordion-item_header");
+				const content = item.querySelector(".accordion-item_content");
+				const image = images[index] || null; // if no image, set to null
+
+				// prepare content for auto-height animation
+				gsap.set(content, {
+					height: "auto",
+					overflow: "hidden",
+				});
+				gsap.set(item, {
+					borderBottomColor: "var(--_color---blue--base)",
+				});
+				if (image) {
+					gsap.set(image, {
+						autoAlpha: 1,
+					});
+				}
+
+				// create a timeline that starts “open” and then reverse() so panels start closed
+				const tl = gsap
+					.timeline({
+						paused: true,
+						defaults: { duration: 0.4, ease: "power1.inOut" },
+					})
+					.from(content, { height: 0 })
+					.from(
+						item,
+						{
+							borderBottomColor: "var(--_color---glass-dark--medium)",
+						},
+						0
+					);
+
+				if (images.length > 1) {
+					tl.from(image, { autoAlpha: 0 }, 0);
+				}
+
+				// start closed
+				tl.reverse();
+				item._tl = tl;
+
+				// //set first image visible
+				// if (index === 0 && image) {
+				// 	gsap.set(image, {
+				// 		autoAlpha: 1,
+				// 	});
+				// }
+
+				// accessibility setup
+				header.setAttribute("role", "button");
+				header.setAttribute("tabindex", "0");
+				header.setAttribute("aria-expanded", "false");
+
+				header.addEventListener("click", () => {
+					// collapse all others
+					items.forEach((other) => {
+						if (other !== item) {
+							other._tl.reversed(true);
+							other.querySelector(".accordion-item_header").setAttribute("aria-expanded", "false");
+						}
+					});
+
+					// toggle this one
+					const isOpening = tl.reversed();
+					tl.reversed(!isOpening);
+					header.setAttribute("aria-expanded", isOpening);
+				});
+			});
+
+			// on load have first item open
+			if (items.length > 0) {
+				const firstItem = items[0];
+				firstItem._tl.reversed(false);
+				firstItem.querySelector(".accordion-item_header").setAttribute("aria-expanded", "true");
+			}
+		});
+	}
+
+	function cardTrain() {
+		const videoSelector = "video";
+		const imgSelector = "img";
+		/* TODO
+		
+		handle mobile - clear all flips and change to a slider 
+		handle videos - play on hover, pause on leave
+		*/
+
+		function setUpFlip(component, cards, card) {
+			const state = Flip.getState([cards], { props: "flex, opacity" });
+
+			gsap.set(component, { minHeight: () => cards[0].offsetHeight + "px" });
+
+			cards.forEach((c) => {
+				c.classList.remove("is-active");
+				gsap.set(c, {
+					opacity: 0.75,
+				});
+			});
+			card.classList.add("is-active");
+			gsap.set(card, {
+				opacity: 1,
+			});
+
+			Flip.from(state, {
+				absolute: true,
+				nested: true,
+				duration: 0.6,
+				custom: { opacity: { duration: 0.3 } }, // custom duration for opacity change
+				ease: "power2.inOut",
+				toggleClass: "is-changing",
+				onComplete: () => gsap.set(component, { minHeight: "auto" }),
+			});
+		}
+
+		document.querySelectorAll(".c-card-train").forEach((component) => {
+			const cards = component.querySelectorAll(".card");
+			const bgs = gsap.utils.toArray(".card_bg", component);
+
+			cards.forEach((card) => {
+				card.addEventListener("mouseenter", () => {
+					// if card already active, do nothing
+					if (card.classList.contains("is-active")) return;
+					// set up flip animation
+					setUpFlip(component, cards, card);
+
+					// play video
+					const video = card.querySelector("video");
+					if (video) {
+						// show video, hide image
+						showVideo(card, videoSelector, imgSelector, true);
+						video.play();
+					}
+					card.classList.add("playing");
+					// hide all other videos
+					cards.forEach((otherCard) => {
+						if (otherCard !== card) {
+							const otherVideo = otherCard.querySelector("video");
+							if (otherVideo) {
+								otherVideo.pause();
+								otherVideo.currentTime = 0;
+							}
+							showVideo(otherCard, videoSelector, imgSelector, false); // show image, hide video
+						}
+					});
+				});
+			});
+
+			if (cards.length > 0) {
+				// set first card as active
+				const firstCard = cards[0];
+				firstCard.classList.add("is-active");
+				gsap.set(firstCard, {
+					opacity: 1,
+				});
+				// play video
+				const video = firstCard.querySelector("video");
+				if (video) {
+					// show video, hide image
+					showVideo(firstCard, videoSelector, imgSelector, true);
+					video.play();
+				}
+
+				// set all images to width of an expanded card to avoid img jumps
+				gsap.set(bgs, {
+					width: () => firstCard.offsetWidth + "px",
+				});
+			}
+		});
+	}
+
+	/* helper functions */
+
+	/* for a card with a video and an image, show the video and hide the image or vice versa */
+	function showVideo(card, videoSelector = "video", imgSelector = "img", bool = true) {
+		const video = card.querySelector(videoSelector);
+		const img = card.querySelector(imgSelector);
+		if (!video || !img) return;
+		let toShow = bool ? video : img;
+		let toHide = bool ? img : video;
+
+		// hide image and show video
+		gsap.to(toHide, {
+			autoAlpha: 0,
+			duration: 0.3,
+			ease: "power2.out",
+		});
+		gsap.to(toShow, {
+			autoAlpha: 1,
+			duration: 0.3,
+			ease: "power2.out",
+		});
+	}
+
 	parallax();
 	loadVideos();
 	gradTest1();
@@ -761,4 +942,6 @@ function main() {
 	videoCarousel();
 	ctaImage();
 	randomTestimonial();
+	accordion();
+	cardTrain();
 }
