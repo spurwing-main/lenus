@@ -206,16 +206,7 @@ function main() {
 				});
 			}
 
-			// simple debounce utility
-			function debounce(fn, delay = 200) {
-				let id;
-				return (...args) => {
-					clearTimeout(id);
-					id = setTimeout(() => fn.apply(this, args), delay);
-				};
-			}
-
-			const onResize = debounce(() => {
+			const onResize = lenus.helperFunctions.debounce(() => {
 				clearTimeout(timerId);
 				clearTimeline();
 				logoCount = getLogoCount(component);
@@ -280,99 +271,14 @@ function main() {
 		});
 	}
 
-	function loadVideos_intersectionObs() {
-		const videos = document.querySelectorAll("video");
-		const mediaQuery = window.matchMedia("(max-width: 768px)");
-		let isMobile = () => mediaQuery.matches;
-		const PLAY_THRESHOLD = 0.5;
-
-		// Helper: apply src/type/codecs based on mode, but only once per load
-		function updateSources(video, mode) {
-			if (video.dataset.videoLoaded) return; // ← skip if already done
-
-			video.querySelectorAll("source").forEach((srcEl) => {
-				const { srcMobile, srcDesktop, typeMobile, typeDesktop, codecsMobile, codecsDesktop } =
-					srcEl.dataset;
-
-				const url = mode === "mobile" ? srcMobile || srcDesktop : srcDesktop;
-				const mime = mode === "mobile" ? typeMobile || typeDesktop : typeDesktop;
-				const codecs = mode === "mobile" ? codecsMobile || codecsDesktop : codecsDesktop;
-
-				if (!url) return;
-				srcEl.src = url;
-
-				let typeAttr = mime || "";
-				if (codecs) typeAttr += `; codecs="${codecs}"`;
-				if (typeAttr) srcEl.setAttribute("type", typeAttr);
-			});
-
-			video.load();
-			video.dataset.videoLoaded = "true"; // ← mark it loaded
-		}
-
-		// PRELOAD when within ±1 viewport
-		const getMargin = () => `${window.innerHeight}px 0px ${window.innerHeight}px 0px`;
-		const preloadObs = new IntersectionObserver(
-			(entries, obs) => {
-				entries.forEach((entry) => {
-					if (!entry.isIntersecting) return;
-					updateSources(entry.target, isMobile() ? "mobile" : "desktop");
-					obs.unobserve(entry.target); // ← only preload once
-				});
-			},
-			{
-				rootMargin: getMargin(),
-				threshold: 0,
-			}
-		);
-
-		// PLAY/PAUSE at 50%
-		const playObs = new IntersectionObserver(
-			(entries) => {
-				entries.forEach((entry) => {
-					entry.intersectionRatio >= PLAY_THRESHOLD ? entry.target.play() : entry.target.pause();
-					console.log(
-						`Video ${entry.target.id} is ${
-							entry.intersectionRatio >= PLAY_THRESHOLD ? "playing" : "paused"
-						}`
-					);
-				});
-			},
-			{
-				threshold: PLAY_THRESHOLD,
-			}
-		);
-
-		videos.forEach((video) => {
-			preloadObs.observe(video);
-			playObs.observe(video);
-		});
-
-		// On window-resize, update the preload margin
-		window.addEventListener("resize", () => {
-			preloadObs.rootMargin = getMargin();
-		});
-
-		// On mode‐flip: clear all loaded flags and re-observe so updateSources can run again
-		mediaQuery.addEventListener("change", (e) => {
-			const newMode = e.matches ? "mobile" : "desktop";
-			videos.forEach((video) => {
-				video.removeAttribute("data-video-loaded"); // ← clear the flag
-				preloadObs.observe(video); // ← re-arm preload
-			});
-		});
-	}
-
 	function loadVideos() {
 		// Grab all videos on the page
 		const videos = gsap.utils.toArray(".media video");
 		const mediaQuery = window.matchMedia("(max-width: 768px)");
-		const PLAY_ZONE_PADDING = "100%"; // = one full viewport
+		const videoLoadPadding = "100%"; // = one full viewport
 
 		// Helper to know current mode
 		const isMobile = () => mediaQuery.matches;
-
-		// console.log(`Initial mode: ${isMobile() ? "mobile" : "desktop"}`);
 
 		// update sources once per mode
 		function updateSources(video, mode) {
@@ -405,8 +311,8 @@ function main() {
 		let preloadTriggers = videos.map((video) =>
 			ScrollTrigger.create({
 				trigger: video,
-				start: `top bottom+=${PLAY_ZONE_PADDING}`, // 1 viewport below
-				end: `bottom top-=${PLAY_ZONE_PADDING}`, // 1 viewport above
+				start: `top bottom+=${videoLoadPadding}`, // 1 viewport below
+				end: `bottom top-=${videoLoadPadding}`, // 1 viewport above
 				onEnter(self) {
 					updateSources(video, isMobile() ? "mobile" : "desktop");
 					self.kill(); // don’t fire again until mode change
@@ -421,29 +327,30 @@ function main() {
 
 		// play / pause triggers
 		videos.forEach((video) => {
-			// only play if autoplay is enabled
-			if (video.autoplay === false) return;
+			// only play if autoplay is enabled or video was previously playing, but pause for all
+
 			ScrollTrigger.create({
 				trigger: video,
 				start: "top 90%",
 				end: "bottom 10%",
 				onEnter: () => {
-					// console.log("Playing", video);
-					video.play();
+					lenus.helperFunctions.playVideo(video);
 				},
 				onLeave: () => {
-					// console.log("Pausing", video);
-					video.pause();
+					if (!video.paused) {
+						console.log("Pausing", video);
+						video.pause();
+					}
 				},
 				onEnterBack: () => {
-					// console.log("Playing back", video);
-					video.play();
+					lenus.helperFunctions.playVideo(video);
 				},
 				onLeaveBack: () => {
-					// console.log("Pausing back", video);
-					video.pause();
+					if (!video.paused) {
+						console.log("Pausing", video);
+						video.pause();
+					}
 				},
-				// markers: true
 			});
 		});
 
@@ -464,8 +371,8 @@ function main() {
 			preloadTriggers = videos.map((video) =>
 				ScrollTrigger.create({
 					trigger: video,
-					start: `top bottom+=${PLAY_ZONE_PADDING}`,
-					end: `bottom top-=${PLAY_ZONE_PADDING}`,
+					start: `top bottom+=${videoLoadPadding}`,
+					end: `bottom top-=${videoLoadPadding}`,
 					onEnter(self) {
 						updateSources(video, newMode);
 						self.kill();
@@ -524,70 +431,7 @@ function main() {
 			const { Slides } = splideInstance.Components;
 			const cards = component.querySelectorAll(".coach-card");
 
-			function resetCard(card) {
-				showVideo(card, videoSelector, imgSelector, false); // show image, hide video
-				card.classList.remove("playing");
-				const video = card.querySelector("video");
-				if (video) {
-					video.pause();
-					video.currentTime = 0;
-					video.controls = false;
-				}
-			}
-
-			function resetAllCards() {
-				cards.forEach((c) => {
-					resetCard(c);
-				});
-			}
-
-			function setUpProgressBar() {
-				const progress = component.querySelector(".testim-carousel_progress");
-				if (!progress) return;
-
-				progress.innerHTML = ""; // clear existing progress lines
-				const slideLength = Slides.getLength((excludeClones = true));
-
-				// create progress lines based on the number of slides
-				for (let i = 0; i < slideLength; i++) {
-					const progressLine = document.createElement("div");
-					progressLine.classList.add("testim-carousel_progress-line");
-					progress.appendChild(progressLine);
-				}
-
-				const progressLines = progress.querySelectorAll(".testim-carousel_progress-line");
-
-				splideInstance.on("active", function () {
-					// on active slide change, update the progress bar
-					const activeIndex = splideInstance.index;
-
-					progressLines.forEach((line, index) => {
-						if (index === activeIndex) {
-							gsap.to(line, {
-								color: "#DDDDD6",
-								duration: 0.3,
-								ease: "power2.out",
-							});
-						} else {
-							gsap.to(line, {
-								color: "#EFEFE8",
-								duration: 0.3,
-								ease: "power2.out",
-							});
-						}
-					});
-				});
-
-				// on click on each progress line, jump to the corresponding slide and pause any playing video
-				progressLines.forEach((line, index) => {
-					line.addEventListener("click", () => {
-						splideInstance.go(index);
-						resetAllCards();
-					});
-				});
-			}
-
-			setUpProgressBar();
+			lenus.helperFunctions.setUpProgressBar(component, cards, splideInstance, Slides);
 
 			Slides.get().forEach((slideObj) => {
 				const slideEl = slideObj.slide; // the actual DOM node
@@ -609,11 +453,11 @@ function main() {
 				playBtn.addEventListener("click", () => {
 					const idx = slideObj.index;
 
-					resetAllCards();
+					lenus.helperFunctions.resetAllCards(cards);
 					// jump to slide
 					splideInstance.go(idx);
 
-					showVideo(card, videoSelector, imgSelector, true); // show video, hide image
+					lenus.helperFunctions.showVideo(card, videoSelector, imgSelector, true); // show video, hide image
 					video.play();
 					video.controls = true;
 					card.classList.add("playing");
@@ -623,14 +467,14 @@ function main() {
 				// on video pause, resume autoScroll
 				video.addEventListener("pause", () => {
 					if (card.classList.contains("playing")) {
-						resetCard(card);
+						lenus.helperFunctions.resetCard(card, videoSelector, imgSelector);
 						autoScroll.play();
 					}
 				});
 
 				// on video end, reset card
 				video.addEventListener("ended", () => {
-					resetCard(card);
+					lenus.helperFunctions.resetCard(card, videoSelector, imgSelector);
 					autoScroll.play();
 				});
 			});
@@ -823,29 +667,183 @@ function main() {
 	function cardTrain() {
 		const videoSelector = "video";
 		const imgSelector = "img";
-		/* TODO
-		
-		handle mobile - clear all flips and change to a slider 
-		handle videos - play on hover, pause on leave
-		*/
+		const mediaQuery = window.matchMedia("(max-width: 768px)");
+		const inactiveOpacity = 0.5; // Opacity for inactive cards
 
-		function setUpFlip(component, cards, card) {
-			const state = Flip.getState([cards], { props: "flex, opacity" });
+		// Helper to know current mode
+		const isMobile = () => mediaQuery.matches;
+		let currentMode = isMobile() ? "mobile" : "desktop"; // Track the current mode
+		let splideInstance;
 
-			gsap.set(component, { minHeight: () => cards[0].offsetHeight + "px" });
+		document.querySelectorAll(".c-card-train").forEach((component) => {
+			const cards = gsap.utils.toArray(".card", component);
+			const bgs = gsap.utils.toArray(".card_bg", component);
+			const contents = gsap.utils.toArray(".card_content", component);
+			let ctx = gsap.context(() => {});
+			const handlers = new Map();
 
-			cards.forEach((c) => {
-				c.classList.remove("is-active");
-				gsap.set(c, {
-					opacity: 0.75,
-				});
+			// initialise
+			if (cards.length > 0) {
+				if (currentMode === "desktop") {
+					console.log("Desktop mode detected, setting up card train.");
+					// add event listeners to cards
+
+					cards.forEach((card) => {
+						const handler = (event) => {
+							const card = event.currentTarget;
+							cardMouseEnter(ctx, card, component, cards, contents);
+						};
+						card.addEventListener("mouseenter", handler);
+						handlers.set(card, handler); // store for later removal
+					});
+
+					initDsk(cards, bgs);
+				} else {
+					console.log("Mobile mode detected, switching to carousel.");
+					cardTrain_resetCards(cards, true, false);
+					initSplide(cards, component);
+				}
+			}
+
+			// on resize
+			const onResize = lenus.helperFunctions.debounce(() => {
+				const newMode = isMobile() ? "mobile" : "desktop";
+				// if still in desktop, update the background images so they are correct
+				if (newMode === "desktop") {
+					updateBgs(bgs, cards, false);
+				}
+				if (newMode === currentMode) return; // Only reinitialize if mode has changed
+
+				currentMode = newMode; // Update the current mode
+
+				if (newMode === "mobile") {
+					console.log("Mobile mode detected, switching to carousel.");
+					cardTrain_resetCards(cards, true, false);
+					updateBgs(bgs, cards, true);
+					cards.forEach((c) => {
+						c.removeEventListener("mouseenter", handlers.get(c));
+					});
+					ctx.revert();
+					initSplide(cards, component);
+				} else {
+					console.log("Desktop mode detected, switching to card train.");
+					if (splideInstance) {
+						destroySplide();
+					}
+					cards.forEach((card) => {
+						const handler = (event) => {
+							const card = event.currentTarget;
+							cardMouseEnter(ctx, card, component, cards, contents);
+						};
+						card.addEventListener("mouseenter", handler);
+						handlers.set(card, handler); // store for later removal
+					});
+					initDsk(cards, bgs);
+				}
 			});
-			card.classList.add("is-active");
+			window.addEventListener("resize", onResize);
+		});
+
+		function initSplide(cards, component) {
+			splideInstance = new Splide(component, {
+				type: "loop",
+				autoplay: false,
+				autoWidth: true,
+				arrows: true,
+				pagination: false,
+				gap: "1rem",
+				trimSpace: "move",
+				mediaQuery: "min",
+				768: {
+					destroy: true,
+				},
+				767: {
+					perPage: 1,
+				},
+				snap: true,
+				drag: true,
+			});
+			splideInstance.mount();
+			const { Slides } = splideInstance.Components;
+
+			// Set up progress bar
+			lenus.helperFunctions.setUpProgressBar(component, cards, splideInstance, Slides);
+
+			// When slide becomes active, if video exists, play it (and pause others)
+			splideInstance.on("active", (slide) => {
+				let card;
+
+				// Ensure we only process the original slide, not clones
+				if (!slide || !slide.slide || slide.isClone) return; // Skip clones
+
+				// Get card - it will either be the slide itself or a child of the slide
+				if (slide.slide.classList.contains("card")) {
+					card = slide.slide;
+				} else {
+					card = slide.slide.querySelector(".card");
+				}
+				if (!card) return; // Safety check
+
+				lenus.helperFunctions.resetAllCards(cards, card); // Reset all cards except the active one
+				const video = card.querySelector(videoSelector);
+				if (video) {
+					console.log("Playing video for card:", card);
+					lenus.helperFunctions.showVideo(card, videoSelector, imgSelector, true);
+					video.play();
+				}
+			});
+
+			console.log("Splide carousel initialized.");
+		}
+
+		function destroySplide() {
+			if (splideInstance) {
+				splideInstance.destroy();
+				splideInstance = null;
+			}
+		}
+
+		function cardTrain_resetCards(cards, resetVideos = false, lowerOpacity = true) {
+			cards.forEach((c) => {
+				c.classList.remove("is-expanded");
+				gsap.set(c, {
+					opacity: lowerOpacity ? inactiveOpacity : 1,
+				});
+				if (resetVideos) {
+					const video = c.querySelector("video");
+					if (video) {
+						video.pause();
+						video.currentTime = 0;
+						lenus.helperFunctions.showVideo(c, videoSelector, imgSelector, false); // show image, hide video
+					}
+				}
+			});
+		}
+
+		function activateCard(card, activateVideo = true) {
+			card.classList.add("is-expanded");
 			gsap.set(card, {
 				opacity: 1,
 			});
+			if (activateVideo) {
+				const video = card.querySelector("video");
+				if (video) {
+					lenus.helperFunctions.showVideo(card, videoSelector, imgSelector, true);
+					video.play();
+				}
+			}
+		}
 
-			Flip.from(state, {
+		function createFlip(component, cards, card, contents) {
+			const state = Flip.getState([cards, contents], { props: "flex, opacity, width" });
+
+			gsap.set(component, { minHeight: () => cards[0].offsetHeight + "px" });
+
+			cardTrain_resetCards(cards, false); // need to do this within flip so we update state correctly
+
+			activateCard(card, false); // activate the hovered card, but handle video separately
+
+			let flip = Flip.from(state, {
 				absolute: true,
 				nested: true,
 				duration: 0.6,
@@ -854,68 +852,82 @@ function main() {
 				toggleClass: "is-changing",
 				onComplete: () => gsap.set(component, { minHeight: "auto" }),
 			});
+
+			return flip;
 		}
 
-		document.querySelectorAll(".c-card-train").forEach((component) => {
-			const cards = component.querySelectorAll(".card");
-			const bgs = gsap.utils.toArray(".card_bg", component);
+		function cardMouseEnter(ctx, card, component, cards, contents) {
+			// if card already active, do nothing
+			if (card.classList.contains("is-expanded")) return;
 
-			cards.forEach((card) => {
-				card.addEventListener("mouseenter", () => {
-					// if card already active, do nothing
-					if (card.classList.contains("is-active")) return;
-					// set up flip animation
-					setUpFlip(component, cards, card);
+			console.log("Card mouse enter:", card);
 
-					// play video
-					const video = card.querySelector("video");
-					if (video) {
-						// show video, hide image
-						showVideo(card, videoSelector, imgSelector, true);
-						video.play();
-					}
-					card.classList.add("playing");
-					// hide all other videos
-					cards.forEach((otherCard) => {
-						if (otherCard !== card) {
-							const otherVideo = otherCard.querySelector("video");
-							if (otherVideo) {
-								otherVideo.pause();
-								otherVideo.currentTime = 0;
-							}
-							showVideo(otherCard, videoSelector, imgSelector, false); // show image, hide video
-						}
-					});
-				});
+			// set up flip animation and add to context
+			ctx.add(() => {
+				let flip = createFlip(component, cards, card, contents);
 			});
 
-			if (cards.length > 0) {
-				// set first card as active
-				const firstCard = cards[0];
-				firstCard.classList.add("is-active");
-				gsap.set(firstCard, {
-					opacity: 1,
-				});
-				// play video
-				const video = firstCard.querySelector("video");
-				if (video) {
-					// show video, hide image
-					showVideo(firstCard, videoSelector, imgSelector, true);
-					video.play();
-				}
-
-				// set all images to width of an expanded card to avoid img jumps
-				gsap.set(bgs, {
-					width: () => firstCard.offsetWidth + "px",
-				});
+			// play video
+			const video = card.querySelector("video");
+			if (video) {
+				lenus.helperFunctions.showVideo(card, videoSelector, imgSelector, true);
+				video.play();
 			}
-		});
+
+			// reset all other videos
+			cards.forEach((otherCard) => {
+				if (otherCard !== card) {
+					const otherVideo = otherCard.querySelector("video");
+					if (otherVideo) {
+						otherVideo.pause();
+						otherVideo.currentTime = 0;
+					}
+					lenus.helperFunctions.showVideo(otherCard, videoSelector, imgSelector, false);
+				}
+			});
+		}
+
+		function initDsk(cards, bgs) {
+			activateCard(cards[0], true);
+			updateBgs(bgs, cards, false);
+		}
+
+		function updateBgs(bgs, cards, reset = false, contents = null) {
+			if (cards.length === 0) return;
+
+			if (reset) {
+				gsap.set([bgs, contents], {
+					clearProps: "width",
+				});
+
+				return;
+			} else {
+				// find the active card
+				let card = cards.find((c) => c.classList.contains("is-expanded")) || cards[0];
+
+				if (!card) return; // no active card found
+				gsap.set(bgs, {
+					width: () => card.offsetWidth + "px",
+				});
+				// if contents are provided, set their width too
+				if (contents && contents.length > 0) {
+					gsap.set(contents, {
+						width: () => card.offsetWidth + "px",
+					});
+				}
+			}
+		}
 	}
 
 	/* helper functions */
 
 	/* for a card with a video and an image, show the video and hide the image or vice versa */
-	function showVideo(card, videoSelector = "video", imgSelector = "img", bool = true) {
+	lenus.helperFunctions.showVideo = function (
+		card,
+		videoSelector = "video",
+		imgSelector = "img",
+		bool = true
+	) {
 		const video = card.querySelector(videoSelector);
 		const img = card.querySelector(imgSelector);
 		if (!video || !img) return;
@@ -933,7 +945,111 @@ function main() {
 			duration: 0.3,
 			ease: "power2.out",
 		});
-	}
+
+		// add playing class to card if showing video
+		if (bool) {
+			card.classList.add("playing");
+		} else {
+			card.classList.remove("playing");
+		}
+	};
+
+	lenus.helperFunctions.playVideo = function (video) {
+		// play video if it has autoplay enabled OR an ancestor .card has class 'playing' - note not all videos are inside cards
+		const card = video.closest(".card");
+		if (card) {
+			if (video.autoplay === false && !card.classList.contains("playing")) return;
+		} else {
+			// if no card, just check the video itself
+			if (video.autoplay === false) return;
+		}
+
+		if (!video.dataset.videoLoaded) {
+			console.warn(`Video ${video.id} not loaded yet, skipping play.`);
+			return;
+		}
+		console.log("Playing", video);
+		video.play();
+	};
+
+	// simple debounce utility
+	lenus.helperFunctions.debounce = function (fn, delay = 200) {
+		let id;
+		return (...args) => {
+			clearTimeout(id);
+			id = setTimeout(() => fn.apply(this, args), delay);
+		};
+	};
+
+	lenus.helperFunctions.setUpProgressBar = function (
+		component,
+		cards,
+		splideInstance,
+		splideSlides
+	) {
+		const progress = component.querySelector(".carousel_progress");
+		if (!progress) return;
+
+		progress.innerHTML = ""; // clear existing progress lines
+		const slideLength = splideSlides.getLength((excludeClones = true));
+
+		// create progress lines based on the number of slides
+		for (let i = 0; i < slideLength; i++) {
+			const progressLine = document.createElement("div");
+			progressLine.classList.add("carousel_progress-line");
+			progress.appendChild(progressLine);
+		}
+
+		const progressLines = progress.querySelectorAll(".carousel_progress-line");
+
+		splideInstance.on("active", function () {
+			// on active slide change, update the progress bar
+			const activeIndex = splideInstance.index;
+
+			progressLines.forEach((line, index) => {
+				if (index === activeIndex) {
+					gsap.to(line, {
+						color: "#DDDDD6",
+						duration: 0.3,
+						ease: "power2.out",
+					});
+				} else {
+					gsap.to(line, {
+						color: "#EFEFE8",
+						duration: 0.3,
+						ease: "power2.out",
+					});
+				}
+			});
+		});
+
+		// on click on each progress line, jump to the corresponding slide and pause any playing video
+		progressLines.forEach((line, index) => {
+			line.addEventListener("click", () => {
+				splideInstance.go(index);
+				lenus.helperFunctions.resetAllCards(cards);
+			});
+		});
+	};
+
+	lenus.helperFunctions.resetCard = function (card, videoSelector = "video", imgSelector = "img") {
+		lenus.helperFunctions.showVideo(card, videoSelector, imgSelector, false);
+		card.classList.remove("playing");
+		const video = card.querySelector("video");
+		if (video) {
+			video.pause();
+			video.currentTime = 0;
+			video.controls = false;
+		}
+	};
+
+	lenus.helperFunctions.resetAllCards = function (cards, exclusion = null) {
+		cards.forEach((c) => {
+			if (c !== exclusion) {
+				lenus.helperFunctions.resetCard(c);
+			}
+		});
+	};
 
 	parallax();
 	loadVideos();
