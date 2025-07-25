@@ -919,6 +919,68 @@ function main() {
 		}
 	}
 
+	function animateTitles() {
+		gsap.utils.toArray(".c-title").forEach((title) => {
+			gsap.to(title, {
+				backgroundPosition: "0% 0%",
+				ease: "none",
+				scrollTrigger: {
+					trigger: title,
+					start: "top 80%",
+					end: "bottom 20%",
+					scrub: true,
+				},
+			});
+		});
+	}
+
+	function tabControls() {
+		const varWidth = "--tab-controls--w";
+		const varLeft = "--tab-controls--l";
+		document.querySelectorAll(".c-tab-controls").forEach((component) => {
+			// handle animation of tab controls - when we click a tab, we update the active tab class is-active, and we also animate the css variables that control the width and position of the bg element
+			const items = gsap.utils.toArray(".tab-controls_item", component);
+			// on click
+			items.forEach((item) => {
+				item.addEventListener("click", () => {
+					// remove is-active from all items
+					items.forEach((i) => i.classList.remove("is-active"));
+					// add is-active to clicked item
+					item.classList.add("is-active");
+
+					// get the width and left position of the clicked item
+					const rect = item.getBoundingClientRect();
+					const width = rect.width;
+					const left = rect.left - component.getBoundingClientRect().left;
+
+					// update the css variables
+					gsap.to(component, {
+						[`${varWidth}`]: `${width}px`,
+						[`${varLeft}`]: `${left}px`,
+						duration: 0.3,
+						ease: "power2.out",
+					});
+				});
+			});
+			// set initial state as first item active
+			if (items.length > 0) {
+				const firstItem = items[0];
+				firstItem.classList.add("is-active");
+
+				// get the width and left position of the first item
+				const rect = firstItem.getBoundingClientRect();
+				const width = rect.width;
+				const left = rect.left - component.getBoundingClientRect().left;
+
+				// update the css variables
+				gsap.set(component, {
+					[`${varWidth}`]: `${width}px`,
+					[`${varLeft}`]: `${left}px`,
+				});
+			}
+		});
+	}
+
 	/* helper functions */
 
 	/* for a card with a video and an image, show the video and hide the image or vice versa */
@@ -1083,4 +1145,6 @@ function main() {
 	randomTestimonial();
 	accordion();
 	cardTrain();
+	animateTitles();
+	tabControls();
 }
