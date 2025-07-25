@@ -934,51 +934,104 @@ function main() {
 		});
 	}
 
-	function tabControls() {
-		const varWidth = "--tab-controls--w";
-		const varLeft = "--tab-controls--l";
-		document.querySelectorAll(".c-tab-controls").forEach((component) => {
-			// handle animation of tab controls - when we click a tab, we update the active tab class is-active, and we also animate the css variables that control the width and position of the bg element
-			const items = gsap.utils.toArray(".tab-controls_item", component);
-			// on click
-			items.forEach((item) => {
-				item.addEventListener("click", () => {
-					// remove is-active from all items
-					items.forEach((i) => i.classList.remove("is-active"));
-					// add is-active to clicked item
-					item.classList.add("is-active");
+	function tabbedHero() {
+		const CSS_VARS = { width: "--tab-controls--w", left: "--tab-controls--l" };
+		const CONTROL_CLASS = "tab-controls_item";
 
-					// get the width and left position of the clicked item
-					const rect = item.getBoundingClientRect();
-					const width = rect.width;
-					const left = rect.left - component.getBoundingClientRect().left;
+		document.querySelectorAll(".c-tabbed-hero").forEach(initHero);
 
-					// update the css variables
-					gsap.to(component, {
-						[`${varWidth}`]: `${width}px`,
-						[`${varLeft}`]: `${left}px`,
-						duration: 0.3,
-						ease: "power2.out",
-					});
-				});
-			});
-			// set initial state as first item active
-			if (items.length > 0) {
-				const firstItem = items[0];
-				firstItem.classList.add("is-active");
+		function initHero(component) {
+			console.log("Setting up tabbed hero:", component);
 
-				// get the width and left position of the first item
-				const rect = firstItem.getBoundingClientRect();
-				const width = rect.width;
-				const left = rect.left - component.getBoundingClientRect().left;
+			// panels wrapper & list
+			const panelWrapper = component.querySelector(".tabbed-hero_media-items");
+			if (!panelWrapper) return;
+			const panels = gsap.utils.toArray(".media", panelWrapper);
+			if (!panels.length) return;
 
-				// update the css variables
-				gsap.set(component, {
-					[`${varWidth}`]: `${width}px`,
-					[`${varLeft}`]: `${left}px`,
-				});
+			// controls container
+			const controlEl = component.querySelector(".c-tab-controls");
+			if (!controlEl) return;
+			// ensure offsetParent for offsetLeft computations
+			if (getComputedStyle(controlEl).position === "static") {
+				controlEl.style.position = "relative";
 			}
-		});
+
+			// create tabs
+			const tabs = buildControls(controlEl, panels);
+
+			// wire each tab
+			tabs.forEach((tab, idx) => {
+				tab.addEventListener("click", () => activateTab(component, tabs, panels, idx));
+			});
+
+			// initial activation
+			activateTab(component, tabs, panels, 0);
+		}
+
+		// build the tab buttons & return them as an array
+		function buildControls(container, panels) {
+			container.innerHTML = "";
+			return panels.map((_, idx) => {
+				const btn = document.createElement("div");
+				btn.className = CONTROL_CLASS;
+				btn.textContent = `Tab ${idx + 1}`;
+				btn.dataset.tabIndex = idx;
+				container.appendChild(btn);
+				return btn;
+			});
+		}
+
+		// handle a tab click (or initial load)
+		function activateTab(component, tabs, panels, activeIdx) {
+			// preserve & pause old video
+			const oldPanel = component.querySelector(".media.is-active");
+			const lastTime = preserveVideoTime(oldPanel);
+
+			// toggle .is-active on tabs & panels
+			tabs.forEach((tab, i) => tab.classList.toggle("is-active", i === activeIdx));
+			panels.forEach((panel, i) => panel.classList.toggle("is-active", i === activeIdx));
+
+			// animate the highlight background
+			updateBackground(component, tabs[activeIdx]);
+
+			// fade panels in/out
+			panels.forEach((panel, i) => {
+				gsap.set(panel, { autoAlpha: i === activeIdx ? 1 : 0 });
+			});
+
+			// resume video on the new panel
+			const newVid = panels[activeIdx].querySelector("video");
+			if (newVid) {
+				newVid.currentTime = lastTime;
+				newVid.play();
+			}
+		}
+
+		// animate the CSS vars for width & left of the highlight
+		function updateBackground(component, tabEl) {
+			const left = tabEl.offsetLeft;
+			const width = tabEl.offsetWidth;
+
+			gsap.to(component, {
+				[CSS_VARS.width]: `${width}px`,
+				[CSS_VARS.left]: `${left}px`,
+				duration: 0.3,
+				ease: "power2.out",
+			});
+		}
+
+		// if there's a video in the panel, grab its time and pause it
+		function preserveVideoTime(panel) {
+			if (!panel) return 0;
+			const vid = panel.querySelector("video");
+			if (vid) {
+				const t = vid.currentTime || 0;
+				vid.pause();
+				return t;
+			}
+			return 0;
+		}
 	}
 
 	/* helper functions */
@@ -1146,5 +1199,5 @@ function main() {
 	accordion();
 	cardTrain();
 	animateTitles();
-	tabControls();
+	tabbedHero();
 }
