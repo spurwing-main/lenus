@@ -677,7 +677,7 @@ function main() {
 
 		document.querySelectorAll(".c-card-train").forEach((component) => {
 			const cards = gsap.utils.toArray(".card", component);
-			const bgs = gsap.utils.toArray(".card_bg", component);
+			const bgs = gsap.utils.toArray(".card_media", component);
 			const contents = gsap.utils.toArray(".card_content", component);
 			let ctx = gsap.context(() => {});
 			const handlers = new Map();
@@ -697,7 +697,7 @@ function main() {
 						handlers.set(card, handler); // store for later removal
 					});
 
-					initDsk(cards, bgs);
+					initDsk(cards, bgs, contents);
 				} else {
 					console.log("Mobile mode detected, switching to carousel.");
 					cardTrain_resetCards(cards, true, false);
@@ -710,7 +710,7 @@ function main() {
 				const newMode = isMobile() ? "mobile" : "desktop";
 				// if still in desktop, update the background images so they are correct
 				if (newMode === "desktop") {
-					updateBgs(bgs, cards, false);
+					updateBgs(bgs, cards, contents, false);
 				}
 				if (newMode === currentMode) return; // Only reinitialize if mode has changed
 
@@ -719,7 +719,7 @@ function main() {
 				if (newMode === "mobile") {
 					console.log("Mobile mode detected, switching to carousel.");
 					cardTrain_resetCards(cards, true, false);
-					updateBgs(bgs, cards, true);
+					updateBgs(bgs, cards, contents, true);
 					cards.forEach((c) => {
 						c.removeEventListener("mouseenter", handlers.get(c));
 					});
@@ -738,7 +738,7 @@ function main() {
 						card.addEventListener("mouseenter", handler);
 						handlers.set(card, handler); // store for later removal
 					});
-					initDsk(cards, bgs);
+					initDsk(cards, bgs, contents);
 				}
 			});
 			window.addEventListener("resize", onResize);
@@ -887,12 +887,12 @@ function main() {
 			});
 		}
 
-		function initDsk(cards, bgs) {
+		function initDsk(cards, bgs, contents) {
 			activateCard(cards[0], true);
-			updateBgs(bgs, cards, false);
+			updateBgs(bgs, cards, contents);
 		}
 
-		function updateBgs(bgs, cards, reset = false, contents = null) {
+		function updateBgs(bgs, cards, contents = null, reset = false) {
 			if (cards.length === 0) return;
 
 			if (reset) {
@@ -990,6 +990,14 @@ function main() {
 		const progress = component.querySelector(".carousel_progress");
 		if (!progress) return;
 
+		// get color variables from component
+		const progressLineColor = getComputedStyle(component).getPropertyValue(
+			"--_theme---progress-line"
+		);
+		const progressLineActiveColor = getComputedStyle(component).getPropertyValue(
+			"--_theme---progress-line-active"
+		);
+
 		progress.innerHTML = ""; // clear existing progress lines
 		const slideLength = splideSlides.getLength((excludeClones = true));
 
@@ -1009,13 +1017,15 @@ function main() {
 			progressLines.forEach((line, index) => {
 				if (index === activeIndex) {
 					gsap.to(line, {
-						color: "#DDDDD6",
+						color: progressLineActiveColor,
+						// color: "red",
 						duration: 0.3,
 						ease: "power2.out",
 					});
 				} else {
 					gsap.to(line, {
-						color: "#EFEFE8",
+						color: progressLineColor,
+						// color: "blue",
 						duration: 0.3,
 						ease: "power2.out",
 					});
@@ -1029,6 +1039,19 @@ function main() {
 				splideInstance.go(index);
 				lenus.helperFunctions.resetAllCards(cards);
 			});
+		});
+
+		// set initial state
+		progressLines.forEach((line, index) => {
+			if (index === splideInstance.index) {
+				gsap.set(line, {
+					color: progressLineActiveColor,
+				});
+			} else {
+				gsap.set(line, {
+					color: progressLineColor,
+				});
+			}
 		});
 	};
 
