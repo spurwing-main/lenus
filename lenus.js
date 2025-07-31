@@ -17,7 +17,6 @@ function main() {
 		type: "loop",
 		drag: true,
 		snap: true,
-		autoWidth: false,
 		autoplay: true,
 	};
 
@@ -934,104 +933,810 @@ function main() {
 		});
 	}
 
-	function tabbedHero() {
+	function tabbedHero_v1() {
 		const CSS_VARS = { width: "--tab-controls--w", left: "--tab-controls--l" };
 		const CONTROL_CLASS = "tab-controls_item";
+		const controlPadding = 8; // padding for the control container
 
 		document.querySelectorAll(".c-tabbed-hero").forEach(initHero);
 
 		function initHero(component) {
-			console.log("Setting up tabbed hero:", component);
-
-			// panels wrapper & list
+			// get all necessary elements
+			const container = component.querySelector(".container");
+			if (!container) return;
 			const panelWrapper = component.querySelector(".tabbed-hero_media-items");
 			if (!panelWrapper) return;
 			const panels = gsap.utils.toArray(".media", panelWrapper);
 			if (!panels.length) return;
+			const control = component.querySelector(".c-tab-controls");
+			if (!control) return;
+			const track = control.querySelector(".tab-controls_track");
+			const list = control.querySelector(".tab-controls_list");
+			if (!track || !list) return;
 
-			// controls container
-			const controlEl = component.querySelector(".c-tab-controls");
-			if (!controlEl) return;
-			// ensure offsetParent for offsetLeft computations
-			if (getComputedStyle(controlEl).position === "static") {
-				controlEl.style.position = "relative";
+			// set up variables
+			let currentIndex = 0;
+			let mode = "desktop"; // default mode
+			let bounds = {};
+			let snapPoints = [];
+			let draggableInstance = null;
+			let totalWidth = 0;
+			let gap = parseFloat(getComputedStyle(list).gap) || 0;
+			let paddingLeft = parseFloat(getComputedStyle(control).paddingLeft) || 0;
+			let paddingRight = parseFloat(getComputedStyle(control).paddingRight) || 0;
+			let listWidth = 0;
+
+			// build tabs and calculate snap points
+			const tabs = buildControls(list, panels);
+
+			if (checkDraggable()) {
+				initDraggable();
 			}
 
-			// create tabs
-			const tabs = buildControls(controlEl, panels);
-
-			// wire each tab
+			// click support
 			tabs.forEach((tab, idx) => {
-				tab.addEventListener("click", () => activateTab(component, tabs, panels, idx));
+				tab.addEventListener("click", () => {
+					scrollToIndex(list, idx, tabs);
+					activate(idx);
+				});
 			});
 
+			function activate(i) {
+				activateTab(component, tabs, panels, i);
+				moveHighlight(tabs[i]);
+			}
+
+			function updateValues() {
+				function updateGap() {
+					gap = parseFloat(getComputedStyle(list).gap) || 0;
+					console.log("Gap updated:", gap);
+				}
+
+				function updateTotalWidth() {
+					let width = 0;
+					tabs.forEach((tab) => {
+						width += tab.offsetWidth;
+					});
+					width = width + gap * (tabs.length - 1);
+					totalWidth = width;
+					console.log("Total width updated:", totalWidth);
+				}
+
+				function updatePadding() {
+					paddingLeft = parseFloat(getComputedStyle(control).paddingLeft) || 0;
+					paddingRight = parseFloat(getComputedStyle(control).paddingRight) || 0;
+				}
+				updateGap();
+				updateTotalWidth();
+				updatePadding();
+				listWidth = control.clientWidth - paddingLeft - paddingRight;
+			}
+
 			// initial activation
-			activateTab(component, tabs, panels, 0);
+			activate(0);
+
+			// decide if draggable is needed
+			function checkDraggable() {
+				updateValues();
+
+				console.log(
+					"Total item width:",
+					totalItemWidth,
+					"List width:",
+					listWidth,
+					"Draggable needed:",
+					totalItemWidth > listWidth
+				);
+				return totalItemWidth > listWidth;
+			}
+
+			function initDraggable() {
+				if (draggableInstance) return;
+				// set list flex to start
+				gsap.set(list, {
+					justifyContent: "flex-start",
+				});
+				snapPoints = calculateSnapPoints(list, tabs, control);
+				draggableInstance = Draggable.create(list, {
+					type: "x",
+					bounds: {
+						minX: Math.min(...snapPoints),
+						maxX: 0,
+					},
+					inertia: true,
+					cursor: "grab",
+					activeCursor: "grabbing",
+					snap: (endValue) =>
+						snapPoints.reduce(
+							(prev, curr) => (Math.abs(curr - endValue) < Math.abs(prev - endValue) ? curr : prev),
+							snapPoints[0]
+						),
+					onDragEnd: function () {
+						const idx = snapPoints.indexOf(this.endX);
+						activate(idx);
+					},
+					onThrowComplete: function () {
+						const idx = snapPoints.indexOf(this.x);
+						activate(idx);
+					},
+				})[0];
+			}
+
+			function destroyDraggable() {
+				if (draggableInstance) {
+					draggableInstance.kill();
+					draggableInstance = null;
+					gsap.set(list, { x: 0 });
+				}
+			}
+
+			function updateMode() {
+				if (checkDraggable()) {
+					initDraggable();
+				} else {
+					destroyDraggable();
+				}
+			}
+
+			window.addEventListener("resize", lenus.helperFunctions.debounce(updateMode, 200));
+			updateMode();
 		}
 
-		// build the tab buttons & return them as an array
 		function buildControls(container, panels) {
 			container.innerHTML = "";
-			return panels.map((_, idx) => {
+			return panels.map((panel, i) => {
 				const btn = document.createElement("div");
 				btn.className = CONTROL_CLASS;
-				btn.textContent = `Tab ${idx + 1}`;
-				btn.dataset.tabIndex = idx;
+				btn.textContent = panel.dataset.title;
+				btn.dataset.tabIndex = i;
 				container.appendChild(btn);
 				return btn;
 			});
 		}
 
-		// handle a tab click (or initial load)
-		function activateTab(component, tabs, panels, activeIdx) {
-			// preserve & pause old video
-			const oldPanel = component.querySelector(".media.is-active");
-			const lastTime = preserveVideoTime(oldPanel);
+		function calculateSnapPoints(list, tabs, parent) {
+			const gap = parseFloat(getComputedStyle(list).gap) || 0;
+			const parentWidth = parent.offsetWidth;
+			const points = tabs.map((tab) => -tab.offsetLeft);
+			const maxShift = list.offsetWidth - parentWidth;
+			if (maxShift > 0) points[points.length - 1] = -maxShift;
+			console.log("Calculated snap points:", points);
+			return points;
+		}
 
-			// toggle .is-active on tabs & panels
-			tabs.forEach((tab, i) => tab.classList.toggle("is-active", i === activeIdx));
-			panels.forEach((panel, i) => panel.classList.toggle("is-active", i === activeIdx));
+		function updateTotalWidth(list, tabs) {
+			const gap = parseFloat(getComputedStyle(list).gap) || 0;
 
-			// animate the highlight background
-			updateBackground(component, tabs[activeIdx]);
+			function generateBounds(list, tabs) {
+				const controlWidth = control.offsetWidth;
+				bounds = { minX: Math.min(controlWidth - totalWidth, 0), maxX: 0 };
+			}
 
-			// fade panels in/out
-			panels.forEach((panel, i) => {
-				gsap.set(panel, { autoAlpha: i === activeIdx ? 1 : 0 });
-			});
+			function scrollToIndex(list, idx, tabs) {
+				gsap.to(list, { x: snapPoints[idx], duration: 0.4, ease: "power2.out" });
+				// update current index
+				currentIndex = idx;
+				console.log(`Scrolled to index ${idx}:`, tabs[idx].textContent);
+			}
 
-			// resume video on the new panel
-			const newVid = panels[activeIdx].querySelector("video");
-			if (newVid) {
-				newVid.currentTime = lastTime;
-				newVid.play();
+			function moveHighlight(tab) {
+				const comp = tab.closest(".c-tabbed-hero");
+				const left = tab.offsetLeft;
+				const width = tab.offsetWidth;
+				gsap.to(comp, {
+					[CSS_VARS.left]: `${left + controlPadding}px`,
+					[CSS_VARS.width]: `${width}px`,
+					duration: 0.3,
+					ease: "power2.out",
+				});
+			}
+
+			function activateTab(component, tabs, panels, idx) {
+				const oldPanel = component.querySelector(".media.is-active");
+				const lastTime = preserveVideoTime(oldPanel);
+				tabs.forEach((t, i) => t.classList.toggle("is-active", i === idx));
+				panels.forEach((p, i) => p.classList.toggle("is-active", i === idx));
+				panels.forEach((p, i) => gsap.set(p, { autoAlpha: i === idx ? 1 : 0 }));
+				const newVid = panels[idx].querySelector("video");
+				if (newVid) {
+					newVid.currentTime = lastTime;
+					newVid.play();
+				}
+			}
+
+			function preserveVideoTime(panel) {
+				if (!panel) return 0;
+				const vid = panel.querySelector("video");
+				if (vid) {
+					const t = vid.currentTime;
+					vid.pause();
+					return t;
+				}
+				return 0;
 			}
 		}
+	}
 
-		// animate the CSS vars for width & left of the highlight
-		function updateBackground(component, tabEl) {
-			const left = tabEl.offsetLeft;
-			const width = tabEl.offsetWidth;
+	function tabbedHero() {
+		const CSS_VARS = { width: "--tab-controls--w", left: "--tab-controls--l" };
+		const CONTROL_ITEM = "tab-controls_item";
+		const DEBOUNCE_DELAY = 200;
 
-			gsap.to(component, {
-				[CSS_VARS.width]: `${width}px`,
-				[CSS_VARS.left]: `${left}px`,
-				duration: 0.3,
-				ease: "power2.out",
+		document.querySelectorAll(".c-tabbed-hero").forEach(setupHero);
+
+		function setupHero(component) {
+			const control = component.querySelector(".c-tab-controls");
+			const list = component.querySelector(".tab-controls_list");
+			const panels = Array.from(component.querySelectorAll(".tabbed-hero_media-items .media"));
+			if (!control || !list || panels.length === 0) return;
+
+			let splide = null;
+
+			// Build controls
+			list.innerHTML = "";
+			panels.forEach((panel, idx) => {
+				const btn = document.createElement("button");
+				btn.className = CONTROL_ITEM;
+				btn.classList.add("splide__slide");
+				btn.textContent = panel.dataset.title;
+				btn.dataset.index = idx;
+				btn.addEventListener("click", () => selectTab(idx));
+				list.appendChild(btn);
 			});
-		}
 
-		// if there's a video in the panel, grab its time and pause it
-		function preserveVideoTime(panel) {
-			if (!panel) return 0;
-			const vid = panel.querySelector("video");
-			if (vid) {
-				const t = vid.currentTime || 0;
-				vid.pause();
-				return t;
+			const tabs = Array.from(list.children);
+			let activeIndex = 0;
+
+			function selectTab(i) {
+				// Activate panels
+				tabs.forEach((tab, idx) => tab.classList.toggle("is-active", idx === i));
+				panels.forEach((panel, idx) => {
+					const active = idx === i;
+					panel.classList.toggle("is-active", active);
+					gsap.set(panel, { autoAlpha: active ? 1 : 0 });
+					if (active && panel.querySelector("video")) {
+						const vid = panel.querySelector("video");
+						vid.currentTime = vid.currentTime || 0;
+						vid.play();
+					}
+				});
+				moveHighlight(tabs[i]);
+				if (splide) splide.go(i);
+				activeIndex = i;
 			}
-			return 0;
+
+			function moveHighlight(tab) {
+				const left = tab.offsetLeft;
+				const width = tab.offsetWidth;
+				const listRect = list.getBoundingClientRect();
+				const controlRect = control.getBoundingClientRect();
+				// need to account for parent list element having a transform applied
+				gsap.to(component, {
+					[CSS_VARS.left]: `${left}px`,
+					[CSS_VARS.width]: `${width}px`,
+					duration: 0.3,
+					ease: "power2.out",
+				});
+			}
+
+			// Determine when to switch to carousel
+			function updateMode() {
+				const needsCarousel = list.scrollWidth > control.clientWidth;
+				if (needsCarousel && !splide) {
+					gsap.set(list, {
+						justifyContent: "flex-start",
+					});
+
+					splide = new Splide(control, {
+						type: "slide",
+						// focus: "center",
+						autoWidth: true,
+						pagination: false,
+						arrows: false,
+						drag: true,
+						autoplay: false,
+						flick: 50,
+					});
+					splide.on("move", (newIndex) => selectTab(newIndex));
+					splide.mount();
+					// Ensure current active
+					splide.go(activeIndex);
+				} else if (!needsCarousel && splide) {
+					splide.destroy();
+					splide = null;
+					// Reset scroll position
+					gsap.set(list, { x: 0 });
+				}
+			}
+
+			const debouncedUpdate = lenus.helperFunctions.debounce(updateMode, DEBOUNCE_DELAY);
+			window.addEventListener("resize", debouncedUpdate);
+
+			// Initial activation and mode setup
+			selectTab(0);
+			updateMode();
 		}
+	}
+
+	function wideCarousel() {
+		const splideSelector = ".c-wide-carousel";
+		const trackSelector = ".wide-carousel_track";
+		const listSelector = ".wide-carousel_list";
+		const slideSelector = ".wide-card";
+		document.querySelectorAll(".c-wide-carousel.splide").forEach((component) => {
+			// ensure component has appropriate classes
+			if (!component.classList.contains("splide")) {
+				component.classList.add("splide");
+			}
+			const listEl = component.querySelector(listSelector);
+			if (!listEl) {
+				return;
+			}
+			if (!listEl.classList.contains("splide__list")) {
+				listEl.classList.add("splide__list");
+			}
+			const trackEl = component.querySelector(trackSelector);
+			if (!trackEl) {
+				return;
+			}
+			if (!trackEl.classList.contains("splide__track")) {
+				trackEl.classList.add("splide__track");
+			}
+			const slides = component.querySelectorAll(slideSelector);
+			if (slides.length === 0) {
+				return;
+			}
+			slides.forEach((slide) => {
+				if (!slide.classList.contains("splide__slide")) {
+					slide.classList.add("splide__slide");
+				}
+			});
+			// initalise Splide
+			var splideInstance = new Splide(component, {
+				type: "loop",
+				autoplay: false,
+				autoScroll: {
+					speed: 1,
+					pauseOnHover: false,
+				},
+				intersection: {
+					inView: {
+						autoScroll: true,
+					},
+					outView: {
+						autoScroll: false,
+					},
+				},
+				breakpoints: {
+					767: {
+						gap: "1rem",
+						autoWidth: false,
+					},
+				},
+				clones: 5,
+				arrows: true,
+				trimSpace: "move",
+				pagination: false,
+				snap: false,
+				drag: "free",
+				autoWidth: true,
+				focus: "center",
+			});
+			splideInstance.mount(window.splide.Extensions);
+			let autoScroll = splideInstance.Components.AutoScroll;
+
+			const { Slides } = splideInstance.Components;
+			const cards = component.querySelectorAll(".coach-card");
+
+			lenus.helperFunctions.setUpProgressBar(component, cards, splideInstance, Slides);
+
+			Slides.get().forEach((slideObj) => {
+				const slideEl = slideObj.slide; // the actual DOM node
+			});
+		});
+	}
+
+	function bentoHero() {
+		/*
+			- bg image starts full width and height
+			- on scroll with scrolltrigger, image shrinks to defined container. We will probably use GSAP Flip for this to move it to the new position
+			- will need to change the nav logo color at the same time from white to black
+			- on mobile we don't do this, we just load the image at the correct size.
+			- but on mobile we do the following:
+				- on load, the top part of the component is 100vh with the section image shown and the section title content pinned to the bottom
+				- as we scroll, the image container remains pinned, but the image changes to the image from the first bento card. The section title content scrolls up out of view. The first bento card title appears.
+				- there are then left/right arrows to scroll through the bento cards. The image container remains pinned but the image itself changes to the image from the bento card. The bento card title translates in from the left/right like a normal carousel.
+			- we need to handle the appropriate resize events, checking if the mode has changed and doing the appropriate setup / teardown.
+
+			*/
+
+		document.querySelectorAll(".c-bento-hero").forEach((component) => {
+			const bg = component.querySelector(".bento-hero_bg");
+			const primaryBg = component.querySelector(".bento-hero_bg-img.is-primary");
+			const cardBgs = gsap.utils.toArray(".bento-hero_bg-img.is-card", component);
+
+			const topContent = component.querySelector(".bento-hero_title-wrap");
+			const bottomContent = component.querySelector(".bento-hero_bottom");
+			const controls = component.querySelector(".bento-hero_controls");
+
+			const cards = gsap.utils.toArray(".bento-hero-card", component);
+			const bgTarget = component.querySelector(".bento-hero_layout");
+
+			const mediaQuery = window.matchMedia("(max-width: 768px)");
+			let currentMode = mediaQuery.matches ? "mobile" : "desktop";
+
+			let desktopCtx, mobileCtx;
+			let splideInstance;
+
+			function initDesktop() {
+				// return;
+				teardownMobile();
+				desktopCtx && desktopCtx.revert();
+				desktopCtx = gsap.context(() => {
+					// start with image at full size
+					gsap.set(bg, {
+						width: "100%",
+						height: "100%",
+						scale: 1.05,
+					});
+					const tl = gsap.timeline({
+						scrollTrigger: {
+							trigger: component,
+							start: "top top",
+							end: "+=100",
+							scrub: 0.5,
+							pin: true,
+						},
+					});
+
+					tl.add(Flip.fit(bg, bgTarget, { duration: 0.5 }));
+					tl.to(
+						bg,
+						{
+							borderRadius: "20px",
+							ease: "power4.out",
+						},
+						0
+					);
+				});
+			}
+
+			function initMobile() {
+				teardownDsk();
+				setupSplide(component);
+				gsap.set(topContent, {
+					autoAlpha: 1,
+					y: 0,
+				});
+				gsap.set([bottomContent, controls], {
+					autoAlpha: 0,
+					y: 20,
+				});
+				mobileCtx = gsap.context(() => {
+					const tl = gsap.timeline({
+						onComplete: () => {},
+						scrollTrigger: {
+							trigger: component,
+							start: "top top",
+							end: () => `+=400`,
+							scrub: true,
+							// pin: true,
+							pinSpacing: true,
+							markers: true,
+						},
+					});
+					tl.to(
+						primaryBg,
+						{
+							autoAlpha: 0,
+							duration: 0.5,
+							ease: "power2.out",
+						},
+						0.1
+					)
+						.to(
+							topContent,
+							{
+								autoAlpha: 0,
+								y: -20,
+								duration: 0.5,
+								ease: "power2.out",
+							},
+							0.1
+						)
+						.to(
+							cardBgs[0],
+							{
+								autoAlpha: 1,
+								duration: 0.5,
+								ease: "power2.out",
+							},
+							0.1
+						)
+						.to(
+							[bottomContent, controls],
+							{
+								y: 0,
+								autoAlpha: 1,
+								duration: 0.5,
+								ease: "power2.out",
+							},
+							0.1
+						);
+				});
+			}
+
+			function setupSplide() {
+				splideInstance = new Splide(component, {
+					// type: "loop",
+					autoplay: false,
+
+					// clones: 5,
+					arrows: true,
+					// trimSpace: "move",
+					pagination: false,
+					snap: true,
+					drag: "free",
+					autoWidth: true,
+					focus: "center",
+				});
+				splideInstance.mount();
+				// on active slide change, update the image in the container
+				splideInstance.on("active", (slide) => {
+					// get the nth element from cardBgs
+					const index = slide.index;
+					const cardImage = cardBgs[index];
+					if (!cardImage) return; // no image found for this slide
+
+					if (cardImage) {
+						const bgTl = gsap.timeline();
+						bgTl.to(cardBgs, {
+							autoAlpha: 0,
+							duration: 0.5,
+							ease: "power2.out",
+						});
+						bgTl.to(
+							cardImage,
+							{
+								autoAlpha: 1,
+								duration: 0.5,
+								ease: "power2.out",
+							},
+							"<"
+						);
+					}
+				});
+			}
+
+			function teardownDsk() {
+				if (desktopCtx) {
+					desktopCtx.revert();
+					desktopCtx = null;
+				}
+			}
+
+			function teardownMobile() {
+				if (mobileCtx) {
+					mobileCtx.revert();
+					mobileCtx = null;
+				}
+				if (splideInstance) {
+					splideInstance.destroy();
+					splideInstance = null;
+				}
+				gsap.set(topContent, {
+					autoAlpha: 1,
+					y: 0,
+				});
+				gsap.set(bottomContent, {
+					autoAlpha: 1,
+					y: 0,
+				});
+			}
+
+			// // Handle mode switch
+			// mediaQuery.addEventListener("change", (e) => {
+			// 	const newMode = e.matches ? "mobile" : "desktop";
+			// 	if (newMode === "desktop") {
+
+			// 	}
+			// 	// if (newMode === currentMode) return;
+			// 	// currentMode = newMode;
+			// 	// if (newMode === "mobile") initMobile();
+			// 	// else initDesktop();
+			// });
+
+			// Initial setup
+			if (currentMode === "mobile") initMobile();
+			else initDesktop();
+
+			const onResize = lenus.helperFunctions.debounce(() => {
+				const newMode = mediaQuery.matches ? "mobile" : "desktop";
+
+				// if (newMode !== currentMode) {
+				// 	currentMode = newMode;
+				if (newMode === "mobile") initMobile();
+				else initDesktop();
+			});
+
+			window.addEventListener("resize", onResize);
+
+			// let ctx = gsap.context(() => {
+			// 	// // initial setup
+			// 	// gsap.set(primaryBgImg, {
+			// 	// 	width: "100%",
+			// 	// 	height: "100%",
+			// 	// });
+
+			// 	// set up scroll trigger for the background image
+			// 	gsap.to(bg, {
+			// 		scrollTrigger: {
+			// 			trigger: bgTarget,
+			// 			start: "top top",
+			// 			end: "+=200",
+			// 			scrub: 1,
+			// 			pin: false,
+			// 		},
+			// 		width: "80%",
+			// 		height: "80%",
+			// 		ease: "power2.out",
+			// 	});
+
+			// 	// set up scroll trigger for the title
+			// 	gsap.to(title, {
+			// 		scrollTrigger: {
+			// 			trigger: component,
+			// 			start: "top top",
+			// 			end: "+=2000",
+			// 			scrub: 1,
+			// 		},
+			// 		yPercent: -100,
+			// 		ease: "power2.out",
+			// 	});
+
+			// 	// set up the bento cards carousel
+			// 	const splideInstance = new Splide(component, {
+			// 		type: "loop",
+			// 		autoWidth: true,
+			// 		arrows: true,
+			// 		pagination: false,
+			// 		gap: "1rem",
+			// 		focus: "center",
+			// 	});
+			// 	splideInstance.mount();
+
+			// 	lenus.helperFunctions.setUpProgressBar(
+			// 		component,
+			// 		cards,
+			// 		splideInstance,
+			// 		splideInstance.Components.Slides
+			// 	);
+
+			// 	splideInstance.on("active", (slide) => {
+			// 		const card = slide.slide;
+			// 		const cardImage = card.querySelector("img");
+			// 		if (cardImage) {
+			// 			image.src = cardImage.src; // change the image in the container to the active card's image
+			// 		}
+			// 	});
+			// }, component);
+
+			// window.addEventListener("resize", () => ctx.revert());
+		});
+	}
+
+	function locations() {
+		// enable splide for all instances of c-locations
+		// enable hover events using GSAP for all .location-card elements:
+		//  - scale up the .location-card_media > img item
+		//  - capture the current card width and apply it as a fixed width to the card while we do the animation
+		//  - scale down the location-card_title
+		//  - increase the height of the _details element and increase its opacity from 0 to 1
+
+		const isMobile = window.matchMedia("(max-width: 768px)").matches;
+
+		document.querySelectorAll(".c-locations.splide").forEach((component, index) => {
+			// alternate components go in opposite directions
+			const speed = index % 2 === 0 ? 0.5 : -0.5;
+			// initalise Splide
+			var splideInstance = new Splide(component, {
+				type: "loop",
+				autoWidth: true,
+				arrows: false,
+				pagination: false,
+				snap: false,
+				//focus: "center",
+				gap: "0",
+				autoplay: false,
+				drag: "free",
+				autoScroll: {
+					speed: speed,
+					pauseOnHover: true,
+				},
+				intersection: {
+					inView: {
+						autoScroll: true,
+					},
+					outView: {
+						autoScroll: false,
+					},
+				},
+			});
+			splideInstance.mount(window.splide.Extensions);
+
+			if (isMobile) return; // Skip hover interactions on mobile
+
+			const cards = gsap.utils.toArray(".location-card", component);
+
+			cards.forEach((card) => {
+				const media = card.querySelector(".location-card_media-inner");
+				const details = card.querySelector(".location-card_details");
+				const title = card.querySelector(".location-card_title");
+				const mediaText = card.querySelector(".location-card_media-text");
+
+				if (!media || !details || !title) return;
+
+				const tl = gsap.timeline({
+					defaults: {
+						duration: 0.2,
+						ease: "power2.out",
+					},
+					paused: true,
+					onStart: () => {
+						// get current card width
+						const cardWidth = card.offsetWidth;
+						// set card width to fixed value
+						gsap.set(card, {
+							width: cardWidth + "px",
+						});
+					},
+					onReverseComplete: () => {
+						// reset card width to auto after animation completes
+						gsap.set(card, {
+							width: "auto",
+						});
+					},
+				});
+
+				tl.to(media, {
+					scale: 1.25,
+				})
+					.to(
+						title,
+						{
+							fontSize: "2.25rem",
+						},
+						"<"
+					)
+					.fromTo(
+						details,
+						{
+							height: 0,
+							opacity: 0,
+						},
+						{
+							height: "auto",
+							opacity: 1,
+						},
+						"<"
+					)
+					.to(
+						mediaText,
+						{
+							opacity: 1,
+						},
+						"<"
+					);
+
+				// add hover events to the card
+				card.addEventListener("mouseenter", () => {
+					tl.play();
+				});
+				card.addEventListener("mouseleave", () => {
+					tl.reverse();
+				});
+			});
+		});
 	}
 
 	/* helper functions */
@@ -1200,4 +1905,7 @@ function main() {
 	cardTrain();
 	animateTitles();
 	tabbedHero();
+	wideCarousel();
+	bentoHero();
+	locations();
 }
