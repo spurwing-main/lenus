@@ -512,12 +512,18 @@ function main() {
 	function ctaImage() {
 		document.querySelectorAll(".c-cta").forEach((component) => {
 			const img = component.querySelector(".cta_img");
+			const content = component.querySelector(".cta_content");
 			const pinned = component.querySelector(".cta_pinned");
 			const endParent = component.querySelector(".cta_spacer");
-
+			// if component also has class .is-split then we have a split variant of the component and we need to animate the flex-gap on the cta_title element at the same time to accommodate the size of the image
+			const isSplit = component.classList.contains("is-split");
+			const title = component.querySelector(".cta_title");
 			let ctx; // context
 
 			const createTimeline = () => {
+				const gap = endParent.offsetWidth + 48;
+				const titleSpans = title.querySelectorAll("span");
+				const spanWidth = (content.offsetWidth - gap) / 2;
 				ctx && ctx.revert();
 				ctx = gsap.context(() => {
 					// start with image at full size
@@ -537,8 +543,36 @@ function main() {
 							pin: pinned,
 						},
 					});
+					if (isSplit) {
+						console.log(titleSpans, spanWidth);
+						// ensure title doesn't reflow as we adjust the gap - first fix the size of each .cta_title > span to (container width - gap)/2
+						gsap.set(titleSpans, {
+							width: spanWidth,
+						});
+						gsap.set(titleSpans[0], {
+							textAlign: "right",
+						});
+						gsap.set(titleSpans[1], {
+							textAlign: "left",
+						});
 
-					tl.add(Flip.fit(img, endParent, { duration: 0.5 }));
+						tl.to(
+							title,
+							{
+								gap: gap,
+							},
+							// title,
+							// {
+							// 	gap: () => {
+							// 		endParent.offsetWidth + 32 + "px";
+							// 	},
+							// 	duration: 0.5,
+							// 	ease: "power1.inOut",
+							// },
+							"<"
+						);
+					}
+					tl.add(Flip.fit(img, endParent, { duration: 0.5 }), "<");
 				});
 			};
 			createTimeline();
@@ -1739,6 +1773,81 @@ function main() {
 		});
 	}
 
+	function miniCarousel() {
+		// enable splide for all instances of c-mini-carousel and also set up progress bar
+		document.querySelectorAll(".c-mini-carousel.splide").forEach((component) => {
+			var splideInstance = new Splide(component, {
+				type: "loop",
+				autoWidth: true,
+				arrows: true,
+				pagination: false,
+				snap: false,
+				gap: "0",
+				autoplay: false,
+				drag: "free",
+			});
+			splideInstance.mount(window.splide.Extensions);
+
+			// set up progress bar
+			lenus.helperFunctions.setUpProgressBar(
+				component,
+				gsap.utils.toArray(".location-card", component),
+				splideInstance,
+				splideInstance.Components.Slides
+			);
+		});
+	}
+
+	function mapbox() {
+		// Set your Mapbox access token
+		mapboxgl.accessToken =
+			"pk.eyJ1Ijoic3B1cndpbmctc3AiLCJhIjoiY21kc3I1MmV1MHV3MzJscjN5MDF6ZGFxMSJ9.5EnxurStX-M_QZovcUegZw";
+
+		// Find all map components on the page
+		const mapComponents = document.querySelectorAll(".c-map");
+
+		mapComponents.forEach((mapComponent) => {
+			const mapContainer = mapComponent.querySelector(".map_inner");
+			if (!mapContainer) return;
+
+			let lat = mapComponent.getAttribute("data-lat");
+			let lng = mapComponent.getAttribute("data-long");
+
+			if (!lat || !lng) {
+				return;
+			}
+
+			// Get lat/long from data attributes, fallback to defaults if missing
+			lat = parseFloat(mapComponent.getAttribute("data-lat"));
+			lng = parseFloat(mapComponent.getAttribute("data-long"));
+
+			const map = new mapboxgl.Map({
+				container: mapContainer,
+				style: "mapbox://styles/spurwing-sp/cmc99cxxj008j01sh73j11qbt",
+				center: [lng, lat],
+				zoom: 15,
+			});
+
+			const markerEl = document.createElement("div");
+			markerEl.className = "marker";
+			markerEl.innerHTML = `
+            <svg width="32" height="37" viewBox="0 0 32 37" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M9.05446 27.5L0 36.5V12.4996C0 10.4995 0.766078 8.73966 2.01223 7.49988L9.05446 0.5V27.5Z" fill="black"/>
+<path d="M31.6874 18.5H18.1091L9.05469 27.5H19.6141C21.3562 27.4899 23.4081 26.7216 24.6441 25.4999L31.6874 18.5Z" fill="black"/>
+</svg>`;
+
+			new mapboxgl.Marker(markerEl).setLngLat([lng, lat]).addTo(map);
+			const nav = new mapboxgl.NavigationControl();
+			map.addControl(nav, "bottom-right");
+
+			if (window.matchMedia("(pointer: coarse)").matches) {
+				map.dragPan.disable();
+				map.scrollZoom.disable();
+				map.touchZoomRotate.disable();
+			}
+		});
+	}
+
 	/* helper functions */
 
 	/* for a card with a video and an image, show the video and hide the image or vice versa */
@@ -1908,4 +2017,6 @@ function main() {
 	wideCarousel();
 	bentoHero();
 	locations();
+	miniCarousel();
+	mapbox();
 }
