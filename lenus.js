@@ -388,8 +388,53 @@ function main() {
 		});
 	}
 
+	function testimCardVideos() {
+		// on play button click, play video and pause others
+		// for all c-testimonial components, get child media and button[name="play"] elements
+
+		document.querySelectorAll(".c-testim").forEach((component) => {
+			const cards = component.querySelectorAll(".c-testim-card");
+			const videoSelector = "video";
+			const imgSelector = ".testim-card_bg img";
+
+			cards.forEach((card) => {
+				const playBtn = card.querySelector("btn[name='play']");
+				if (!playBtn) return;
+				const video = card.querySelector(videoSelector);
+				if (!video) return;
+				const img = card.querySelector(imgSelector);
+				if (!img) return;
+
+				// hide video and show image by default
+				gsap.set(video, {
+					autoAlpha: 0,
+				});
+
+				// on click, play video and pause others
+				playBtn.addEventListener("click", () => {
+					lenus.helperFunctions.showVideo(card, videoSelector, imgSelector, true); // show video, hide image
+					video.play();
+					video.controls = true;
+					card.classList.add("playing");
+				});
+
+				// on video pause, reset card
+				video.addEventListener("pause", () => {
+					if (card.classList.contains("playing")) {
+						lenus.helperFunctions.resetCard(card, videoSelector, imgSelector);
+					}
+				});
+
+				// on video end, reset card
+				video.addEventListener("ended", () => {
+					lenus.helperFunctions.resetCard(card, videoSelector, imgSelector);
+				});
+			});
+		});
+	}
+
 	function videoCarousel() {
-		const imgSelector = ".coach-card_bg img";
+		const imgSelector = ".testim-card_bg img";
 		const videoSelector = "video";
 		// for each video carousel component .c-testim-carousel.splide
 		document.querySelectorAll(".c-testim-carousel.splide").forEach((component) => {
@@ -411,8 +456,8 @@ function main() {
 				},
 				breakpoints: {
 					767: {
-						gap: "1rem",
-						autoWidth: false,
+						// gap: "1rem",
+						autoWidth: true,
 					},
 				},
 				clones: 5,
@@ -428,19 +473,19 @@ function main() {
 			let autoScroll = splideInstance.Components.AutoScroll;
 
 			const { Slides } = splideInstance.Components;
-			const cards = component.querySelectorAll(".coach-card");
+			const cards = component.querySelectorAll(".c-testim-card");
 
 			lenus.helperFunctions.setUpProgressBar(component, cards, splideInstance, Slides);
 
 			Slides.get().forEach((slideObj) => {
 				const slideEl = slideObj.slide; // the actual DOM node
 
-				const card = slideObj.slide.querySelector(".coach-card");
+				const card = slideObj.slide.querySelector(".c-testim-card");
 				const playBtn = card.querySelector("btn[name='play']");
 				if (!playBtn) return;
 				const video = card.querySelector("video");
 				if (!video) return;
-				const img = card.querySelector(".coach-card_bg img");
+				const img = card.querySelector(".testim-card_bg img");
 				if (!img) return;
 
 				// hide video and show image by default. Then when card is clicked, show video and hide image
@@ -511,22 +556,32 @@ function main() {
 
 	function ctaImage() {
 		document.querySelectorAll(".c-cta").forEach((component) => {
+			const isSplit = component.classList.contains("is-split");
 			const img = component.querySelector(".cta_img");
 			const content = component.querySelector(".cta_content");
 			const pinned = component.querySelector(".cta_pinned");
 			const endParent = component.querySelector(".cta_spacer");
-			// if component also has class .is-split then we have a split variant of the component and we need to animate the flex-gap on the cta_title element at the same time to accommodate the size of the image
-			const isSplit = component.classList.contains("is-split");
 			const title = component.querySelector(".cta_title");
-			let ctx; // context
+			let ctx; // GSAP context
+
+			// Helper to check if the viewport is mobile
+			const isMobile = () => window.matchMedia("(max-width: 768px)").matches;
 
 			const createTimeline = () => {
+				// If it's a split variant and on mobile, revert to static
+				if (isSplit && isMobile()) {
+					ctx && ctx.revert(); // Revert any GSAP animations
+					gsap.set([img, content, title], { clearProps: "all" }); // Clear inline styles
+					return;
+				}
+
 				const gap = endParent.offsetWidth + 48;
 				const titleSpans = title.querySelectorAll("span");
 				const spanWidth = (content.offsetWidth - gap) / 2;
-				ctx && ctx.revert();
+
+				ctx && ctx.revert(); // Revert previous GSAP context
 				ctx = gsap.context(() => {
-					// start with image at full size
+					// Start with the image at full size
 					gsap.set(img, {
 						width: "100%",
 						height: "100%",
@@ -575,9 +630,15 @@ function main() {
 					tl.add(Flip.fit(img, endParent, { duration: 0.5 }), "<");
 				});
 			};
+
+			// Debounced resize handler
+			const debouncedResize = lenus.helperFunctions.debounce(createTimeline, 200);
+
+			// Initial setup
 			createTimeline();
 
-			window.addEventListener("resize", createTimeline);
+			// Add resize event listener
+			window.addEventListener("resize", debouncedResize);
 		});
 	}
 
@@ -614,9 +675,9 @@ function main() {
 	}
 
 	function accordion() {
-		document.querySelectorAll(".c-accordion").forEach((container) => {
-			const items = gsap.utils.toArray(".accordion-item", container);
-			const images = gsap.utils.toArray(".accordion-img", container);
+		document.querySelectorAll(".c-accordion, .c-faq").forEach((component) => {
+			const items = gsap.utils.toArray(".accordion-item", component);
+			const images = gsap.utils.toArray(".accordion-img", component);
 
 			items.forEach((item, index) => {
 				const header = item.querySelector(".accordion-item_header");
@@ -647,7 +708,7 @@ function main() {
 					.from(
 						item,
 						{
-							borderBottomColor: "var(--_color---glass-dark--medium)",
+							borderBottomColor: "var(--_theme---accordion-border)",
 						},
 						0
 					);
@@ -659,13 +720,6 @@ function main() {
 				// start closed
 				tl.reverse();
 				item._tl = tl;
-
-				// //set first image visible
-				// if (index === 0 && image) {
-				// 	gsap.set(image, {
-				// 		autoAlpha: 1,
-				// 	});
-				// }
 
 				// accessibility setup
 				header.setAttribute("role", "button");
@@ -761,7 +815,7 @@ function main() {
 				} else {
 					console.log("Desktop mode detected, switching to card train.");
 					if (splideInstance) {
-						destroySplide();
+						lenus.helperFunctions.destroySplide(splideInstance);
 					}
 					cards.forEach((card) => {
 						const handler = (event) => {
@@ -827,13 +881,6 @@ function main() {
 			});
 
 			console.log("Splide carousel initialized.");
-		}
-
-		function destroySplide() {
-			if (splideInstance) {
-				splideInstance.destroy();
-				splideInstance = null;
-			}
 		}
 
 		function cardTrain_resetCards(cards, resetVideos = false, lowerOpacity = true) {
@@ -949,6 +996,105 @@ function main() {
 					});
 				}
 			}
+		}
+	}
+
+	function cardGrid() {
+		const mediaQuery = window.matchMedia("(max-width: 768px)");
+
+		// Helper to know current mode
+		const isMobile = () => mediaQuery.matches;
+		let currentMode = isMobile() ? "mobile" : "desktop"; // Track the current mode
+		let splideInstance;
+
+		document.querySelectorAll(".c-card-grid").forEach((component) => {
+			const cards = gsap.utils.toArray(".card", component);
+
+			let ctx = gsap.context(() => {});
+
+			// initialise
+			if (cards.length > 0) {
+				if (currentMode === "desktop") {
+				} else {
+					console.log("Mobile mode detected, switching to carousel.");
+					initSplide(cards, component);
+				}
+			}
+
+			// on resize
+			const onResize = lenus.helperFunctions.debounce(() => {
+				const newMode = isMobile() ? "mobile" : "desktop";
+				// if still in desktop, update the background images so they are correct
+				if (newMode === "desktop") {
+					console.log("Desktop mode detected, switching to card grid.");
+					if (splideInstance) {
+						lenus.helperFunctions.destroySplide(splideInstance);
+					}
+				}
+				if (newMode === currentMode) return; // Only reinitialize if mode has changed
+
+				currentMode = newMode; // Update the current mode
+
+				if (newMode === "mobile") {
+					console.log("Mobile mode detected, switching to carousel.");
+
+					initSplide(cards, component);
+				} else {
+				}
+			});
+			window.addEventListener("resize", onResize);
+		});
+
+		function initSplide(cards, component) {
+			splideInstance = new Splide(component, {
+				type: "loop",
+				autoplay: false,
+				autoWidth: true,
+				arrows: true,
+				pagination: false,
+				gap: "1rem",
+				trimSpace: "move",
+				mediaQuery: "min",
+				768: {
+					destroy: true,
+				},
+				767: {
+					perPage: 1,
+				},
+				snap: true,
+				drag: true,
+			});
+			splideInstance.mount();
+			const { Slides } = splideInstance.Components;
+
+			// Set up progress bar
+			lenus.helperFunctions.setUpProgressBar(component, cards, splideInstance, Slides);
+
+			// When slide becomes active, if video exists, play it (and pause others)
+			splideInstance.on("active", (slide) => {
+				let card;
+
+				// Ensure we only process the original slide, not clones
+				if (!slide || !slide.slide || slide.isClone) return; // Skip clones
+
+				// Get card - it will either be the slide itself or a child of the slide
+				if (slide.slide.classList.contains("card")) {
+					card = slide.slide;
+				} else {
+					card = slide.slide.querySelector(".card");
+				}
+				if (!card) return; // Safety check
+
+				lenus.helperFunctions.resetAllCards(cards, card); // Reset all cards except the active one
+				const video = card.querySelector(videoSelector);
+				if (video) {
+					console.log("Playing video for card:", card);
+					lenus.helperFunctions.showVideo(card, videoSelector, imgSelector, true);
+					video.play();
+				}
+			});
+
+			console.log("Splide carousel initialized.");
 		}
 	}
 
@@ -1360,7 +1506,7 @@ function main() {
 			let autoScroll = splideInstance.Components.AutoScroll;
 
 			const { Slides } = splideInstance.Components;
-			const cards = component.querySelectorAll(".coach-card");
+			const cards = component.querySelectorAll(".c-testim-card");
 
 			lenus.helperFunctions.setUpProgressBar(component, cards, splideInstance, Slides);
 
@@ -2003,6 +2149,30 @@ function main() {
 		});
 	};
 
+	lenus.helperFunctions.destroySplide = function (instance) {
+		if (instance) {
+			instance.destroy();
+
+			// Cleanup inline styles and cloned slides
+			const splideElement = instance.root;
+			const splideList = splideElement.querySelector(".splide__list");
+			const splideTrack = splideElement.querySelector(".splide__track");
+
+			// Clear inline styles
+			if (splideList) {
+				gsap.set(splideList, { clearProps: "transform" });
+			}
+			if (splideTrack) {
+				gsap.set(splideTrack, { clearProps: "padding" });
+			}
+
+			// Remove cloned slides
+			splideElement.querySelectorAll(".splide__slide.is-clone").forEach((clone) => clone.remove());
+
+			instance = null;
+		}
+	};
+
 	parallax();
 	loadVideos();
 	gradTest1();
@@ -2019,4 +2189,6 @@ function main() {
 	locations();
 	miniCarousel();
 	mapbox();
+	cardGrid();
+	testimCardVideos();
 }
