@@ -2059,7 +2059,7 @@ function main() {
 			const bounds = getCurrentBounds();
 			const centerBounds = getCurrentCenterBounds();
 
-			let tl = gsap.timeline();
+			let tl = gsap.timeline({ paused: true });
 
 			tl.fromTo(
 				component.querySelectorAll(".scatter-hero_media-wrap:is(.is-left, .is-right) .scatter-img"),
@@ -2172,7 +2172,7 @@ function main() {
 				},
 				onComplete: () => {
 					console.log("Animation out completed");
-					componentObj.outAnimationToRun = false;
+					// componentObj.outAnimationToRun = false;
 				},
 			});
 			tl.to(component.querySelectorAll(".scatter-hero_media-wrap"), {
@@ -2196,18 +2196,41 @@ function main() {
 		document.querySelectorAll(".c-scatter-hero").forEach((component) => {
 			let componentObj = {
 				component: component,
-				images: component.querySelectorAll(".scatter-img"),
+				images: gsap.utils.toArray(".scatter-img", component),
 				inAnimationCompleted: false,
 				outAnimationToRun: false,
 			};
 			let currentScreenType = isMobile() ? "mobile" : "desktop";
 
-			// Initial animation on page load
-
-			componentObj.tl_out = animateOutTl(componentObj);
+			// componentObj.tl_out = animateOutTl(componentObj);
 			componentObj.tl_in = animateInTl(componentObj);
 
-			componentObj.tl_in.play();
+			// wait for images to load before starting animations
+			const images = componentObj.images;
+
+			const loadPromises = images.map((img_wrap) => {
+				const img = img_wrap.querySelector("img");
+				if (img.complete) return Promise.resolve(img); // already loaded
+				return new Promise((resolve) => {
+					img.addEventListener("load", () => resolve(img));
+					img.addEventListener("error", () => resolve(img)); // resolve even on error to avoid blocking
+				});
+			});
+
+			Promise.all(loadPromises).then(() => {
+				console.log("All images loaded");
+				// Start animations
+				componentObj.tl_in.play();
+			});
+
+			// // if html element has class 'lenus-page-loaded' then run animation, otherwise wait for window load event
+			// if (document.documentElement.classList.contains("lenus-page-loaded")) {
+			// 	componentObj.tl_in.play();
+			// } else {
+			// 	window.addEventListener("load", () => {
+			// 		componentObj.tl_in.play();
+			// 	});
+			// }
 
 			// Create scroll trigger for scroll-based animations
 			ScrollTrigger.create({
@@ -2220,11 +2243,11 @@ function main() {
 						console.log("Animation in not yet completed, deferring animation out");
 						return; // don't animate out if in not yet completed
 					}
-					componentObj.tl_out.play();
+					// componentObj.tl_out.play();
 				},
 				onLeave: () => {},
 				onEnterBack: () => {
-					componentObj.tl_out.reverse();
+					// componentObj.tl_out.reverse();
 				},
 				onLeaveBack: () => {},
 			});
