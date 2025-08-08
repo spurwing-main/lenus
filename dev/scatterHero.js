@@ -36,31 +36,6 @@ function scatterHero() {
 				yMax: 10,
 			},
 		},
-
-		// Weighted positioning for grid items (2x2 grid = 4 items per wrapper)
-		// Each array represents [xWeight, yWeight] where negative values favor that direction
-		gridWeights: {
-			left: {
-				// Top-left (index 0): favor up-left
-				0: { xWeight: -0.8, yWeight: -0.8 },
-				// Top-right (index 1): favor up-right  
-				1: { xWeight: 0.3, yWeight: -0.8 },
-				// Bottom-left (index 2): favor down-left
-				2: { xWeight: -0.8, yWeight: 0.3 },
-				// Bottom-right (index 3): favor down-right
-				3: { xWeight: 0.3, yWeight: 0.3 },
-			},
-			right: {
-				// Top-left (index 0): favor up-left
-				0: { xWeight: -0.3, yWeight: -0.8 },
-				// Top-right (index 1): favor up-right
-				1: { xWeight: 0.8, yWeight: -0.8 },
-				// Bottom-left (index 2): favor down-left  
-				2: { xWeight: -0.3, yWeight: 0.3 },
-				// Bottom-right (index 3): favor down-right
-				3: { xWeight: 0.8, yWeight: 0.3 },
-			}
-		},
 	};
 
 	// Helper function to detect if we're on mobile
@@ -71,35 +46,6 @@ function scatterHero() {
 	const getCurrentCenterBounds = () =>
 		isMobile() ? config.centerBounds.mobile : config.centerBounds.desktop;
 
-	// Helper function to calculate weighted position based on grid index and side
-	const getWeightedPosition = (side, index, bounds) => {
-		const weights = config.gridWeights[side][index];
-		if (!weights) {
-			// Fallback to random if no weights defined
-			return {
-				x: gsap.utils.random(bounds.xMin, bounds.xMax),
-				y: gsap.utils.random(bounds.yMin, bounds.yMax)
-			};
-		}
-
-		// Calculate weighted ranges
-		const xRange = bounds.xMax - bounds.xMin;
-		const yRange = bounds.yMax - bounds.yMin;
-		
-		// Apply weights: -1 = full negative direction, +1 = full positive direction, 0 = center
-		const weightedX = bounds.xMin + (xRange * (1 + weights.xWeight) / 2);
-		const weightedY = bounds.yMin + (yRange * (1 + weights.yWeight) / 2);
-		
-		// Add some randomness around the weighted position (±15% of range)
-		const randomVarianceX = xRange * 0.15;
-		const randomVarianceY = yRange * 0.15;
-		
-		return {
-			x: gsap.utils.random(weightedX - randomVarianceX, weightedX + randomVarianceX),
-			y: gsap.utils.random(weightedY - randomVarianceY, weightedY + randomVarianceY)
-		};
-	};
-
 	// Function to animate images to their scattered positions
 	const animateInTl = (componentObj) => {
 		let component = componentObj.component;
@@ -108,58 +54,27 @@ function scatterHero() {
 
 		let tl = gsap.timeline();
 
-		// Animate left and right wrapper images with weighted positioning
-		const leftImages = component.querySelectorAll(".scatter-hero_media-wrap.is-left .scatter-img");
-		const rightImages = component.querySelectorAll(".scatter-hero_media-wrap.is-right .scatter-img");
-
-		// Animate left wrapper images
-		leftImages.forEach((img, index) => {
-			const position = getWeightedPosition('left', index, bounds);
-			tl.fromTo(
-				img,
-				{
-					y: config.posYOffset,
-					autoAlpha: 0,
-				},
-				{
-					xPercent: position.x,
-					yPercent: position.y,
-					rotation: () => gsap.utils.random(-config.maxRotation, config.maxRotation),
-					scale: () => gsap.utils.random(config.scale),
-					autoAlpha: 1,
-					y: 0,
-					duration: config.transformDuration,
-					ease: "power3.out",
-				},
-				index * config.stagger
-			);
-		});
-
-		// Animate right wrapper images
-		rightImages.forEach((img, index) => {
-			const position = getWeightedPosition('right', index, bounds);
-			tl.fromTo(
-				img,
-				{
-					y: config.posYOffset,
-					autoAlpha: 0,
-				},
-				{
-					xPercent: position.x,
-					yPercent: position.y,
-					rotation: () => gsap.utils.random(-config.maxRotation, config.maxRotation),
-					scale: () => gsap.utils.random(config.scale),
-					autoAlpha: 1,
-					y: 0,
-					duration: config.transformDuration,
-					ease: "power3.out",
-				},
-				index * config.stagger
-			);
-		});
-
-		// Animate main/center image
 		tl.fromTo(
+			component.querySelectorAll(".scatter-hero_media-wrap:is(.is-left, .is-right) .scatter-img"),
+			{
+				y: config.posYOffset,
+				autoAlpha: 0,
+			},
+			{
+				xPercent: () => gsap.utils.random(bounds.xMin, bounds.xMax),
+				yPercent: () => gsap.utils.random(bounds.yMin, bounds.yMax),
+				rotation: () => gsap.utils.random(-config.maxRotation, config.maxRotation),
+				scale: () => gsap.utils.random(config.scale),
+				autoAlpha: 1,
+				y: 0,
+				duration: config.transformDuration,
+				ease: "power3.out",
+				stagger: {
+					amount: config.stagger,
+					from: "random",
+				},
+			}
+		).fromTo(
 			component.querySelectorAll(".scatter-hero_media-wrap.is-main .scatter-img"),
 			{
 				opacity: 0,

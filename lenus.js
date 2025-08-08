@@ -2272,6 +2272,89 @@ function main() {
 		});
 	}
 
+	function pastEvents() {
+		// Track current mode to detect changes
+		let currentMode = null;
+
+		function setupSplide(component) {
+			// Only create splide if it doesn't already exist
+			if (component.splide) return;
+
+			var splideInstance = new Splide(component, {
+				type: "loop",
+				autoWidth: true,
+				arrows: true,
+				pagination: false,
+				snap: true,
+				gap: "0",
+				autoplay: false,
+				drag: "free",
+			});
+			splideInstance.mount();
+
+			// Store reference to splide instance on the component
+			component.splide = splideInstance;
+
+			// set up progress bar
+			lenus.helperFunctions.setUpProgressBar(
+				component,
+				gsap.utils.toArray(".past-event-card", component),
+				splideInstance,
+				splideInstance.Components.Slides
+			);
+		}
+
+		function destroySplide(component) {
+			const splideInstance = component.splide;
+			if (splideInstance) {
+				splideInstance.destroy();
+				component.splide = null;
+			}
+		}
+
+		function handleModeChange() {
+			const isMobile = window.matchMedia("(max-width: 768px)").matches;
+			const newMode = isMobile ? "mobile" : "desktop";
+
+			// Only process if mode has changed
+			if (currentMode === newMode) return;
+			currentMode = newMode;
+
+			document.querySelectorAll(".c-past-events.splide").forEach((component) => {
+				if (isMobile) {
+					// Create splide on mobile
+					setupSplide(component);
+				} else {
+					// Destroy splide on desktop
+					destroySplide(component);
+				}
+			});
+		}
+
+		// Initial setup
+		handleModeChange();
+
+		// Listen for resize events with debouncing
+		window.addEventListener("resize", lenus.helperFunctions.debounce(handleModeChange, 250));
+	}
+
+	function customSubmitButtons() {
+		document.querySelectorAll('[data-custom-submit="true"]').forEach((customBtn) => {
+			customBtn.addEventListener("click", function (e) {
+				e.preventDefault();
+
+				const form = this.closest("form");
+
+				// Find the real submit button (can be a selector or an ID)
+				const realSubmit = form.querySelector('[data-custom-submit="target"]');
+
+				if (realSubmit) {
+					realSubmit.click();
+				}
+			});
+		});
+	}
+
 	/* helper functions */
 
 	/* for a card with a video and an image, show the video and hide the image or vice versa */
@@ -2470,4 +2553,6 @@ function main() {
 	cardGrid();
 	testimCardVideos();
 	scatterHero();
+	pastEvents();
+	customSubmitButtons();
 }
