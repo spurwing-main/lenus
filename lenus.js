@@ -1351,24 +1351,24 @@ function main() {
 	function tabbedHero() {
 		const CSS_VARS = { width: "--tab-controls--w", left: "--tab-controls--l" };
 		const CONTROL_ITEM = "tab-controls_item";
-		const DEBOUNCE_DELAY = 200;
 
 		document.querySelectorAll(".c-tabbed-hero").forEach(setupHero);
 
 		function setupHero(component) {
 			const control = component.querySelector(".c-tab-controls");
 			const list = component.querySelector(".tab-controls_list");
+			const track = component.querySelector(".tab-controls_track");
 			const panels = Array.from(component.querySelectorAll(".tabbed-hero_media-items .media"));
+			let bounds = {};
 			if (!control || !list || panels.length === 0) return;
 
-			let splide = null;
+			let draggable = null;
 
 			// Build controls
 			list.innerHTML = "";
 			panels.forEach((panel, idx) => {
 				const btn = document.createElement("button");
 				btn.className = CONTROL_ITEM;
-				btn.classList.add("splide__slide");
 				btn.textContent = panel.dataset.title;
 				btn.dataset.index = idx;
 				btn.addEventListener("click", () => selectTab(idx));
@@ -1379,29 +1379,42 @@ function main() {
 			let activeIndex = 0;
 
 			function selectTab(i) {
-				// Activate panels
+				// preserve previous video time
+				let prevTime = 0,
+					prevEnded = false;
+				const prevPanel = panels[activeIndex];
+				if (prevPanel && prevPanel.classList.contains("is-active")) {
+					const prevVid = prevPanel.querySelector("video");
+					if (prevVid && !isNaN(prevVid.currentTime)) {
+						prevTime = prevVid.currentTime;
+						prevEnded = prevVid.ended;
+					}
+				}
+
 				tabs.forEach((tab, idx) => tab.classList.toggle("is-active", idx === i));
 				panels.forEach((panel, idx) => {
 					const active = idx === i;
 					panel.classList.toggle("is-active", active);
-					gsap.set(panel, { autoAlpha: active ? 1 : 0 });
-					if (active && panel.querySelector("video")) {
+					gsap.to(panel, { autoAlpha: active ? 1 : 0 });
+					if (active) {
 						const vid = panel.querySelector("video");
-						vid.currentTime = vid.currentTime || 0;
-						vid.play();
+						if (vid) {
+							try {
+								vid.currentTime = prevTime || 0;
+							} catch (e) {}
+							if (!prevEnded) vid.play();
+						}
 					}
 				});
+
 				moveHighlight(tabs[i]);
-				if (splide) splide.go(i);
+				scrollTabIntoView(tabs[i]); // <-- keep active tab visible when draggable
 				activeIndex = i;
 			}
 
 			function moveHighlight(tab) {
 				const left = tab.offsetLeft;
 				const width = tab.offsetWidth;
-				const listRect = list.getBoundingClientRect();
-				const controlRect = control.getBoundingClientRect();
-				// need to account for parent list element having a transform applied
 				gsap.to(component, {
 					[CSS_VARS.left]: `${left}px`,
 					[CSS_VARS.width]: `${width}px`,
@@ -1410,41 +1423,102 @@ function main() {
 				});
 			}
 
-			// Determine when to switch to carousel
-			function updateMode() {
-				const needsCarousel = list.scrollWidth > control.clientWidth;
-				if (needsCarousel && !splide) {
-					gsap.set(list, {
-						justifyContent: "flex-start",
-					});
+			// Calculate correct draggable bounds based on overflow
+			function updateBounds() {
+				const { tabsWidth, trackWidth } = getWidths();
+				const startOffset = (tabsWidth - trackWidth) / 2; // assuming centered
 
-					splide = new Splide(control, {
-						type: "slide",
-						// focus: "center",
-						autoWidth: true,
-						pagination: false,
-						arrows: false,
-						drag: true,
-						autoplay: false,
-						flick: 50,
-					});
-					splide.on("move", (newIndex) => selectTab(newIndex));
-					splide.mount();
-					// Ensure current active
-					splide.go(activeIndex);
-				} else if (!needsCarousel && splide) {
-					splide.destroy();
-					splide = null;
-					// Reset scroll position
-					gsap.set(list, { x: 0 });
+				// if tabsWidth is LESS than trackWidth
+				if (tabsWidth < trackWidth) {
+					return { minX: 0, maxX: 0 };
+				}
+
+				bounds = { minX: -tabsWidth + trackWidth + startOffset, maxX: startOffset };
+			}
+
+			function getWidths() {
+				let tabsWidth = 0;
+				tabs.forEach((tab) => {
+					tabsWidth += tab.offsetWidth;
+				});
+				const trackWidth = track.offsetWidth;
+				return { tabsWidth, trackWidth };
+			}
+
+			// Ensure a tab is inside the visible viewport of the control
+			function scrollTabIntoView(tab) {
+				// we want the active tab to be as close to center as possible
+
+				if (!draggable) return;
+
+				const currentX = gsap.getProperty(list, "x") || 0;
+
+				const tabRect = tab.getBoundingClientRect();
+				const wrapRect = track.getBoundingClientRect();
+
+				let targetX = currentX;
+
+				// Center the active tab in the viewport
+				const tabCenter = tabRect.left + tabRect.width / 2;
+				const wrapCenter = wrapRect.left + wrapRect.width / 2;
+				targetX += wrapCenter - tabCenter;
+
+				// Clamp within bounds and animate
+				targetX = gsap.utils.clamp(bounds.minX, bounds.maxX, targetX);
+				gsap.to(list, { x: targetX, duration: 0.3, ease: "power2.out" });
+			}
+
+			function updateMode() {
+				// check if overflowing
+				const { tabsWidth, trackWidth } = getWidths();
+				const overflowing = tabsWidth > trackWidth;
+
+				if (overflowing && !draggable) {
+					gsap.set(list, { x: 0, cursor: "grab" });
+
+					draggable = Draggable.create(list, {
+						type: "x",
+						bounds: bounds,
+						inertia: true,
+						edgeResistance: 0.85,
+						allowContextMenu: true,
+						allowNativeTouchScrolling: false,
+						cursor: "grab",
+						activeCursor: "grabbing",
+						onDrag: function () {
+							// protect against overscroll on very fast flicks if inertia disabled
+							const clamped = gsap.utils.clamp(bounds.minX, bounds.maxX, this.x);
+							if (clamped !== this.x) gsap.set(list, { x: clamped });
+						},
+					})[0];
+				} else if (!overflowing && draggable) {
+					draggable.kill();
+					draggable = null;
+					gsap.set(list, { x: 0, cursor: "" });
+				}
+				// when first set up, scroll the controls to the first item
+				// scrollTabIntoView(tabs[0]);
+
+				// If we have a draggable already, refresh its bounds (e.g., on resize)
+				if (draggable) {
+					updateBounds();
+					draggable.applyBounds(bounds);
+					// snap current x into the new bounds so it never gets stuck out of range
+					const currentX = gsap.getProperty(list, "x") || 0;
+					const clamped = gsap.utils.clamp(bounds.minX, bounds.maxX, currentX);
+					if (clamped !== currentX) gsap.set(list, { x: clamped });
+					// update highlight
+					moveHighlight(tabs[activeIndex]);
+					// scrollTabIntoView(tabs[activeIndex]);
 				}
 			}
 
-			const debouncedUpdate = lenus.helperFunctions.debounce(updateMode, DEBOUNCE_DELAY);
+			const debouncedUpdate = lenus.helperFunctions.debounce(updateMode);
 			window.addEventListener("resize", debouncedUpdate);
 
 			// Initial activation and mode setup
 			selectTab(0);
+			// scrollTabIntoView(tabs[0]);
 			updateMode();
 		}
 	}
