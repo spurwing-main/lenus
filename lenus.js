@@ -225,9 +225,11 @@ function main() {
 			document.addEventListener("visibilitychange", () => {
 				if (document.hidden) {
 					clearTimeout(timerId);
-					// gsap.globalPause();
+					clearTimeline();
+					// Ensure cleanup is performed when pausing
+					cleanUp();
 				} else {
-					// gsap.globalResume();
+					// Resume animations and schedule the next update
 					scheduleNext();
 				}
 			});
@@ -1603,17 +1605,17 @@ function main() {
 
 	function bentoHero() {
 		/*
-			- bg image starts full width and height
-			- on scroll with scrolltrigger, image shrinks to defined container. We will probably use GSAP Flip for this to move it to the new position
-			- will need to change the nav logo color at the same time from white to black
-			- on mobile we don't do this, we just load the image at the correct size.
-			- but on mobile we do the following:
-				- on load, the top part of the component is 100vh with the section image shown and the section title content pinned to the bottom
-				- as we scroll, the image container remains pinned, but the image changes to the image from the first bento card. The section title content scrolls up out of view. The first bento card title appears.
-				- there are then left/right arrows to scroll through the bento cards. The image container remains pinned but the image itself changes to the image from the bento card. The bento card title translates in from the left/right like a normal carousel.
-			- we need to handle the appropriate resize events, checking if the mode has changed and doing the appropriate setup / teardown.
+		- bg image starts full width and height
+		- on scroll with scrolltrigger, image shrinks to defined container. We will probably use GSAP Flip for this to move it to the new position
+		- will need to change the nav logo color at the same time from white to black
+		- on mobile we don't do this, we just load the image at the correct size.
+		- but on mobile we do the following:
+			- on load, the top part of the component is 100vh with the section image shown and the section title content pinned to the bottom
+			- as we scroll, the image container remains pinned, but the image changes to the image from the first bento card. The section title content scrolls up out of view. The first bento card title appears.
+			- there are then left/right arrows to scroll through the bento cards. The image container remains pinned but the image itself changes to the image from the bento card. The bento card title translates in from the left/right like a normal carousel.
+		- we need to handle the appropriate resize events, checking if the mode has changed and doing the appropriate setup / teardown.
 
-			*/
+		*/
 
 		document.querySelectorAll(".c-bento-hero").forEach((component) => {
 			const bg = component.querySelector(".bento-hero_bg");
@@ -1647,18 +1649,21 @@ function main() {
 					const tl = gsap.timeline({
 						scrollTrigger: {
 							trigger: component,
-							start: "top top",
-							end: "+=100",
-							scrub: 0.5,
+							start: 20,
+							end: "+=300",
+							toggleActions: "play none reverse  reverse",
+							scrub: 1,
 							pin: true,
+							pinSpacing: true,
 						},
 					});
 
-					tl.add(Flip.fit(bg, bgTarget, { duration: 0.5 }));
+					tl.add(Flip.fit(bg, bgTarget, { duration: 1.75, ease: "power2.out" }));
 					tl.to(
 						bg,
 						{
 							borderRadius: "20px",
+							duration: 1.75,
 							ease: "power4.out",
 						},
 						0
@@ -1668,7 +1673,7 @@ function main() {
 
 			function initMobile() {
 				teardownDsk();
-				setupSplide(component);
+
 				gsap.set(topContent, {
 					autoAlpha: 1,
 					y: 0,
@@ -1682,12 +1687,14 @@ function main() {
 						onComplete: () => {},
 						scrollTrigger: {
 							trigger: component,
-							start: "top top",
-							end: () => `+=400`,
-							scrub: true,
-							// pin: true,
+							start: 20,
+							end: "+=300",
+							toggleActions: "play none reverse  reverse",
+
+							// scrub: true,
+							pin: true,
 							pinSpacing: true,
-							markers: true,
+							// markers: true,
 						},
 					});
 					tl.to(
@@ -1729,16 +1736,13 @@ function main() {
 							0.1
 						);
 				});
+				setupSplide();
 			}
 
 			function setupSplide() {
 				splideInstance = new Splide(component, {
-					// type: "loop",
 					autoplay: false,
-
-					// clones: 5,
 					arrows: true,
-					// trimSpace: "move",
 					pagination: false,
 					snap: true,
 					drag: "free",
@@ -1799,18 +1803,6 @@ function main() {
 				});
 			}
 
-			// // Handle mode switch
-			// mediaQuery.addEventListener("change", (e) => {
-			// 	const newMode = e.matches ? "mobile" : "desktop";
-			// 	if (newMode === "desktop") {
-
-			// 	}
-			// 	// if (newMode === currentMode) return;
-			// 	// currentMode = newMode;
-			// 	// if (newMode === "mobile") initMobile();
-			// 	// else initDesktop();
-			// });
-
 			// Initial setup
 			if (currentMode === "mobile") initMobile();
 			else initDesktop();
@@ -1818,75 +1810,16 @@ function main() {
 			const onResize = lenus.helperFunctions.debounce(() => {
 				const newMode = mediaQuery.matches ? "mobile" : "desktop";
 
-				// if (newMode !== currentMode) {
-				// 	currentMode = newMode;
+				if (newMode === currentMode) {
+					return;
+				}
+
+				currentMode = newMode;
 				if (newMode === "mobile") initMobile();
 				else initDesktop();
 			});
 
 			window.addEventListener("resize", onResize);
-
-			// let ctx = gsap.context(() => {
-			// 	// // initial setup
-			// 	// gsap.set(primaryBgImg, {
-			// 	// 	width: "100%",
-			// 	// 	height: "100%",
-			// 	// });
-
-			// 	// set up scroll trigger for the background image
-			// 	gsap.to(bg, {
-			// 		scrollTrigger: {
-			// 			trigger: bgTarget,
-			// 			start: "top top",
-			// 			end: "+=200",
-			// 			scrub: 1,
-			// 			pin: false,
-			// 		},
-			// 		width: "80%",
-			// 		height: "80%",
-			// 		ease: "power2.out",
-			// 	});
-
-			// 	// set up scroll trigger for the title
-			// 	gsap.to(title, {
-			// 		scrollTrigger: {
-			// 			trigger: component,
-			// 			start: "top top",
-			// 			end: "+=2000",
-			// 			scrub: 1,
-			// 		},
-			// 		yPercent: -100,
-			// 		ease: "power2.out",
-			// 	});
-
-			// 	// set up the bento cards carousel
-			// 	const splideInstance = new Splide(component, {
-			// 		type: "loop",
-			// 		autoWidth: true,
-			// 		arrows: true,
-			// 		pagination: false,
-			// 		gap: "1rem",
-			// 		focus: "center",
-			// 	});
-			// 	splideInstance.mount();
-
-			// 	lenus.helperFunctions.setUpProgressBar(
-			// 		component,
-			// 		cards,
-			// 		splideInstance,
-			// 		splideInstance.Components.Slides
-			// 	);
-
-			// 	splideInstance.on("active", (slide) => {
-			// 		const card = slide.slide;
-			// 		const cardImage = card.querySelector("img");
-			// 		if (cardImage) {
-			// 			image.src = cardImage.src; // change the image in the container to the active card's image
-			// 		}
-			// 	});
-			// }, component);
-
-			// window.addEventListener("resize", () => ctx.revert());
 		});
 	}
 
@@ -2062,7 +1995,7 @@ function main() {
 			const markerEl = document.createElement("div");
 			markerEl.className = "marker";
 			markerEl.innerHTML = `
-            <svg width="32" height="37" viewBox="0 0 32 37" fill="none" xmlns="http://www.w3.org/2000/svg">
+		<svg width="32" height="37" viewBox="0 0 32 37" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M9.05446 27.5L0 36.5V12.4996C0 10.4995 0.766078 8.73966 2.01223 7.49988L9.05446 0.5V27.5Z" fill="black"/>
 <path d="M31.6874 18.5H18.1091L9.05469 27.5H19.6141C21.3562 27.4899 23.4081 26.7216 24.6441 25.4999L31.6874 18.5Z" fill="black"/>
 </svg>`;
@@ -2429,6 +2362,83 @@ function main() {
 		});
 	}
 
+	function hiddenFormFields() {
+		const FIELDS = ["page-url", "page-title", "event-name"];
+
+		const getEventName = () => {
+			const h1 = document.querySelector("h1");
+			return h1 ? h1.textContent.trim() : "";
+		};
+
+		const getValues = () => ({
+			"page-url": window.location.href,
+			"page-title": document.title || "",
+			"event-name": getEventName(),
+		});
+
+		const setInputValue = (input, value) => {
+			if (!input) return;
+			input.value = value;
+			input.setAttribute("value", value);
+			console.log(`Set value for ${input.name || input.id}: ${value}`);
+		};
+
+		const updateForm = (form) => {
+			const values = getValues();
+			FIELDS.forEach((key) => {
+				const inputs = form.querySelectorAll(`input[name="${key}"], input#${key}`);
+				inputs.forEach((inp) => setInputValue(inp, values[key]));
+			});
+		};
+
+		// for each form
+		document.querySelectorAll("form").forEach((form) => {
+			updateForm(form);
+		});
+	}
+
+	function rangeSlider() {
+		document.querySelectorAll(".c-range-slider").forEach((wrapper) => {
+			const slider = wrapper.querySelector('input[type="range"]');
+			const valueDisplay = wrapper.querySelector(".range-value");
+
+			// Read attributes
+			const min = parseFloat(wrapper.getAttribute("data-min"));
+			const max = parseFloat(wrapper.getAttribute("data-max"));
+			const maxText = wrapper.getAttribute("data-max-text") || null;
+
+			slider.min = min;
+			slider.max = max;
+
+			// Create a hidden field to submit the label (e.g., "100+") in addition to the numeric value
+			// Name it "<sliderName>_label" so you can find it server-side.
+			let labelField = wrapper.querySelector('input[type="hidden"][data-range-label]');
+			if (!labelField) {
+				labelField = document.createElement("input");
+				labelField.type = "hidden";
+				labelField.setAttribute("data-range-label", "");
+				labelField.name = (slider.name || "range") + " (max text)";
+				wrapper.appendChild(labelField);
+			}
+
+			const updateDisplays = () => {
+				const current = parseFloat(slider.value);
+				const threshold = min + (max - min) * 0.95; // 95%
+
+				const label = maxText && current > threshold ? maxText : String(current);
+				valueDisplay.textContent = label;
+
+				// Submit both:
+				// - slider.value => numeric (e.g., 97)
+				// - labelField.value => label (e.g., "100+")
+				labelField.value = label;
+			};
+
+			slider.addEventListener("input", updateDisplays);
+			updateDisplays();
+		});
+	}
+
 	/* helper functions */
 
 	/* for a card with a video and an image, show the video and hide the image or vice versa */
@@ -2629,4 +2639,6 @@ function main() {
 	scatterHero();
 	pastEvents();
 	customSubmitButtons();
+	hiddenFormFields();
+	rangeSlider();
 }
