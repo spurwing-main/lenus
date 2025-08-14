@@ -1542,8 +1542,8 @@ function main() {
 		const splideSelector = ".c-wide-carousel";
 		const trackSelector = ".wide-carousel_track";
 		const listSelector = ".wide-carousel_list";
-		const slideSelector = ".wide-card";
-		document.querySelectorAll(".c-wide-carousel.splide").forEach((component) => {
+		const slideSelector = ".c-wide-card";
+		document.querySelectorAll(splideSelector).forEach((component) => {
 			// ensure component has appropriate classes
 			if (!component.classList.contains("splide")) {
 				component.classList.add("splide");
@@ -1563,7 +1563,8 @@ function main() {
 				trackEl.classList.add("splide__track");
 			}
 			const slides = component.querySelectorAll(slideSelector);
-			if (slides.length === 0) {
+			if (slides.length < 2) {
+				// don't run Splide if 0 or 1 slide
 				return;
 			}
 			slides.forEach((slide) => {
@@ -1571,6 +1572,8 @@ function main() {
 					slide.classList.add("splide__slide");
 				}
 			});
+
+			const autoscrollEnabled = component.dataset.autoscroll === "true";
 			// initalise Splide
 			var splideInstance = new Splide(component, {
 				type: "loop",
@@ -1581,7 +1584,7 @@ function main() {
 				},
 				intersection: {
 					inView: {
-						autoScroll: true,
+						autoScroll: autoscrollEnabled,
 					},
 					outView: {
 						autoScroll: false,
@@ -1602,8 +1605,13 @@ function main() {
 				autoWidth: true,
 				focus: "center",
 			});
-			splideInstance.mount(window.splide.Extensions);
-			let autoScroll = splideInstance.Components.AutoScroll;
+			if (autoscrollEnabled) {
+				splideInstance.mount(window.splide.Extensions);
+				let autoScroll = splideInstance.Components.AutoScroll;
+			} else {
+				// If autoscroll is not enabled, we can still use Splide's features
+				splideInstance.mount();
+			}
 
 			const { Slides } = splideInstance.Components;
 			const cards = component.querySelectorAll(".c-testim-card");
