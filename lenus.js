@@ -451,7 +451,7 @@ function main() {
 				autoplay: false,
 				autoScroll: {
 					speed: 1,
-					pauseOnHover: false,
+					pauseOnHover: true,
 				},
 				intersection: {
 					inView: {
@@ -635,6 +635,16 @@ function main() {
 						);
 					}
 					tl.add(Flip.fit(img, endParent, { duration: 0.5 }), "<");
+
+					tl.to(
+						title,
+						{
+							backgroundPosition: "0% 0%",
+							ease: "none",
+							duration: 0.3,
+						},
+						"0.2"
+					);
 				});
 			};
 
@@ -1112,7 +1122,10 @@ function main() {
 	}
 
 	function animateTitles() {
-		gsap.utils.toArray(".c-title").forEach((title) => {
+		gsap.utils.toArray(".anim-grad-text").forEach((title) => {
+			// exclude titles inside .c-cta
+			if (title.closest(".c-cta")) return;
+
 			gsap.to(title, {
 				backgroundPosition: "0% 0%",
 				ease: "none",
