@@ -1539,9 +1539,9 @@ function main() {
 	}
 
 	function wideCarousel() {
-		const splideSelector = ".c-wide-carousel";
-		const trackSelector = ".wide-carousel_track";
-		const listSelector = ".wide-carousel_list";
+		const splideSelector = ".c-carousel";
+		const trackSelector = ".carousel_track";
+		const listSelector = ".carousel_list";
 		const slideSelector = ".c-wide-card";
 		document.querySelectorAll(splideSelector).forEach((component) => {
 			// ensure component has appropriate classes
