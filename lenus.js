@@ -1542,7 +1542,7 @@ function main() {
 		const splideSelector = ".c-carousel";
 		const trackSelector = ".carousel_track";
 		const listSelector = ".carousel_list";
-		const slideSelector = ".c-wide-card";
+		const slideSelector = ".carousel_item";
 		document.querySelectorAll(splideSelector).forEach((component) => {
 			// ensure component has appropriate classes
 			if (!component.classList.contains("splide")) {
@@ -2460,6 +2460,86 @@ function main() {
 		});
 	}
 
+	function featBlogCard() {
+		const mql = window.matchMedia("(max-width: 768px)");
+		const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+		document.querySelectorAll(".c-feat-blog-card").forEach((card) => {
+			const title = card.querySelector(".c-title");
+			const footer = card.querySelector(".feat-blog-card_footer");
+			const header = card.querySelector(".feat-blog-card_header");
+			const overline = card.querySelector(".overline");
+
+			// bail if critical bits are missing
+			if (!title || !footer || !header) return;
+
+			const tl = gsap.timeline({
+				defaults: { duration: 0.5, ease: "power2.out" },
+				paused: true,
+			});
+
+			// initial state
+			gsap.set(footer, { y: "100%", autoAlpha: 0 });
+			gsap.set(header, { y: () => footer.offsetHeight });
+
+			// build timeline (guard overline)
+			if (overline) {
+				tl.to(overline, { y: () => title.offsetHeight * 0.33 }, 0);
+			}
+			tl.to(title, { scale: 0.67, transformOrigin: "bottom left" }, 0)
+				.to(header, { y: 0 }, 0)
+				.to(footer, { y: 0, autoAlpha: 1 }, 0);
+
+			function handleHoverIn() {
+				if (!reduceMotion) tl.play();
+			}
+			function handleHoverOut() {
+				if (!reduceMotion) tl.reverse();
+			}
+
+			let eventListenersEnabled = false;
+			function enableHover() {
+				if (eventListenersEnabled) return;
+				card.addEventListener("mouseenter", handleHoverIn);
+				card.addEventListener("mouseleave", handleHoverOut);
+				// keyboard focus for a11y
+				card.addEventListener("focusin", handleHoverIn);
+				card.addEventListener("focusout", handleHoverOut);
+				eventListenersEnabled = true;
+			}
+			function disableHover() {
+				if (!eventListenersEnabled) return;
+				card.removeEventListener("mouseenter", handleHoverIn);
+				card.removeEventListener("mouseleave", handleHoverOut);
+				card.removeEventListener("focusin", handleHoverIn);
+				card.removeEventListener("focusout", handleHoverOut);
+				eventListenersEnabled = false;
+				tl.progress(0).pause(); // reset when leaving desktop
+			}
+
+			// set initial state based on viewport
+			if (!mql.matches) enableHover();
+
+			// media query change is better than raw resize
+			function onMQChange(e) {
+				e.matches ? disableHover() : enableHover();
+			}
+			mql.addEventListener("change", onMQChange);
+
+			// // Optional: expose a destroy hook if you re-init on page changes
+			// card._featBlogCleanup = () => {
+			// 	disableHover();
+			// 	mql.removeEventListener("change", onMQChange);
+			// 	tl.kill();
+			// };
+		});
+
+		// Example global cleanup if you navigate with Swup/Barba etc.
+		// window.addEventListener("unload", () =>
+		//   document.querySelectorAll(".c-feat-blog-card").forEach(c => c._featBlogCleanup?.())
+		// );
+	}
+
 	/* helper functions */
 
 	/* for a card with a video and an image, show the video and hide the image or vice versa */
@@ -2662,4 +2742,5 @@ function main() {
 	customSubmitButtons();
 	hiddenFormFields();
 	rangeSlider();
+	featBlogCard();
 }
