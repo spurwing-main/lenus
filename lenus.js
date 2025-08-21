@@ -2697,6 +2697,7 @@ function main() {
 		const menu = document.querySelector(".nav_menu");
 		const links = document.querySelectorAll(".nav_menu-link");
 		const activeLink = document.querySelector(".nav_menu-link.w--current");
+		let linkClicked = false;
 
 		if (!menu || !activeLink) return;
 
@@ -2721,8 +2722,11 @@ function main() {
 					"--nav--menu-bg-w": `${width}px`,
 					"--nav--menu-bg-l": `${left}px`,
 				});
-				gsap.set(activeLink, { color: "var(--_theme---nav-link-active)" });
+				gsap.set(activeLink, { color: "var(--_theme---nav--link-active)" });
 				resetActiveLink();
+			} else if (linkClicked) {
+				// if link was clicked, leave bg where it is
+				return;
 			} else {
 				gsap.killTweensOf(menu);
 				tl.to(menu, {
@@ -2734,7 +2738,7 @@ function main() {
 				tl.to(
 					links,
 					{
-						color: "var(--_theme---nav-link-inactive)",
+						color: "var(--_theme---nav--link-inactive)",
 						duration: 0.1,
 						ease: "power3.out",
 					},
@@ -2743,7 +2747,7 @@ function main() {
 				tl.to(
 					link,
 					{
-						color: "var(--_theme---nav-link-active)",
+						color: "var(--_theme---nav--link-active)",
 						duration: 0.1,
 						ease: "power3.out",
 					},
@@ -2761,6 +2765,13 @@ function main() {
 
 		// Reset to active link when leaving menu
 		menu.addEventListener("mouseleave", () => moveBg(activeLink));
+
+		// Reset linkClicked flag
+		links.forEach((link) => {
+			link.addEventListener("click", () => {
+				linkClicked = true;
+			});
+		});
 
 		// on resize, move bg
 		window.addEventListener(
