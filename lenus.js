@@ -2700,8 +2700,13 @@ function main() {
 
 		if (!menu || !activeLink) return;
 
+		function resetActiveLink() {
+			activeLink.classList.remove("w--current");
+			activeLink.classList.add("is-current");
+		}
+
 		// Utility function to move bg under a given link
-		const moveBg = (link) => {
+		const moveBg = (link, isInitial = false) => {
 			const linkRect = link.getBoundingClientRect();
 			const menuRect = menu.getBoundingClientRect();
 
@@ -2710,35 +2715,44 @@ function main() {
 
 			const tl = gsap.timeline();
 
-			gsap.killTweensOf(menu);
-			tl.to(menu, {
-				"--nav--menu-bg-w": `${width}px`,
-				"--nav--menu-bg-l": `${left}px`,
-				duration: 0.3,
-				ease: "power2.out",
-			});
-			tl.to(
-				links,
-				{
-					color: "var(--_theme---nav-link-inactive)",
-					duration: 0.1,
-					ease: "power3.out",
-				},
-				"<"
-			);
-			tl.to(
-				link,
-				{
-					color: "var(--_theme---nav-link-active)",
-					duration: 0.1,
-					ease: "power3.out",
-				},
-				"<"
-			);
+			// if initial, just do gsap.set of all the values and then resetActiveLink. if not initial, do all the animation as below
+			if (isInitial) {
+				gsap.set(menu, {
+					"--nav--menu-bg-w": `${width}px`,
+					"--nav--menu-bg-l": `${left}px`,
+				});
+				gsap.set(activeLink, { color: "var(--_theme---nav-link-active)" });
+				resetActiveLink();
+			} else {
+				gsap.killTweensOf(menu);
+				tl.to(menu, {
+					"--nav--menu-bg-w": `${width}px`,
+					"--nav--menu-bg-l": `${left}px`,
+					duration: 0.3,
+					ease: "power2.out",
+				});
+				tl.to(
+					links,
+					{
+						color: "var(--_theme---nav-link-inactive)",
+						duration: 0.1,
+						ease: "power3.out",
+					},
+					"<"
+				);
+				tl.to(
+					link,
+					{
+						color: "var(--_theme---nav-link-active)",
+						duration: 0.1,
+						ease: "power3.out",
+					},
+					"<"
+				);
+			}
 		};
 
-		// Position bg under active link on load
-		moveBg(activeLink);
+		moveBg(activeLink, true);
 
 		// Hover handlers
 		links.forEach((link) => {
@@ -2753,10 +2767,6 @@ function main() {
 			"resize",
 			lenus.helperFunctions.debounce(() => moveBg(activeLink))
 		);
-
-		// remove default styling from active link so it can be animated
-		activeLink.style.color = "";
-		activeLink.style.backgroundColor = "";
 	}
 
 	/* helper functions */
