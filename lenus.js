@@ -924,6 +924,7 @@ function main() {
 		}
 
 		function activateCard(card, activateVideo = true) {
+			if (!card) return;
 			card.classList.add("is-expanded");
 			gsap.set(card, {
 				opacity: 1,
@@ -2579,6 +2580,7 @@ function main() {
 				// if instance is not tall enough to cover component, duplicate items
 				if (instance.offsetHeight < component.offsetHeight) {
 					const cloneCount = Math.ceil(component.offsetHeight / instance.offsetHeight) - 1;
+					const clonesAdded = [];
 					for (let i = 0; i < cloneCount; i++) {
 						const current = Array.from(list.querySelectorAll(".job-scroll_item:not(.clone)"));
 
@@ -2586,9 +2588,13 @@ function main() {
 							const clone = item.cloneNode(true);
 							clone.classList.add("clone");
 							list.appendChild(clone);
+							clonesAdded.push(clone);
 						});
 					}
-					let items = gsap.utils.toArray(".job-scroll_item", root);
+					// track clones so they can be removed on teardown
+					state.cloneItems.push(...clonesAdded);
+					// refresh items to include clones
+					items = gsap.utils.toArray(".job-scroll_item", root);
 				}
 
 				state.loop = lenus.helperFunctions.verticalLoop(items, {
@@ -2648,7 +2654,7 @@ function main() {
 
 			function teardownTablet(root) {
 				// destroy splides
-				state.splides.forEach((splide) => splide.destroy());
+				state.splides.forEach((splide) => splide.destroy(true));
 				state.splides = [];
 
 				// remove duplicate instance
@@ -3012,9 +3018,11 @@ Features:
    - times - an Array of the times on the timeline where each element hits the "starting" spot.
  */
 		let timeline;
+		let resizeHandlerRef;
+		let ctx;
 		items = gsap.utils.toArray(items);
 		config = config || {};
-		gsap.context(() => {
+		ctx = gsap.context(() => {
 			// use a context so that if this is called from within another context or a gsap.matchMedia(), we can perform proper cleanup like the "resize" event handler on the window
 			let onChange = config.onChange,
 				lastIndex = 0,
@@ -3248,8 +3256,20 @@ Features:
 			lastIndex = curIndex;
 			onChange && onChange(items[curIndex], curIndex);
 			timeline = tl;
-			return () => window.removeEventListener("resize", onResize); // cleanup
 		});
+		if (timeline) {
+			const originalKill = timeline.kill.bind(timeline);
+			timeline.kill = (...args) => {
+				if (resizeHandlerRef) {
+					window.removeEventListener("resize", resizeHandlerRef);
+					resizeHandlerRef = null;
+				}
+				try {
+					ctx && ctx.revert && ctx.revert();
+				} catch (e) {}
+				return originalKill(...args);
+			};
+		}
 		return timeline;
 	};
 
