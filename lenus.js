@@ -1365,7 +1365,7 @@ function main() {
 	}
 
 	function tabbedHero() {
-		const CSS_VARS = { width: "--tab-controls--w", left: "--tab-controls--l" };
+		const CSS_VARS = { width: "--toggle-slider--w", left: "--toggle-slider--l" };
 		const CONTROL_ITEM = "tab-controls_item";
 
 		document.querySelectorAll(".c-tabbed-hero").forEach(setupHero);
@@ -1538,6 +1538,243 @@ function main() {
 			updateMode();
 		}
 	}
+
+	function toggleSlider_v1() {
+		const CSS_VARS = { width: "--toggle-slider--w", left: "--toggle-slider--l" };
+
+		document.querySelectorAll(".c-toggle-slider").forEach(setupSlider);
+
+		function setupSlider(component) {
+			const list = component.querySelector(".toggle-slider_list");
+			const track = component.querySelector(".toggle-slider_track");
+			const items = Array.from(component.querySelectorAll(".c-toggle-slider-item"));
+			const radios = Array.from(component.querySelectorAll("input[type=radio]"));
+			const labels = Array.from(component.querySelectorAll(".toggle-slider_label"));
+			let activeItem;
+
+			if (!list || radios.length === 0) return;
+
+			// Move highlight under initially checked radio
+			const initial = radios.find((r) => r.checked) || radios[0];
+			const initialLabel = component.querySelector(`label[for="${initial.id}"]`);
+			activeItem = items.find((it) => it.contains(initial));
+			moveHighlight(activeItem, true);
+
+			// Change handler
+			radios.forEach((radio) => {
+				radio.addEventListener("change", () => {
+					console.log("Radio changed:", radio);
+					if (radio.checked) {
+						const label = component.querySelector(`label[for="${radio.id}"]`);
+						items.forEach((it) => it.classList.toggle("is-active", it.contains(label)));
+						moveHighlight(label);
+						activeItem = items.find((it) => it.contains(label));
+					}
+				});
+			});
+
+			// On resize, re-calc position for checked item
+			window.addEventListener(
+				"resize",
+				lenus.helperFunctions.debounce(() => {
+					moveHighlight(activeItem);
+				})
+			);
+
+			// Core animation
+			function moveHighlight(target, isInitial = false) {
+				if (!target) return;
+
+				const targetRect = target.getBoundingClientRect();
+				const listRect = list.getBoundingClientRect();
+
+				const left = targetRect.left - listRect.left;
+				const width = targetRect.width;
+
+				if (isInitial) {
+					gsap.set(component, {
+						[CSS_VARS.left]: `${left}px`,
+						[CSS_VARS.width]: `${width}px`,
+					});
+					// set active
+					items.forEach((it) =>
+						it.classList.toggle("is-active", it.contains(target) || it === target)
+					);
+				} else {
+					gsap.to(component, {
+						[CSS_VARS.left]: `${left}px`,
+						[CSS_VARS.width]: `${width}px`,
+						duration: 0.3,
+						ease: "power2.out",
+					});
+				}
+			}
+		}
+	}
+
+	// ...existing code...
+	function toggleSlider() {
+		const CSS_VARS = { width: "--toggle-slider--w", left: "--toggle-slider--l" };
+
+		document.querySelectorAll(".c-toggle-slider").forEach(setupSlider);
+
+		function setupSlider(component) {
+			const list = component.querySelector(".toggle-slider_list");
+			const track = component.querySelector(".toggle-slider_track");
+			const items = Array.from(component.querySelectorAll(".c-toggle-slider-item"));
+			const radios = Array.from(component.querySelectorAll("input[type=radio]"));
+			const labels = Array.from(component.querySelectorAll(".toggle-slider_label"));
+			let activeItem;
+			let draggable = null;
+			let pickerMode = false;
+			let fadeLeft, fadeRight;
+
+			if (!list || radios.length === 0) return;
+
+			// Add gradient fade overlays if not present
+			if (!component.querySelector(".toggle-slider_fade-left")) {
+				fadeLeft = document.createElement("div");
+				fadeLeft.className = "toggle-slider_fade-left";
+				component.appendChild(fadeLeft);
+			}
+			if (!component.querySelector(".toggle-slider_fade-right")) {
+				fadeRight = document.createElement("div");
+				fadeRight.className = "toggle-slider_fade-right";
+				component.appendChild(fadeRight);
+			}
+
+			// Initial highlight
+			const initial = radios.find((r) => r.checked) || radios[0];
+			const initialLabel = component.querySelector(`label[for="${initial.id}"]`);
+			activeItem = items.find((it) => it.contains(initialLabel));
+			moveHighlight(initialLabel, true);
+
+			// Change handler
+			radios.forEach((radio) => {
+				radio.addEventListener("change", () => {
+					if (radio.checked) {
+						const label = component.querySelector(`label[for="${radio.id}"]`);
+						items.forEach((it) => it.classList.toggle("is-active", it.contains(label)));
+						moveHighlight(label);
+						activeItem = items.find((it) => it.contains(label));
+						// Snap to selected in picker mode
+						if (pickerMode && draggable) {
+							snapToItem(items.indexOf(activeItem));
+						}
+					}
+				});
+			});
+
+			// On resize, re-calc position for checked item
+			window.addEventListener(
+				"resize",
+				lenus.helperFunctions.debounce(() => {
+					moveHighlight(activeItem);
+					updateMode();
+				})
+			);
+
+			function moveHighlight(target, isInitial = false) {
+				if (!target) return;
+				const targetRect = target.getBoundingClientRect();
+				const listRect = list.getBoundingClientRect();
+				const left = targetRect.left - listRect.left;
+				const width = targetRect.width;
+
+				if (isInitial) {
+					gsap.set(component, {
+						[CSS_VARS.left]: `${left}px`,
+						[CSS_VARS.width]: `${width}px`,
+					});
+					items.forEach((it) =>
+						it.classList.toggle("is-active", it.contains(target) || it === target)
+					);
+				} else {
+					gsap.to(component, {
+						[CSS_VARS.left]: `${left}px`,
+						[CSS_VARS.width]: `${width}px`,
+						duration: 0.3,
+						ease: "power2.out",
+					});
+				}
+			}
+
+			function updateMode() {
+				const containerWidth = component.offsetWidth;
+				const listWidth = list.scrollWidth;
+				const itemWidth = items[0]?.offsetWidth || 1;
+
+				// Picker mode: less than 2.5 items fit
+				pickerMode = listWidth > containerWidth && containerWidth < itemWidth * 2.5;
+
+				// Show/hide fade overlays
+				if (listWidth > containerWidth) {
+					fadeLeft.style.display = "block";
+					fadeRight.style.display = "block";
+				} else {
+					fadeLeft.style.display = "none";
+					fadeRight.style.display = "none";
+				}
+
+				if (listWidth > containerWidth) {
+					if (!draggable) {
+						draggable = Draggable.create(list, {
+							type: "x",
+							bounds: { minX: containerWidth - listWidth, maxX: 0 },
+							inertia: true,
+							cursor: "grab",
+							activeCursor: "grabbing",
+							onDragEnd: function () {
+								if (pickerMode) {
+									const idx = getClosestToCenter();
+									snapToItem(idx);
+									radios[idx].checked = true;
+									items.forEach((it, i) => it.classList.toggle("is-active", i === idx));
+									moveHighlight(labels[idx]);
+									activeItem = items[idx];
+								}
+							},
+						})[0];
+					}
+				} else if (draggable) {
+					draggable.kill();
+					draggable = null;
+					gsap.set(list, { x: 0 });
+				}
+			}
+
+			function getClosestToCenter() {
+				const containerRect = component.getBoundingClientRect();
+				const center = containerRect.left + containerRect.width / 2;
+				let closestIdx = 0,
+					minDist = Infinity;
+				items.forEach((item, idx) => {
+					const rect = item.getBoundingClientRect();
+					const itemCenter = rect.left + rect.width / 2;
+					const dist = Math.abs(center - itemCenter);
+					if (dist < minDist) {
+						minDist = dist;
+						closestIdx = idx;
+					}
+				});
+				return closestIdx;
+			}
+
+			function snapToItem(idx) {
+				const item = items[idx];
+				const containerRect = component.getBoundingClientRect();
+				const offset = item.offsetLeft + item.offsetWidth / 2 - containerRect.width / 2;
+				const minX = component.offsetWidth - list.scrollWidth;
+				const maxX = 0;
+				const x = gsap.utils.clamp(minX, maxX, -offset);
+				gsap.to(list, { x, duration: 0.3, ease: "power2.out" });
+			}
+
+			// Initial mode setup
+			updateMode();
+		}
+	}
+	// ...existing code...
 
 	function wideCarousel() {
 		const splideSelector = ".c-carousel";
@@ -2701,24 +2938,33 @@ function main() {
 
 	function navHover() {
 		const menu = document.querySelector(".nav_menu");
-		const links = document.querySelectorAll(".nav_menu-link");
-		const activeLink = document.querySelector(".nav_menu-link.w--current");
-		let linkClicked = false;
+		const items = menu.querySelectorAll(".c-nav-item");
+		// const links = document.querySelectorAll(".nav-item_link");
+		const activeLink = document.querySelector(".nav-item_link.w--current");
 
-		if (!menu || !activeLink) return;
+		let activeItem = null;
+		if (activeLink) {
+			// not all pages will have an active link if we are on a subpage
+			activeItem = activeLink.closest(".c-nav-item");
+		}
+		let itemClicked = false;
+
+		if (!menu || items.length === 0) return;
 
 		function resetActiveLink() {
+			if (!activeLink) return;
 			activeLink.classList.remove("w--current");
 			activeLink.classList.add("is-current");
 		}
 
-		// Utility function to move bg under a given link
-		const moveBg = (link, isInitial = false) => {
-			const linkRect = link.getBoundingClientRect();
+		// Utility function to move bg under a given item
+		const moveBg = (item, isInitial = false) => {
+			console.log("Moving nav bg to", item);
+			const itemRect = item.getBoundingClientRect();
 			const menuRect = menu.getBoundingClientRect();
 
-			const width = linkRect.width;
-			const left = linkRect.left - menuRect.left;
+			const width = itemRect.width;
+			const left = itemRect.left - menuRect.left;
 
 			const tl = gsap.timeline();
 
@@ -2728,9 +2974,9 @@ function main() {
 					"--nav--menu-bg-w": `${width}px`,
 					"--nav--menu-bg-l": `${left}px`,
 				});
-				gsap.set(activeLink, { color: "var(--_theme---nav--link-active)" });
+				gsap.set(activeItem, { color: "var(--_theme---nav--link-active)" });
 				resetActiveLink();
-			} else if (linkClicked) {
+			} else if (itemClicked) {
 				// if link was clicked, leave bg where it is
 				return;
 			} else {
@@ -2742,7 +2988,7 @@ function main() {
 					ease: "power2.out",
 				});
 				tl.to(
-					links,
+					items,
 					{
 						color: "var(--_theme---nav--link-inactive)",
 						duration: 0.1,
@@ -2751,7 +2997,7 @@ function main() {
 					"<"
 				);
 				tl.to(
-					link,
+					item,
 					{
 						color: "var(--_theme---nav--link-active)",
 						duration: 0.1,
@@ -2762,27 +3008,49 @@ function main() {
 			}
 		};
 
-		moveBg(activeLink, true);
+		const resetBg = () => {
+			gsap.killTweensOf(menu);
+			gsap.set(menu, {
+				"--nav--menu-bg-w": "0px",
+				"--nav--menu-bg-l": "0px",
+			});
+			gsap.set(items, { color: "var(--_theme---nav--link-inactive)" });
+		};
+
+		if (activeItem) moveBg(activeItem, true);
 
 		// Hover handlers
-		links.forEach((link) => {
-			link.addEventListener("mouseenter", () => moveBg(link));
+		items.forEach((item) => {
+			item.addEventListener("mouseenter", () => moveBg(item));
 		});
 
-		// Reset to active link when leaving menu
-		menu.addEventListener("mouseleave", () => moveBg(activeLink));
+		// Reset to active item when leaving menu
+		menu.addEventListener("mouseleave", () => {
+			if (activeItem) {
+				moveBg(activeItem);
+			} else {
+				resetBg();
+			}
+		});
 
-		// Reset linkClicked flag
-		links.forEach((link) => {
-			link.addEventListener("click", () => {
-				linkClicked = true;
+		// Reset itemClicked flag
+		items.forEach((item) => {
+			item.addEventListener("click", () => {
+				itemClicked = true;
 			});
 		});
 
-		// on resize, move bg
+		// on resize, move bg to active if it exists
+
 		window.addEventListener(
 			"resize",
-			lenus.helperFunctions.debounce(() => moveBg(activeLink))
+			lenus.helperFunctions.debounce(() => {
+				if (activeItem) {
+					moveBg(activeItem);
+				} else {
+					resetBg();
+				}
+			})
 		);
 	}
 
@@ -3299,4 +3567,5 @@ Features:
 	featBlogCard();
 	jobScroll();
 	navHover();
+	toggleSlider();
 }
