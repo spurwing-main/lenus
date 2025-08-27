@@ -3122,10 +3122,15 @@ function main() {
 		const navLayout = document.querySelector(".nav_mega-layout");
 		const navBg = document.querySelector(".nav_bg"); // menu bg we animate on desktop
 		const megaNavBg = document.querySelector(".nav-mega_bg"); // mega menu bg
-		const bgColor = getComputedStyle(navBg).getPropertyValue("background-color");
-		const finalRadius = getComputedStyle(megaNavBg).getPropertyValue("border-bottom-left-radius");
-		const icon = navBtn.querySelector(".nav-plus");
-		const iconMbl = navBtnMbl.querySelector(".nav-plus");
+		let bgColor;
+		if (navBg) bgColor = getComputedStyle(navBg).getPropertyValue("background-color");
+		let finalRadius;
+		if (megaNavBg)
+			finalRadius = getComputedStyle(megaNavBg).getPropertyValue("border-bottom-left-radius");
+		let icon;
+		if (navBtn) icon = navBtn.querySelector(".nav-plus");
+		let iconMbl;
+		if (navBtnMbl) iconMbl = navBtnMbl.querySelector(".nav-plus");
 
 		const mediaQuery = window.matchMedia("(max-width: 767px)");
 		let currentMode = mediaQuery.matches ? "mobile" : "desktop";
@@ -3167,8 +3172,15 @@ function main() {
 		function resetAllStyles() {
 			// Clear all inline styles first
 			gsap.set([navBg, megaNavBg, megaNav, navLayout], { clearProps: "all" });
-			gsap.set([icon, iconMbl], { rotation: 0 });
-			gsap.set([staggerGroup1_dsk, staggerGroup2_dsk, staggerGroup3_dsk], { clearProps: "all" });
+			if (icon) {
+				gsap.set(icon, { rotation: 0 });
+			}
+			if (iconMbl) {
+				gsap.set(iconMbl, { rotation: 0 });
+			}
+			if (staggerGroup1_dsk) {
+				gsap.set([staggerGroup1_dsk, staggerGroup2_dsk, staggerGroup3_dsk], { clearProps: "all" });
+			}
 
 			// Then set initial state
 			gsap.set(megaNav, { display: "block", autoAlpha: 0 });
@@ -3320,6 +3332,13 @@ function main() {
 		}
 
 		function setUpAccordions() {
+			// quick check - if we are on a Careers page (nav has class .is-careers) then we don't need accordions, just make the heights auto
+			if (nav.classList.contains("is-careers")) {
+				gsap.set(".nav-mega_list-wrap", { height: "auto", overflow: "visible" });
+				gsap.set(".nav-mega_link", { autoAlpha: 1 });
+				return;
+			}
+
 			accordionContext = gsap.context(() => {
 				const cols = nav.querySelectorAll(".nav-mega_col");
 				let tls = [];
@@ -3436,27 +3455,31 @@ function main() {
 		}
 
 		// Click handlers
-		navBtn.addEventListener("click", () => {
-			if (currentMode !== "desktop") return;
+		if (navBtn) {
+			navBtn.addEventListener("click", () => {
+				if (currentMode !== "desktop") return;
 
-			if (navOpen) {
-				if (desktopTl) desktopTl.reverse();
-			} else {
-				if (desktopTl) desktopTl.play();
-			}
-			navOpen = !navOpen;
-		});
+				if (navOpen) {
+					if (desktopTl) desktopTl.reverse();
+				} else {
+					if (desktopTl) desktopTl.play();
+				}
+				navOpen = !navOpen;
+			});
+		}
 
-		navBtnMbl.addEventListener("click", () => {
-			if (currentMode !== "mobile") return;
+		if (navBtnMbl) {
+			navBtnMbl.addEventListener("click", () => {
+				if (currentMode !== "mobile") return;
 
-			if (navOpen) {
-				if (mobileTl) mobileTl.reverse();
-			} else {
-				if (mobileTl) mobileTl.play();
-			}
-			navOpen = !navOpen;
-		});
+				if (navOpen) {
+					if (mobileTl) mobileTl.reverse();
+				} else {
+					if (mobileTl) mobileTl.play();
+				}
+				navOpen = !navOpen;
+			});
+		}
 
 		function resetDesktopTimeline() {
 			if (desktopTl) {
