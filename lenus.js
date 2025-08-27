@@ -1700,9 +1700,16 @@ function main() {
 			}
 
 			function updateMode() {
-				const containerWidth = component.offsetWidth;
-				const listWidth = list.scrollWidth;
-				const itemWidth = items[0]?.offsetWidth || 1;
+				let containerWidth = component.offsetWidth;
+				let listWidth = 0;
+				for (let i = 0; i < items.length; i++) {
+					listWidth += items[i].offsetWidth;
+				}
+				let itemWidth = listWidth / items.length; // average
+
+				console.log("itemWidth: " + itemWidth);
+				console.log("containerWidth: " + containerWidth);
+				console.log("listWidth: " + listWidth);
 
 				// Picker mode: less than 2.5 items fit
 				pickerMode = listWidth > containerWidth && containerWidth < itemWidth * 2.5;
@@ -1717,10 +1724,14 @@ function main() {
 				}
 
 				if (listWidth > containerWidth) {
+					// need to account for flex centering when setting bounds
+					const centerOffset = (containerWidth - listWidth) / 2;
+					bounds = { minX: -centerOffset, maxX: centerOffset };
+
 					if (!draggable) {
 						draggable = Draggable.create(list, {
 							type: "x",
-							bounds: { minX: containerWidth - listWidth, maxX: 0 },
+							bounds: bounds,
 							inertia: true,
 							cursor: "grab",
 							activeCursor: "grabbing",
@@ -1736,6 +1747,9 @@ function main() {
 							},
 						})[0];
 					}
+					// set initial draggable position
+
+					gsap.set(list, { x: -centerOffset });
 				} else if (draggable) {
 					draggable.kill();
 					draggable = null;
@@ -2938,18 +2952,16 @@ function main() {
 
 	function navHover() {
 		const menu = document.querySelector(".nav_menu");
-		const items = menu.querySelectorAll(".c-nav-item");
-		// const links = document.querySelectorAll(".nav-item_link");
+		const items = gsap.utils.toArray(".c-nav-item");
 		const activeLink = document.querySelector(".nav-item_link.w--current");
+		const highlight = document.querySelector(".nav_menu-highlight");
 
-		let activeItem = null;
-		if (activeLink) {
-			// not all pages will have an active link if we are on a subpage
-			activeItem = activeLink.closest(".c-nav-item");
-		}
+		if (!menu || !items.length || !highlight) return;
+
+		let activeItem = activeLink ? activeLink.closest(".c-nav-item") : null;
 		let itemClicked = false;
-
-		if (!menu || items.length === 0) return;
+		let movementAnimation = null;
+		let opacityAnimation = null;
 
 		function resetActiveLink() {
 			if (!activeLink) return;
@@ -2957,101 +2969,538 @@ function main() {
 			activeLink.classList.add("is-current");
 		}
 
-		// Utility function to move bg under a given item
-		const moveBg = (item, isInitial = false) => {
-			console.log("Moving nav bg to", item);
-			const itemRect = item.getBoundingClientRect();
+		// Set up initial state
+		if (activeItem) {
+			const itemRect = activeItem.getBoundingClientRect();
 			const menuRect = menu.getBoundingClientRect();
 
+			gsap.set(highlight, {
+				autoAlpha: 1,
+				"--nav--menu-bg-w": `${itemRect.width}px`,
+				"--nav--menu-bg-l": `${itemRect.left - menuRect.left}px`,
+			});
+			gsap.set(activeItem, { color: "var(--_theme---nav--link-active)" });
+			resetActiveLink();
+		} else {
+			gsap.set(highlight, {
+				autoAlpha: 0,
+				"--nav--menu-bg-w": "0px",
+				"--nav--menu-bg-l": "0px",
+			});
+		}
+
+		// Separate functions for managing opacity and movement
+		const setHighlightOpacity = (visible) => {
+			if (opacityAnimation) {
+				opacityAnimation.kill();
+			}
+
+			opacityAnimation = gsap.to(highlight, {
+				autoAlpha: visible ? 1 : 0,
+				duration: 0.3,
+				ease: "power2.out",
+				onComplete: () => {
+					if (!visible) {
+						gsap.set(highlight, {
+							"--nav--menu-bg-w": "0px",
+							"--nav--menu-bg-l": "0px",
+						});
+					}
+				},
+			});
+		};
+
+		const moveHighlight = (item) => {
+			if (itemClicked) return;
+
+			const itemRect = item.getBoundingClientRect();
+			const menuRect = menu.getBoundingClientRect();
 			const width = itemRect.width;
 			const left = itemRect.left - menuRect.left;
 
-			const tl = gsap.timeline();
+			// Kill any existing movement animation
+			if (movementAnimation) {
+				movementAnimation.kill();
+			}
 
-			// if initial, just do gsap.set of all the values and then resetActiveLink. if not initial, do all the animation as below
-			if (isInitial) {
-				gsap.set(menu, {
+			// If highlight is currently invisible, set position instantly before showing
+			if (gsap.getProperty(highlight, "autoAlpha") < 0.5) {
+				gsap.set(highlight, {
 					"--nav--menu-bg-w": `${width}px`,
 					"--nav--menu-bg-l": `${left}px`,
 				});
-				gsap.set(activeItem, { color: "var(--_theme---nav--link-active)" });
-				resetActiveLink();
-			} else if (itemClicked) {
-				// if link was clicked, leave bg where it is
-				return;
+				setHighlightOpacity(true);
 			} else {
-				gsap.killTweensOf(menu);
-				tl.to(menu, {
+				// Otherwise, animate to the new position
+				movementAnimation = gsap.to(highlight, {
 					"--nav--menu-bg-w": `${width}px`,
 					"--nav--menu-bg-l": `${left}px`,
 					duration: 0.3,
 					ease: "power2.out",
 				});
-				tl.to(
-					items,
-					{
-						color: "var(--_theme---nav--link-inactive)",
-						duration: 0.1,
-						ease: "power3.out",
-					},
-					"<"
-				);
-				tl.to(
-					item,
-					{
-						color: "var(--_theme---nav--link-active)",
-						duration: 0.1,
-						ease: "power3.out",
-					},
-					"<"
-				);
 			}
-		};
 
-		const resetBg = () => {
-			gsap.killTweensOf(menu);
-			gsap.set(menu, {
-				"--nav--menu-bg-w": "0px",
-				"--nav--menu-bg-l": "0px",
+			// Always update text colors
+			gsap.to(items, {
+				color: "var(--_theme---nav--link-inactive)",
+				duration: 0.2,
+				ease: "power3.out",
 			});
-			gsap.set(items, { color: "var(--_theme---nav--link-inactive)" });
-		};
 
-		if (activeItem) moveBg(activeItem, true);
+			gsap.to(item, {
+				color: "var(--_theme---nav--link-active)",
+				duration: 0.2,
+				ease: "power3.out",
+			});
+		};
 
 		// Hover handlers
 		items.forEach((item) => {
-			item.addEventListener("mouseenter", () => moveBg(item));
+			item.addEventListener("mouseenter", () => moveHighlight(item));
 		});
 
 		// Reset to active item when leaving menu
 		menu.addEventListener("mouseleave", () => {
 			if (activeItem) {
-				moveBg(activeItem);
+				moveHighlight(activeItem);
 			} else {
-				resetBg();
+				setHighlightOpacity(false);
+				gsap.to(items, {
+					color: "var(--_theme---nav--link-inactive)",
+					duration: 0.2,
+					ease: "power3.out",
+				});
 			}
 		});
 
-		// Reset itemClicked flag
+		// Set click flag
 		items.forEach((item) => {
 			item.addEventListener("click", () => {
 				itemClicked = true;
 			});
 		});
 
-		// on resize, move bg to active if it exists
-
+		// Handle resize
 		window.addEventListener(
 			"resize",
 			lenus.helperFunctions.debounce(() => {
+				itemClicked = false; // Reset click state on resize
 				if (activeItem) {
-					moveBg(activeItem);
+					// Skip animation on resize
+					const itemRect = activeItem.getBoundingClientRect();
+					const menuRect = menu.getBoundingClientRect();
+
+					gsap.set(highlight, {
+						autoAlpha: 1,
+						"--nav--menu-bg-w": `${itemRect.width}px`,
+						"--nav--menu-bg-l": `${itemRect.left - menuRect.left}px`,
+					});
+					gsap.set(activeItem, { color: "var(--_theme---nav--link-active)" });
+					gsap.set(
+						items.filter((item) => item !== activeItem),
+						{
+							color: "var(--_theme---nav--link-inactive)",
+						}
+					);
 				} else {
-					resetBg();
+					gsap.set(highlight, {
+						autoAlpha: 0,
+						"--nav--menu-bg-w": "0px",
+						"--nav--menu-bg-l": "0px",
+					});
+					gsap.set(items, { color: "var(--_theme---nav--link-inactive)" });
 				}
-			})
+			}, 200)
 		);
+	}
+
+	function navOpen() {
+		const nav = document.querySelector(".nav");
+		const navBtn = document.querySelector(".nav_expand-btn.is-menu");
+		const navBtnMbl = document.querySelector(".nav_expand-btn.is-mbl");
+		const megaNav = document.querySelector(".nav-mega");
+		const navLayout = document.querySelector(".nav_mega-layout");
+		const navBg = document.querySelector(".nav_bg"); // menu bg we animate on desktop
+		const megaNavBg = document.querySelector(".nav-mega_bg"); // mega menu bg
+		const bgColor = getComputedStyle(navBg).getPropertyValue("background-color");
+		const finalRadius = getComputedStyle(megaNavBg).getPropertyValue("border-bottom-left-radius");
+		const icon = navBtn.querySelector(".nav-plus");
+		const iconMbl = navBtnMbl.querySelector(".nav-plus");
+
+		const mediaQuery = window.matchMedia("(max-width: 767px)");
+		let currentMode = mediaQuery.matches ? "mobile" : "desktop";
+		let navOpen = false;
+
+		let desktopTl, mobileTl;
+
+		let accordionContext;
+
+		// Stagger menu items in three groups
+		let staggerGroup1_dsk = [
+			nav.querySelector(".nav-mega_col:nth-child(1)"),
+			nav.querySelector(".nav-mega_col:nth-child(3)"),
+		];
+		let staggerGroup2_dsk = [
+			nav.querySelector(".nav-mega_col:nth-child(2)"),
+			nav.querySelector(".nav-mega_col:nth-child(4)"),
+		];
+		let staggerGroup3_dsk = nav.querySelector(".nav-mega_feat");
+		let stagger = 0.05;
+
+		let staggerGroup1_mbl = nav.querySelector(".nav-mega_feat");
+		let staggerGroup2_mbl = nav.querySelector(".nav-mega_col:nth-child(1)");
+		let staggerGroup3_mbl = nav.querySelector(".nav-mega_col:nth-child(2)");
+		let staggerGroup4_mbl = nav.querySelector(".nav-mega_col:nth-child(3)");
+		let staggerGroup5_mbl = nav.querySelector(".nav-mega_col:nth-child(4)");
+		let staggerGroup6_mbl = nav.querySelector(".nav-mega_footer");
+
+		resetAllStyles();
+
+		if (currentMode === "desktop") {
+			desktopTl = setUpDesktopTimeline();
+		} else {
+			mobileTl = setUpMobileTimeline();
+			setUpAccordions();
+		}
+
+		// Set initial states
+		function resetAllStyles() {
+			// Clear all inline styles first
+			gsap.set([navBg, megaNavBg, megaNav, navLayout], { clearProps: "all" });
+			gsap.set([icon, iconMbl], { rotation: 0 });
+			gsap.set([staggerGroup1_dsk, staggerGroup2_dsk, staggerGroup3_dsk], { clearProps: "all" });
+
+			// Then set initial state
+			gsap.set(megaNav, { display: "block", autoAlpha: 0 });
+			gsap.set([".nav-mega_col", ".nav-mega_feat", ".nav-mega_footer"], { autoAlpha: 0 });
+		}
+
+		function setUpDesktopTimeline() {
+			let tl = gsap.timeline({ paused: true });
+
+			tl.set(megaNav, { display: "block", autoAlpha: 1 }, 0);
+			tl.to(
+				navLayout,
+				{
+					opacity: 1,
+					duration: 0.3,
+					ease: "power2.out",
+				},
+				0
+			);
+			tl.add(Flip.fit(navBg, megaNavBg, { duration: 0.5 }), 0);
+			tl.add("flipDone", ">-0.1");
+			tl.to(
+				navBg,
+				{
+					borderBottomLeftRadius: finalRadius,
+					borderBottomRightRadius: finalRadius,
+					borderTopLeftRadius: 0,
+					borderTopRightRadius: 0,
+					duration: 0.5,
+				},
+				0
+			);
+			tl.to(
+				icon,
+				{
+					rotation: 45,
+					duration: 0.3,
+				},
+				0
+			);
+			tl.to(
+				staggerGroup1_dsk,
+				{
+					autoAlpha: 1,
+					duration: 0.5,
+				},
+				"flipDone"
+			);
+			tl.to(
+				staggerGroup2_dsk,
+				{
+					autoAlpha: 1,
+					duration: 0.5,
+				},
+				`flipDone+=${stagger}`
+			);
+			tl.to(
+				staggerGroup3_dsk,
+				{
+					autoAlpha: 1,
+					duration: 0.5,
+				},
+				`flipDone+=${stagger * 2}`
+			);
+			tl.set(navBg, { autoAlpha: 0 }, "flipDone");
+			tl.set(megaNavBg, { backgroundColor: bgColor }, "flipDone");
+			return tl;
+		}
+		function setUpMobileTimeline() {
+			let tl = gsap.timeline({ paused: true });
+			tl.set(megaNav, { display: "block", autoAlpha: 1 }, 0);
+			tl.to(
+				megaNavBg,
+				{
+					autoAlpha: 1,
+					backgroundColor: bgColor,
+					duration: 0.3,
+					ease: "power2.out",
+				},
+				0
+			);
+			tl.to(
+				navLayout,
+				{
+					opacity: 1,
+					duration: 0.3,
+					ease: "power2.out",
+				},
+				0
+			);
+			tl.to(
+				iconMbl,
+				{
+					rotation: 45,
+					duration: 0.3,
+				},
+				0
+			);
+			tl.to(
+				staggerGroup1_mbl,
+				{
+					autoAlpha: 1,
+					duration: 0.5,
+				},
+				0.1
+			);
+			tl.to(
+				staggerGroup2_mbl,
+				{
+					autoAlpha: 1,
+					duration: 0.5,
+				},
+				0.1 + stagger
+			);
+			tl.to(
+				staggerGroup3_mbl,
+				{
+					autoAlpha: 1,
+					duration: 0.5,
+				},
+				0.1 + stagger * 2
+			);
+			tl.to(
+				staggerGroup4_mbl,
+				{
+					autoAlpha: 1,
+					duration: 0.5,
+				},
+				0.1 + stagger * 3
+			);
+			tl.to(
+				staggerGroup5_mbl,
+				{
+					autoAlpha: 1,
+					duration: 0.5,
+				},
+				0.1 + stagger * 4
+			);
+			tl.to(
+				staggerGroup6_mbl,
+				{
+					autoAlpha: 1,
+					duration: 0.5,
+				},
+				0.1 + stagger * 5
+			);
+
+			return tl;
+		}
+
+		function setUpAccordions() {
+			accordionContext = gsap.context(() => {
+				const cols = nav.querySelectorAll(".nav-mega_col");
+				let tls = [];
+				let isAnimating = false;
+
+				// initial states
+				gsap.set(".nav-mega_list-wrap", { height: 0, overflow: "hidden" });
+				gsap.set(".nav-mega_link", { autoAlpha: 0 });
+
+				cols.forEach((col, index) => {
+					const title = col.querySelector(".nav-mega_col-title");
+					const body = col.querySelector(".nav-mega_list-wrap");
+					const colSelector = gsap.utils.selector(col);
+
+					// Create separate timelines for opening and closing
+					const openTl = gsap.timeline({
+						paused: true,
+						onComplete: () => {
+							isAnimating = false;
+						},
+					});
+
+					const closeTl = gsap.timeline({
+						paused: true,
+						onComplete: () => {
+							isAnimating = false;
+						},
+					});
+
+					// Build the open timeline
+					openTl.to(body, {
+						height: body.scrollHeight,
+						duration: 0.25,
+						ease: "power2.out",
+					});
+
+					openTl.to(
+						colSelector(".nav-mega_link"),
+						{
+							autoAlpha: 1,
+							stagger: 0.03,
+							duration: 0.15,
+							ease: "power2.out",
+						},
+						">-0.1"
+					); // Start slightly before height animation completes
+
+					// Build the close timeline
+					closeTl.to(colSelector(".nav-mega_link"), {
+						autoAlpha: 0,
+						stagger: 0.02,
+						duration: 0.1,
+						ease: "power2.in",
+					});
+
+					closeTl.to(
+						body,
+						{
+							height: 0,
+							duration: 0.2, // Faster closing animation
+							ease: "power2.in",
+						},
+						">-0.05"
+					);
+
+					// Store both timelines
+					tls[index] = {
+						open: openTl,
+						close: closeTl,
+						isOpen: false,
+					};
+
+					// Add click handler
+					title.addEventListener("click", () => {
+						if (isAnimating) return;
+
+						isAnimating = true;
+						const isCurrentlyOpen = tls[index].isOpen;
+
+						// Function to close all open accordions
+						const closeAllOthers = () => {
+							const promises = [];
+
+							cols.forEach((otherCol, otherIndex) => {
+								if (otherIndex !== index && tls[otherIndex].isOpen) {
+									tls[otherIndex].isOpen = false;
+									tls[otherIndex].close.restart();
+									promises.push(
+										new Promise((resolve) => {
+											// Add onComplete just for this instance
+											tls[otherIndex].close.eventCallback("onComplete", resolve);
+										})
+									);
+								}
+							});
+
+							return Promise.all(promises);
+						};
+
+						if (isCurrentlyOpen) {
+							// Just close this one
+							tls[index].isOpen = false;
+							tls[index].close.restart();
+						} else {
+							// First close others, then open this one
+							closeAllOthers().then(() => {
+								tls[index].isOpen = true;
+								tls[index].open.restart();
+							});
+						}
+					});
+				});
+			});
+		}
+
+		// Click handlers
+		navBtn.addEventListener("click", () => {
+			if (currentMode !== "desktop") return;
+
+			if (navOpen) {
+				if (desktopTl) desktopTl.reverse();
+			} else {
+				if (desktopTl) desktopTl.play();
+			}
+			navOpen = !navOpen;
+		});
+
+		navBtnMbl.addEventListener("click", () => {
+			if (currentMode !== "mobile") return;
+
+			if (navOpen) {
+				if (mobileTl) mobileTl.reverse();
+			} else {
+				if (mobileTl) mobileTl.play();
+			}
+			navOpen = !navOpen;
+		});
+
+		function resetDesktopTimeline() {
+			if (desktopTl) {
+				desktopTl.revert();
+				desktopTl = null;
+				// gsap.clearProps(navBg);
+			}
+		}
+
+		// Mode change handler
+		function handleResize() {
+			const newMode = mediaQuery.matches ? "mobile" : "desktop";
+
+			// when resizing within desktop mode, we are aggressive and kill and recreate timeline, so as to keep the FLIP stuff up to date
+			if (newMode === currentMode && newMode === "desktop") {
+				if (desktopTl) desktopTl.revert();
+				desktopTl.kill();
+				desktopTl = setUpDesktopTimeline();
+				navOpen = false;
+			}
+
+			if (newMode === currentMode) return;
+
+			// If menu was open, close it in current mode before switching
+
+			if (currentMode === "desktop") {
+				if (desktopTl) desktopTl.revert();
+				mobileTl = setUpMobileTimeline();
+				setUpAccordions();
+			} else {
+				if (mobileTl) mobileTl.revert();
+				accordionContext.revert();
+				desktopTl = setUpDesktopTimeline();
+			}
+			navOpen = false;
+
+			currentMode = newMode;
+		}
+
+		// Listen for resize events
+		window.addEventListener("resize", lenus.helperFunctions.debounce(handleResize, 200));
+
+		// Initialize
+		handleResize();
 	}
 
 	/* helper functions */
@@ -3568,4 +4017,5 @@ Features:
 	jobScroll();
 	navHover();
 	toggleSlider();
+	navOpen();
 }
