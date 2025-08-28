@@ -2954,7 +2954,10 @@ function main() {
 		const menu = document.querySelector(".nav_menu");
 		const items = gsap.utils.toArray(".c-nav-item");
 		const activeLink = document.querySelector(".nav-item_link.w--current");
-		const highlight = document.querySelector(".nav_menu-highlight");
+		// create highlight element
+		const highlight = document.createElement("div");
+		highlight.classList.add("nav_menu-highlight");
+		menu.prepend(highlight);
 
 		if (!menu || !items.length || !highlight) return;
 
@@ -3120,6 +3123,19 @@ function main() {
 		const navBtnMbl = document.querySelector(".nav_expand-btn.is-mbl");
 		const megaNav = document.querySelector(".nav-mega");
 		const navLayout = document.querySelector(".nav_mega-layout");
+
+		// get the nav type
+		let navType;
+		if (nav.classList.contains("is-blog")) {
+			navType = "blog";
+		} else if (nav.classList.contains("is-store")) {
+			navType = "store";
+		} else if (nav.classList.contains("is-careers")) {
+			navType = "careers";
+		} else {
+			navType = "default";
+		}
+
 		const navBg = document.querySelector(".nav_bg"); // menu bg we animate on desktop
 		const megaNavBg = document.querySelector(".nav-mega_bg"); // mega menu bg
 		let bgColor;
@@ -3141,23 +3157,25 @@ function main() {
 		let accordionContext;
 
 		// Stagger menu items in three groups
-		let staggerGroup1_dsk = [
+		let staggerGroup1_dsk = filterValidElements([
 			nav.querySelector(".nav-mega_col:nth-child(1)"),
 			nav.querySelector(".nav-mega_col:nth-child(3)"),
-		];
-		let staggerGroup2_dsk = [
+		]);
+
+		let staggerGroup2_dsk = filterValidElements([
 			nav.querySelector(".nav-mega_col:nth-child(2)"),
 			nav.querySelector(".nav-mega_col:nth-child(4)"),
-		];
-		let staggerGroup3_dsk = nav.querySelector(".nav-mega_feat");
+		]);
+		let staggerGroup3_dsk = filterValidElements([nav.querySelector(".nav-mega_feat")]);
+		// }
 		let stagger = 0.05;
 
-		let staggerGroup1_mbl = nav.querySelector(".nav-mega_feat");
-		let staggerGroup2_mbl = nav.querySelector(".nav-mega_col:nth-child(1)");
-		let staggerGroup3_mbl = nav.querySelector(".nav-mega_col:nth-child(2)");
-		let staggerGroup4_mbl = nav.querySelector(".nav-mega_col:nth-child(3)");
-		let staggerGroup5_mbl = nav.querySelector(".nav-mega_col:nth-child(4)");
-		let staggerGroup6_mbl = nav.querySelector(".nav-mega_footer");
+		let staggerGroup1_mbl = filterValidElements(nav.querySelector(".nav-mega_feat"));
+		let staggerGroup2_mbl = filterValidElements(nav.querySelector(".nav-mega_col:nth-child(1)"));
+		let staggerGroup3_mbl = filterValidElements(nav.querySelector(".nav-mega_col:nth-child(2)"));
+		let staggerGroup4_mbl = filterValidElements(nav.querySelector(".nav-mega_col:nth-child(3)"));
+		let staggerGroup5_mbl = filterValidElements(nav.querySelector(".nav-mega_col:nth-child(4)"));
+		let staggerGroup6_mbl = filterValidElements(nav.querySelector(".nav-mega_footer"));
 
 		resetAllStyles();
 
@@ -3178,8 +3196,15 @@ function main() {
 			if (iconMbl) {
 				gsap.set(iconMbl, { rotation: 0 });
 			}
-			if (staggerGroup1_dsk) {
-				gsap.set([staggerGroup1_dsk, staggerGroup2_dsk, staggerGroup3_dsk], { clearProps: "all" });
+
+			if (staggerGroup1_dsk && staggerGroup1_dsk.length > 0) {
+				gsap.set(staggerGroup1_dsk, { clearProps: "all" });
+			}
+			if (staggerGroup2_dsk && staggerGroup2_dsk.length > 0) {
+				gsap.set(staggerGroup2_dsk, { clearProps: "all" });
+			}
+			if (staggerGroup3_dsk && staggerGroup3_dsk.length > 0) {
+				gsap.set(staggerGroup3_dsk, { clearProps: "all" });
 			}
 
 			// Then set initial state
@@ -3221,30 +3246,36 @@ function main() {
 				},
 				0
 			);
-			tl.to(
-				staggerGroup1_dsk,
-				{
-					autoAlpha: 1,
-					duration: 0.5,
-				},
-				"flipDone"
-			);
-			tl.to(
-				staggerGroup2_dsk,
-				{
-					autoAlpha: 1,
-					duration: 0.5,
-				},
-				`flipDone+=${stagger}`
-			);
-			tl.to(
-				staggerGroup3_dsk,
-				{
-					autoAlpha: 1,
-					duration: 0.5,
-				},
-				`flipDone+=${stagger * 2}`
-			);
+			if (staggerGroup1_dsk && staggerGroup1_dsk.length > 0) {
+				tl.to(
+					staggerGroup1_dsk,
+					{
+						autoAlpha: 1,
+						duration: 0.5,
+					},
+					"flipDone"
+				);
+			}
+			if (staggerGroup2_dsk && staggerGroup2_dsk.length > 0) {
+				tl.to(
+					staggerGroup2_dsk,
+					{
+						autoAlpha: 1,
+						duration: 0.5,
+					},
+					`flipDone+=${stagger}`
+				);
+			}
+			if (staggerGroup3_dsk && staggerGroup3_dsk.length > 0) {
+				tl.to(
+					staggerGroup3_dsk,
+					{
+						autoAlpha: 1,
+						duration: 0.5,
+					},
+					`flipDone+=${stagger * 2}`
+				);
+			}
 			tl.set(navBg, { autoAlpha: 0 }, "flipDone");
 			tl.set(megaNavBg, { backgroundColor: bgColor }, "flipDone");
 			return tl;
@@ -3279,61 +3310,80 @@ function main() {
 				},
 				0
 			);
-			tl.to(
-				staggerGroup1_mbl,
-				{
-					autoAlpha: 1,
-					duration: 0.5,
-				},
-				0.1
-			);
-			tl.to(
-				staggerGroup2_mbl,
-				{
-					autoAlpha: 1,
-					duration: 0.5,
-				},
-				0.1 + stagger
-			);
-			tl.to(
-				staggerGroup3_mbl,
-				{
-					autoAlpha: 1,
-					duration: 0.5,
-				},
-				0.1 + stagger * 2
-			);
-			tl.to(
-				staggerGroup4_mbl,
-				{
-					autoAlpha: 1,
-					duration: 0.5,
-				},
-				0.1 + stagger * 3
-			);
-			tl.to(
-				staggerGroup5_mbl,
-				{
-					autoAlpha: 1,
-					duration: 0.5,
-				},
-				0.1 + stagger * 4
-			);
-			tl.to(
-				staggerGroup6_mbl,
-				{
-					autoAlpha: 1,
-					duration: 0.5,
-				},
-				0.1 + stagger * 5
-			);
+
+			// Only add animations for groups that have elements
+			if (staggerGroup1_mbl && staggerGroup1_mbl.length > 0) {
+				tl.to(
+					staggerGroup1_mbl,
+					{
+						autoAlpha: 1,
+						duration: 0.5,
+					},
+					0.1
+				);
+			}
+
+			if (staggerGroup2_mbl && staggerGroup2_mbl.length > 0) {
+				tl.to(
+					staggerGroup2_mbl,
+					{
+						autoAlpha: 1,
+						duration: 0.5,
+					},
+					0.1 + stagger
+				);
+			}
+
+			if (staggerGroup3_mbl && staggerGroup3_mbl.length > 0) {
+				tl.to(
+					staggerGroup3_mbl,
+					{
+						autoAlpha: 1,
+						duration: 0.5,
+					},
+					0.1 + stagger * 2
+				);
+			}
+
+			if (staggerGroup4_mbl && staggerGroup4_mbl.length > 0) {
+				tl.to(
+					staggerGroup4_mbl,
+					{
+						autoAlpha: 1,
+						duration: 0.5,
+					},
+					0.1 + stagger * 3
+				);
+			}
+
+			if (staggerGroup5_mbl && staggerGroup5_mbl.length > 0) {
+				tl.to(
+					staggerGroup5_mbl,
+					{
+						autoAlpha: 1,
+						duration: 0.5,
+					},
+					0.1 + stagger * 4
+				);
+			}
+
+			if (staggerGroup6_mbl && staggerGroup6_mbl.length > 0) {
+				tl.to(
+					staggerGroup6_mbl,
+					{
+						autoAlpha: 1,
+						duration: 0.5,
+					},
+					0.1 + stagger * 5
+				);
+			}
 
 			return tl;
 		}
 
 		function setUpAccordions() {
-			// quick check - if we are on a Careers page (nav has class .is-careers) then we don't need accordions, just make the heights auto
-			if (nav.classList.contains("is-careers")) {
+			// quick check - if the nav type is anything but default then we don't need accordions, just make the heights auto
+			if (navType !== "default") {
 				gsap.set(".nav-mega_list-wrap", { height: "auto", overflow: "visible" });
 				gsap.set(".nav-mega_link", { autoAlpha: 1 });
 				return;
@@ -3511,7 +3561,7 @@ function main() {
 				setUpAccordions();
 			} else {
 				if (mobileTl) mobileTl.revert();
-				accordionContext.revert();
+				if (accordionContext) accordionContext.revert();
 				desktopTl = setUpDesktopTimeline();
 			}
 			navOpen = false;
@@ -3524,6 +3574,201 @@ function main() {
 
 		// Initialize
 		handleResize();
+
+		// Helper function to filter out null/undefined elements from stagger groups
+		function filterValidElements(group) {
+			if (!group) return [];
+			if (Array.isArray(group)) {
+				return group.filter((item) => item !== null && item !== undefined);
+			}
+			return group ? [group] : [];
+		}
+	}
+
+	function blogSearch() {
+		// Only run on blog-type pages
+		const nav = document.querySelector(".nav");
+		if (!nav || !nav.classList.contains("is-blog")) return;
+
+		// Find search components
+		const searchComponents = document.querySelectorAll(".c-search");
+		if (!searchComponents.length) return;
+
+		searchComponents.forEach((component) => {
+			const searchInput = component.querySelector(".search_input");
+			const searchButton = component.querySelector(".search_icon-wrap");
+			const searchForm = component.querySelector("form"); // Find parent form if it exists
+
+			const timeline = gsap.timeline({ paused: true });
+
+			if (!searchInput || !searchButton) return;
+
+			// Prevent form submission
+			if (searchForm) {
+				searchForm.addEventListener("submit", (e) => {
+					e.preventDefault(); // Prevent the default form submission
+					e.stopPropagation();
+					// searchButton.click(); // Trigger the search button click instead
+				});
+			}
+
+			// Create animation timeline
+			timeline.to(component, {
+				width: "var(--search--full-w)",
+				duration: 0.5,
+				ease: "power2.out",
+			});
+
+			// Add hover events
+			component.addEventListener("mouseenter", () => {
+				timeline.play();
+			});
+
+			component.addEventListener("mouseleave", () => {
+				// Only reverse if input is empty
+				if (!searchInput.value.trim()) {
+					timeline.reverse();
+				}
+			});
+
+			// Function to add click handler to clear buttons
+			const addClearButtonHandler = (clearButton) => {
+				if (!clearButton || clearButton.hasAttribute("data-search-clear-handled")) return;
+
+				clearButton.setAttribute("data-search-clear-handled", "true");
+				clearButton.addEventListener("click", () => {
+					searchInput.value = "";
+					timeline.reverse();
+				});
+			};
+
+			// Function to find and click clear button
+			const triggerClearButton = () => {
+				const clearButton = document.querySelector("[fs-list-element=clear]");
+				if (clearButton) {
+					clearButton.click();
+				}
+			};
+
+			// Listen for input changes to detect when the search is cleared
+			searchInput.addEventListener("input", (e) => {
+				if (!e.target.value.trim()) {
+					triggerClearButton();
+					timeline.reverse();
+				}
+			});
+
+			// Add clear functionality when user presses escape key
+			searchInput.addEventListener("keydown", (e) => {
+				if (e.key === "Escape") {
+					searchInput.value = "";
+					triggerClearButton();
+					timeline.reverse();
+				} else if (e.key === "Enter") {
+					searchButton.click();
+				}
+			});
+
+			// Add click handler for search button
+			searchButton.addEventListener("click", () => {
+				const searchTerm = encodeURIComponent(searchInput.value.trim());
+				if (!searchTerm) return;
+
+				const isOnBlogPage =
+					window.location.pathname === "/blog" || window.location.pathname === "/blog/";
+
+				if (isOnBlogPage) {
+					// We're on the blog page, so find and update the Finsweet filter input
+					const blogListSearch = document.querySelector(".blog-list_search > input");
+					if (blogListSearch) {
+						blogListSearch.value = searchInput.value;
+
+						// Trigger input event to activate Finsweet filtering
+						const inputEvent = new Event("input", { bubbles: true });
+						blogListSearch.dispatchEvent(inputEvent);
+
+						// Optionally focus the blog list search input
+						// blogListSearch.focus();
+					}
+				} else {
+					// Navigate to blog page with search parameter
+					window.location.href = `/blog?search=${searchTerm}`;
+				}
+			});
+
+			// Check for existing clear buttons and add handlers to them
+			document.querySelectorAll("[fs-list-element=clear]").forEach(addClearButtonHandler);
+
+			// Set up a mutation observer to watch for clear buttons being added to the DOM
+			const observerConfig = { childList: true, subtree: true };
+			const observer = new MutationObserver((mutations) => {
+				mutations.forEach((mutation) => {
+					if (mutation.type === "childList" && mutation.addedNodes.length) {
+						mutation.addedNodes.forEach((node) => {
+							// Check if the node itself is a clear button
+							if (
+								node.nodeType === 1 &&
+								node.getAttribute &&
+								node.getAttribute("fs-list-element") === "clear"
+							) {
+								addClearButtonHandler(node);
+							}
+
+							// Check if the node contains clear buttons
+							if (node.nodeType === 1 && node.querySelectorAll) {
+								node.querySelectorAll("[fs-list-element=clear]").forEach(addClearButtonHandler);
+							}
+						});
+					}
+				});
+			});
+
+			// Start observing the document body for changes
+			observer.observe(document.body, observerConfig);
+
+			// Add enter key support for search input
+			searchInput.addEventListener("keydown", (e) => {
+				if (e.key === "Enter") {
+					searchButton.click();
+				}
+			});
+
+			// Check URL for search parameter on page load
+			if (window.location.pathname === "/blog" || window.location.pathname === "/blog/") {
+				const urlParams = new URLSearchParams(window.location.search);
+				const searchParam = urlParams.get("*_contain");
+
+				if (searchParam) {
+					// Set the search input value
+					searchInput.value = searchParam;
+
+					// Keep the search component expanded
+					timeline.play();
+
+					// Also update the Finsweet filter input
+					const blogListSearch = document.querySelector(".blog-list_search > input");
+					if (blogListSearch) {
+						blogListSearch.value = searchParam;
+
+						// Trigger input event to activate Finsweet filtering
+						const inputEvent = new Event("input", { bubbles: true });
+						blogListSearch.dispatchEvent(inputEvent);
+					}
+				}
+			}
+
+			// on resize to mobile (with a debounce), clear all
+			window.addEventListener(
+				"resize",
+				lenus.helperFunctions.debounce(() => {
+					if (window.innerWidth < 768) {
+						searchInput.value = "";
+						triggerClearButton();
+						timeline.reverse();
+					}
+				})
+			);
+		});
 	}
 
 	/* helper functions */
@@ -4041,4 +4286,5 @@ Features:
 	navHover();
 	toggleSlider();
 	navOpen();
+	blogSearch();
 }
