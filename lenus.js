@@ -3771,6 +3771,158 @@ function main() {
 		});
 	}
 
+	function pricingOptions() {
+		// add splide carousel with progress for .pricing-options, with carousel destroyed on mobile
+
+		document.querySelectorAll(".pricing-options.splide").forEach((component) => {
+			var splideInstance = new Splide(component, {
+				type: "slide",
+				autoWidth: true,
+				arrows: true,
+				pagination: false,
+				gap: "0",
+				autoplay: false,
+				trimSpace: "move",
+				snap: false,
+				drag: "free",
+				focus: "left",
+			});
+			splideInstance.mount();
+
+			// destroy carousel on mobile
+			const mediaQuery = window.matchMedia("(max-width: 768px)");
+			const destroyCarousel = () => {
+				if (mediaQuery.matches) {
+					splideInstance.destroy();
+				} else {
+					splideInstance.mount();
+				}
+			};
+			mediaQuery.addEventListener("change", destroyCarousel);
+		});
+	}
+
+	function pricingFeatures() {
+		const container = document.querySelector(".c-pricing-features");
+		const content = container.querySelector(".pricing-features_table");
+		const draggable = setupHorizontalDraggable(container, content);
+
+		function setupHorizontalDraggable(component, content) {
+			// Get container and content elements
+			const container =
+				typeof component === "string" ? document.querySelector(component) : component;
+			const contentEl = typeof content === "string" ? container.querySelector(content) : content;
+
+			if (!container || !contentEl) {
+				console.error("Container or content element not found");
+				return;
+			}
+
+			// State
+			let draggableInstance = null;
+
+			// Function to check if draggable is needed
+			function checkOverflow() {
+				const containerWidth = container.clientWidth;
+				const contentWidth = contentEl.scrollWidth;
+				return contentWidth > containerWidth;
+			}
+
+			// Function to calculate bounds
+			function calculateBounds() {
+				const containerWidth = container.clientWidth;
+				const contentWidth = contentEl.scrollWidth;
+				return {
+					minX: -Math.max(0, contentWidth - containerWidth),
+					maxX: 0,
+				};
+			}
+
+			// Function to create draggable instance
+			function createDraggable() {
+				if (draggableInstance) return;
+
+				const bounds = calculateBounds();
+
+				// Set initial cursor styles
+				gsap.set(contentEl, { cursor: "grab" });
+
+				draggableInstance = Draggable.create(contentEl, {
+					type: "x",
+					bounds: bounds,
+					inertia: true,
+					edgeResistance: 0.65,
+					allowContextMenu: true,
+					cursor: "grab",
+					activeCursor: "grabbing",
+					onDrag: function () {
+						// Ensure we don't exceed bounds during drag
+						const x = gsap.getProperty(contentEl, "x");
+						if (x < bounds.minX || x > bounds.maxX) {
+							const clamped = gsap.utils.clamp(bounds.minX, bounds.maxX, x);
+							gsap.set(contentEl, { x: clamped });
+						}
+					},
+				})[0];
+				content.classList.add("is-overflow");
+				console.log("Draggable created with bounds:", bounds);
+			}
+
+			// Function to destroy draggable instance
+			function destroyDraggable() {
+				if (!draggableInstance) return;
+
+				draggableInstance.kill();
+				draggableInstance = null;
+				gsap.set(contentEl, { x: 0, cursor: "" });
+				content.classList.remove("is-overflow");
+				console.log("Draggable destroyed");
+			}
+
+			// Update function to check and apply/remove draggable as needed
+			function update() {
+				if (checkOverflow()) {
+					if (draggableInstance) {
+						// Update bounds if draggable already exists
+						const bounds = calculateBounds();
+						draggableInstance.applyBounds(bounds);
+
+						// Ensure current position is within new bounds
+						const currentX = gsap.getProperty(contentEl, "x");
+						const clamped = gsap.utils.clamp(bounds.minX, bounds.maxX, currentX);
+						if (clamped !== currentX) {
+							gsap.set(contentEl, { x: clamped });
+						}
+
+						console.log("Draggable bounds updated:", bounds);
+					} else {
+						createDraggable();
+					}
+				} else {
+					destroyDraggable();
+				}
+			}
+
+			// Create debounced resize handler
+			const debouncedUpdate = lenus.helperFunctions.debounce(update, 200);
+
+			// Add resize listener
+			window.addEventListener("resize", debouncedUpdate);
+
+			// Initial setup
+			update();
+
+			// Return cleanup function
+			return {
+				update,
+				destroy: () => {
+					window.removeEventListener("resize", debouncedUpdate);
+					destroyDraggable();
+				},
+			};
+		}
+	}
+
 	/* helper functions */
 
 	/* for a card with a video and an image, show the video and hide the image or vice versa */
@@ -4287,4 +4439,6 @@ Features:
 	toggleSlider();
 	navOpen();
 	blogSearch();
+	pricingOptions();
+	pricingFeatures();
 }
