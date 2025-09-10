@@ -3804,7 +3804,9 @@ function main() {
 
 	function pricingFeatures() {
 		const container = document.querySelector(".c-pricing-features");
+		if (!container) return;
 		const content = container.querySelector(".pricing-features_table");
+		if (!content) return;
 		const draggable = setupHorizontalDraggable(container, content);
 
 		function setupHorizontalDraggable(component, content) {
