@@ -34,6 +34,7 @@ function main() {
 		const LIGHT_THEMES = ["base", "chalk", "slate", "light-grey"];
 		const header = document.querySelector(".header");
 		if (!header) return;
+		let state = "light"; // current theme state
 
 		const sectionGroups = gsap.utils.toArray("[data-wf--section-group--variant]");
 		const getNavHeight = () =>
@@ -45,50 +46,63 @@ function main() {
 			return "light";
 		}
 
-		function getThemeVars(theme) {
-			// Replace with your actual values
-			return theme === "dark"
-				? {
-						navLogo: "#fff",
-						navLinkInactive: "#bbb",
-				  }
-				: {
-						navLogo: "#111",
-						navLinkInactive: "#666",
-				  };
-		}
-
 		// Single timeline for header theme animation
 		let headerThemeTl = null;
 		function setupHeaderThemeTimeline() {
-			let state = "light"; // default state
-			const lightVars = getThemeVars("light");
-			const darkVars = getThemeVars("dark");
+			const darkThemer = document.querySelector(".nav-dark-themer");
+			const lightThemer = document.querySelector(".nav-light-themer");
+
 			if (headerThemeTl) headerThemeTl.kill();
 			headerThemeTl = gsap.timeline({
 				paused: true,
-				onComplete: () => {
-					console.log("Header theme TL play");
-					state = "dark";
-				},
-				onReverseComplete: () => {
-					console.log("Header theme TL reverse complete");
-					state = "light";
-				},
+				onComplete: () => (state = "dark"),
+				onReverseComplete: () => (state = "light"),
 			});
+
+			if (!darkThemer || !lightThemer) {
+				console.warn(
+					"Header theme elements not found. Ensure .nav-dark-themer and .nav-light-themer exist."
+				);
+				return;
+			}
+
+			// Define all CSS variables in one place
+			const cssVars = [
+				"--_theme---nav--body",
+				"--_theme---nav--accent",
+				"--_theme---nav--accent-careers",
+				"--_theme---nav--logo-text",
+				"--_theme---nav--link-inactive",
+				"--_theme---nav--link-active",
+				"--_theme---nav--bg",
+				"--_theme---nav--col-header",
+				"--_theme---nav--search-border",
+			];
+
+			// Helper function to extract values from computed styles
+			const getThemeValues = (element) => {
+				const styles = getComputedStyle(element);
+				return cssVars.reduce((acc, varName) => {
+					acc[varName] = styles.getPropertyValue(varName).trim();
+					return acc;
+				}, {});
+			};
+
+			const darkVars = getThemeValues(darkThemer);
+			const lightVars = getThemeValues(lightThemer);
+
+			// Animate to dark theme values
 			headerThemeTl.to(
 				header,
 				{
-					"--_theme---nav--logo": darkVars.navLogo,
-					"--_theme---nav--link-inactive": darkVars.navLinkInactive,
-					duration: 0.15,
+					...darkVars,
+					duration: 0.3,
 				},
 				0
 			);
-			gsap.set(header, {
-				"--_theme---nav--logo": lightVars.navLogo,
-				"--_theme---nav--link-inactive": lightVars.navLinkInactive,
-			});
+
+			// Set initial light theme values
+			gsap.set(header, lightVars);
 		}
 
 		// Setup header theme timeline once
@@ -3128,13 +3142,22 @@ function main() {
 	function navHover() {
 		const menu = document.querySelector(".nav_menu");
 		const items = gsap.utils.toArray(".c-nav-item");
+		const expandBtn = document.querySelector(".nav_expand-btn.is-menu");
+
 		const activeLink = document.querySelector(".nav-item_link.w--current");
+
 		// create highlight element
 		const highlight = document.createElement("div");
 		highlight.classList.add("nav_menu-highlight");
 		menu.prepend(highlight);
 
 		if (!menu || !items.length || !highlight) return;
+
+		// Combine nav items and expand button for hoverable elements
+		const hoverableElements = [...items];
+		if (expandBtn) {
+			hoverableElements.push(expandBtn);
+		}
 
 		let activeItem = activeLink ? activeLink.closest(".c-nav-item") : null;
 		let itemClicked = false;
@@ -3188,13 +3211,13 @@ function main() {
 			});
 		};
 
-		const moveHighlight = (item) => {
+		const moveHighlight = (target) => {
 			if (itemClicked) return;
 
-			const itemRect = item.getBoundingClientRect();
+			const targetRect = target.getBoundingClientRect();
 			const menuRect = menu.getBoundingClientRect();
-			const width = itemRect.width;
-			const left = itemRect.left - menuRect.left;
+			const width = targetRect.width;
+			const left = targetRect.left - menuRect.left;
 
 			// Kill any existing movement animation
 			if (movementAnimation) {
@@ -3219,13 +3242,13 @@ function main() {
 			}
 
 			// Always update text colors
-			gsap.to(items, {
+			gsap.to(hoverableElements, {
 				color: "var(--_theme---nav--link-inactive)",
 				duration: 0.2,
 				ease: "power3.out",
 			});
 
-			gsap.to(item, {
+			gsap.to(target, {
 				color: "var(--_theme---nav--link-active)",
 				duration: 0.2,
 				ease: "power3.out",
@@ -3233,8 +3256,8 @@ function main() {
 		};
 
 		// Hover handlers
-		items.forEach((item) => {
-			item.addEventListener("mouseenter", () => moveHighlight(item));
+		hoverableElements.forEach((element) => {
+			element.addEventListener("mouseenter", () => moveHighlight(element));
 		});
 
 		// Reset to active item when leaving menu
@@ -3243,7 +3266,7 @@ function main() {
 				moveHighlight(activeItem);
 			} else {
 				setHighlightOpacity(false);
-				gsap.to(items, {
+				gsap.to(hoverableElements, {
 					color: "var(--_theme---nav--link-inactive)",
 					duration: 0.2,
 					ease: "power3.out",
@@ -3251,7 +3274,7 @@ function main() {
 			}
 		});
 
-		// Set click flag
+		// Set click flag for links only (not expand button)
 		items.forEach((item) => {
 			item.addEventListener("click", () => {
 				itemClicked = true;
@@ -3288,6 +3311,7 @@ function main() {
 					});
 					gsap.set(items, { color: "var(--_theme---nav--link-inactive)" });
 				}
+				gsap.set(expandBtn, { color: "var(--_theme---nav--link-inactive)" });
 			}, 200)
 		);
 	}
@@ -3385,6 +3409,7 @@ function main() {
 			// Then set initial state
 			gsap.set(megaNav, { display: "block", autoAlpha: 0 });
 			gsap.set([".nav-mega_col", ".nav-mega_feat", ".nav-mega_footer"], { autoAlpha: 0 });
+			gsap.set(megaNavBg, { autoAlpha: 0 });
 		}
 
 		function setUpDesktopTimeline() {
@@ -3452,7 +3477,13 @@ function main() {
 				);
 			}
 			tl.set(navBg, { autoAlpha: 0 }, "flipDone");
-			tl.set(megaNavBg, { backgroundColor: bgColor }, "flipDone");
+			tl.set(
+				megaNavBg,
+				{
+					autoAlpha: 1,
+				},
+				"flipDone"
+			);
 			return tl;
 		}
 		function setUpMobileTimeline() {
@@ -3462,7 +3493,6 @@ function main() {
 				megaNavBg,
 				{
 					autoAlpha: 1,
-					backgroundColor: bgColor,
 					duration: 0.3,
 					ease: "power2.out",
 				},
@@ -3685,9 +3715,17 @@ function main() {
 				if (currentMode !== "desktop") return;
 
 				if (navOpen) {
-					if (desktopTl) desktopTl.reverse();
+					if (desktopTl) {
+						desktopTl.reverse();
+						// re-enable scroll
+						document.body.style.overflow = "";
+					}
 				} else {
-					if (desktopTl) desktopTl.play();
+					if (desktopTl) {
+						desktopTl.play();
+						// disable scroll
+						document.body.style.overflow = "hidden";
+					}
 				}
 				navOpen = !navOpen;
 			});
@@ -3698,9 +3736,15 @@ function main() {
 				if (currentMode !== "mobile") return;
 
 				if (navOpen) {
-					if (mobileTl) mobileTl.reverse();
-				} else {
-					if (mobileTl) mobileTl.play();
+					if (mobileTl) {
+						// re-enable scroll
+						document.body.style.overflow = "";
+						mobileTl.reverse();
+					} else {
+						//disable scroll
+						document.body.style.overflow = "hidden";
+						if (mobileTl) mobileTl.play();
+					}
 				}
 				navOpen = !navOpen;
 			});
