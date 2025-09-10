@@ -28,6 +28,180 @@ function main() {
 		ease: "power2.out",
 		duration: 0.5,
 	});
+	// Header theme scroll logic
+	function headerThemeScrollTrigger() {
+		const DARK_THEMES = ["dark", "ivy", "wolfram", "olive"];
+		const LIGHT_THEMES = ["base", "chalk", "slate", "light-grey"];
+		const header = document.querySelector(".header");
+		if (!header) return;
+
+		const sectionGroups = gsap.utils.toArray("[data-wf--section-group--variant]");
+		const getNavHeight = () =>
+			parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav--height")) || 0;
+
+		function getTheme(variant) {
+			if (DARK_THEMES.includes(variant)) return "dark";
+			if (LIGHT_THEMES.includes(variant)) return "light";
+			return "light";
+		}
+
+		function getThemeVars(theme) {
+			// Replace with your actual values
+			return theme === "dark"
+				? {
+						navLogo: "#fff",
+						navLinkInactive: "#bbb",
+				  }
+				: {
+						navLogo: "#111",
+						navLinkInactive: "#666",
+				  };
+		}
+
+		// Single timeline for header theme animation
+		let headerThemeTl = null;
+		function setupHeaderThemeTimeline() {
+			let state = "light"; // default state
+			const lightVars = getThemeVars("light");
+			const darkVars = getThemeVars("dark");
+			if (headerThemeTl) headerThemeTl.kill();
+			headerThemeTl = gsap.timeline({
+				paused: true,
+				onComplete: () => {
+					console.log("Header theme TL play");
+					state = "dark";
+				},
+				onReverseComplete: () => {
+					console.log("Header theme TL reverse complete");
+					state = "light";
+				},
+			});
+			headerThemeTl.to(
+				header,
+				{
+					"--_theme---nav--logo": darkVars.navLogo,
+					"--_theme---nav--link-inactive": darkVars.navLinkInactive,
+					duration: 0.15,
+				},
+				0
+			);
+			gsap.set(header, {
+				"--_theme---nav--logo": lightVars.navLogo,
+				"--_theme---nav--link-inactive": lightVars.navLinkInactive,
+			});
+		}
+
+		// Setup header theme timeline once
+		setupHeaderThemeTimeline();
+
+		// Only create ScrollTriggers for dark section groups
+		// Store header theme ScrollTriggers for clean management
+		let headerThemeScrollTriggers = [];
+
+		function killHeaderThemeScrollTriggers() {
+			headerThemeScrollTriggers.forEach((t) => t.kill());
+			headerThemeScrollTriggers = [];
+		}
+
+		function createHeaderThemeScrollTriggers() {
+			killHeaderThemeScrollTriggers();
+			sectionGroups.forEach((group, idx) => {
+				const variant = group.getAttribute("data-wf--section-group--variant");
+				const theme = getTheme(variant);
+
+				if (DARK_THEMES.includes(variant)) {
+					const trigger = ScrollTrigger.create({
+						trigger: group,
+						start: () => `top ${getNavHeight()}px`,
+						end: () => `bottom top`,
+						scrub: true,
+						onEnter: () => {
+							console.log(
+								`[headerTheme] onEnter: idx=${idx}, variant=${variant}, theme=${theme} (DARK)`
+							);
+							headerThemeTl.play();
+						},
+						onEnterBack: () => {
+							console.log(
+								`[headerTheme] onEnterBack: idx=${idx}, variant=${variant}, theme=${theme} (LIGHT)`
+							);
+							headerThemeTl.play();
+						},
+
+						// handle on leave and leave back
+						onLeave: () => {
+							// if next section is dark, do nothing, else reverse
+							const nextGroup = sectionGroups[idx + 1];
+							if (nextGroup) {
+								const nextVariant = nextGroup.getAttribute("data-wf--section-group--variant");
+								if (DARK_THEMES.includes(nextVariant)) {
+									// Do nothing
+								} else {
+									console.log(
+										`[headerTheme] onLeave: idx=${idx}, variant=${variant}, theme=${theme} (LIGHT)`
+									);
+									headerThemeTl.reverse();
+								}
+							}
+						},
+						onLeaveBack: () => {
+							// if previous section is dark, do nothing, else play
+							const prevGroup = sectionGroups[idx - 1];
+							if (prevGroup) {
+								const prevVariant = prevGroup.getAttribute("data-wf--section-group--variant");
+								if (DARK_THEMES.includes(prevVariant)) {
+									// Do nothing
+								} else {
+									console.log(
+										`[headerTheme] onLeaveBack: idx=${idx}, variant=${variant}, theme=${theme} (LIGHT)`
+									);
+									headerThemeTl.reverse();
+								}
+							}
+						},
+					});
+					headerThemeScrollTriggers.push(trigger);
+				}
+			});
+		}
+		createHeaderThemeScrollTriggers();
+
+		// Initial setup: timeline, triggers, and theme
+		setupHeaderThemeTimeline();
+		createHeaderThemeScrollTriggers();
+		function setInitialHeaderTheme() {
+			const navHeight = getNavHeight();
+			let found = null;
+			sectionGroups.forEach((group) => {
+				const rect = group.getBoundingClientRect();
+				if (rect.top <= navHeight && rect.bottom > navHeight) {
+					found = group;
+				}
+			});
+			const variant = found
+				? found.getAttribute("data-wf--section-group--variant")
+				: sectionGroups[0]?.getAttribute("data-wf--section-group--variant");
+			if (DARK_THEMES.includes(variant)) {
+				// if state is already dark, do nothing
+				if (state === "dark") return;
+				headerThemeTl.play(0);
+			} else {
+				// if state is already light, do nothing
+				if (state === "light") return;
+				headerThemeTl.reverse(0);
+			}
+		}
+		setInitialHeaderTheme();
+
+		// Resize handling
+		const onResize = lenus.helperFunctions.debounce(() => {
+			setupHeaderThemeTimeline();
+			createHeaderThemeScrollTriggers();
+			ScrollTrigger.refresh();
+			setInitialHeaderTheme();
+		}, 200);
+		window.addEventListener("resize", onResize);
+	}
 
 	function logoSwap() {
 		document.querySelectorAll(".c-logo-swap").forEach((component) => {
@@ -441,6 +615,7 @@ function main() {
 	}
 
 	function videoCarousel() {
+		return;
 		const imgSelector = ".testim-card_bg img";
 		const videoSelector = "video";
 		// for each video carousel component .c-testim-carousel.splide
@@ -4443,4 +4618,5 @@ Features:
 	blogSearch();
 	pricingOptions();
 	pricingFeatures();
+	headerThemeScrollTrigger();
 }
