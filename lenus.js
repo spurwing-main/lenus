@@ -1977,13 +1977,12 @@ function main() {
 			updateMode();
 		}
 	}
-	// ...existing code...
 
 	function wideCarousel() {
-		const splideSelector = ".c-carousel";
-		const trackSelector = ".carousel_track";
-		const listSelector = ".carousel_list";
-		const slideSelector = ".carousel_item";
+		const splideSelector = ".c-wide-carousel";
+		const trackSelector = ".wide-carousel_track";
+		const listSelector = ".wide-carousel_list";
+		const slideSelector = ".wide-carousel_list-item";
 		document.querySelectorAll(splideSelector).forEach((component) => {
 			// ensure component has appropriate classes
 			if (!component.classList.contains("splide")) {
@@ -3804,127 +3803,149 @@ function main() {
 		}
 	}
 
-	function blogSearch() {
-		// Only run on blog-type pages
+	/**
+	 * Unified handleSearch for Blog and Store pages.
+	 * - Nav search input: .c-search .search_input
+	 * - Blog filter input: .blog-list_search > input
+	 * - Store filter input: .store-list_search > input
+	 * - Detects page type and applies correct logic (filter or redirect)
+	 */
+	function handleSearch() {
 		const nav = document.querySelector(".nav");
-		if (!nav || !nav.classList.contains("is-blog")) return;
+		if (!nav || (!nav.classList.contains("is-blog") && !nav.classList.contains("is-store"))) return;
 
-		// Find search components
 		const searchComponents = document.querySelectorAll(".c-search");
 		if (!searchComponents.length) return;
+
+		const PAGE_TYPE = nav.classList.contains("is-blog")
+			? "blog"
+			: nav.classList.contains("is-store")
+			? "store"
+			: null;
+
+		const LISTING_PATH = PAGE_TYPE === "blog" ? "/blog" : "/store";
+		const FILTER_INPUT_SELECTOR =
+			PAGE_TYPE === "blog" ? ".blog-list_search > input" : ".store-list_search > input";
+		const STATE_CLASS = "search-active";
 
 		searchComponents.forEach((component) => {
 			const searchInput = component.querySelector(".search_input");
 			const searchButton = component.querySelector(".search_icon-wrap");
-			const searchForm = component.querySelector("form"); // Find parent form if it exists
+			const searchForm = component.querySelector("form");
 
 			const timeline = gsap.timeline({ paused: true });
 
 			if (!searchInput || !searchButton) return;
 
+			// DRY: shared filter logic
+			const applyFilter = (searchValue) => {
+				const isOnListingPage =
+					window.location.pathname === LISTING_PATH ||
+					window.location.pathname === LISTING_PATH + "/";
+				if (isOnListingPage) {
+					const filterInput = document.querySelector(FILTER_INPUT_SELECTOR);
+					if (filterInput) {
+						filterInput.value = searchValue;
+						const inputEvent = new Event("input", { bubbles: true });
+						filterInput.dispatchEvent(inputEvent);
+					}
+					setStateClass(!!searchValue.trim());
+				}
+			};
+
 			// Prevent form submission
 			if (searchForm) {
 				searchForm.addEventListener("submit", (e) => {
-					e.preventDefault(); // Prevent the default form submission
+					e.preventDefault();
 					e.stopPropagation();
-					// searchButton.click(); // Trigger the search button click instead
 				});
 			}
 
-			// Create animation timeline
+			// Animation timeline for expanding search
 			timeline.to(component, {
 				width: "var(--search--full-w)",
 				duration: 0.5,
 				ease: "power2.out",
 			});
 
-			// Add hover events
-			component.addEventListener("mouseenter", () => {
-				timeline.play();
-			});
+			// Helper: set/remove state class
+			const setStateClass = (active) => {
+				document.documentElement.classList.toggle(STATE_CLASS, !!active);
+			};
 
+			// Hover events for animation
+			component.addEventListener("mouseenter", () => timeline.play());
 			component.addEventListener("mouseleave", () => {
-				// Only reverse if input is empty
-				if (!searchInput.value.trim()) {
-					timeline.reverse();
-				}
+				if (!searchInput.value.trim()) timeline.reverse();
 			});
 
-			// Function to add click handler to clear buttons
+			// Clear button handler
 			const addClearButtonHandler = (clearButton) => {
 				if (!clearButton || clearButton.hasAttribute("data-search-clear-handled")) return;
-
 				clearButton.setAttribute("data-search-clear-handled", "true");
 				clearButton.addEventListener("click", () => {
 					searchInput.value = "";
 					timeline.reverse();
+					setStateClass(false);
 				});
 			};
 
-			// Function to find and click clear button
+			// Find and click clear button
 			const triggerClearButton = () => {
 				const clearButton = document.querySelector("[fs-list-element=clear]");
-				if (clearButton) {
-					clearButton.click();
-				}
+				if (clearButton) clearButton.click();
 			};
 
-			// Listen for input changes to detect when the search is cleared
+			// Input change: live filter, clear logic, and state class
 			searchInput.addEventListener("input", (e) => {
-				if (!e.target.value.trim()) {
+				const value = e.target.value;
+				applyFilter(value);
+				setStateClass(!!value.trim());
+				if (!value.trim()) {
 					triggerClearButton();
 					timeline.reverse();
 				}
 			});
 
-			// Add clear functionality when user presses escape key
+			// Escape/Enter key handling
 			searchInput.addEventListener("keydown", (e) => {
 				if (e.key === "Escape") {
 					searchInput.value = "";
 					triggerClearButton();
 					timeline.reverse();
+					setStateClass(false);
 				} else if (e.key === "Enter") {
 					searchButton.click();
 				}
 			});
 
-			// Add click handler for search button
+			// Search button click: filter or redirect
 			searchButton.addEventListener("click", () => {
-				const searchTerm = encodeURIComponent(searchInput.value.trim());
+				const value = searchInput.value.trim();
+				const searchTerm = encodeURIComponent(value);
 				if (!searchTerm) return;
 
-				const isOnBlogPage =
-					window.location.pathname === "/blog" || window.location.pathname === "/blog/";
+				const isOnListingPage =
+					window.location.pathname === LISTING_PATH ||
+					window.location.pathname === LISTING_PATH + "/";
 
-				if (isOnBlogPage) {
-					// We're on the blog page, so find and update the Finsweet filter input
-					const blogListSearch = document.querySelector(".blog-list_search > input");
-					if (blogListSearch) {
-						blogListSearch.value = searchInput.value;
-
-						// Trigger input event to activate Finsweet filtering
-						const inputEvent = new Event("input", { bubbles: true });
-						blogListSearch.dispatchEvent(inputEvent);
-
-						// Optionally focus the blog list search input
-						// blogListSearch.focus();
-					}
+				if (isOnListingPage) {
+					applyFilter(value);
 				} else {
-					// Navigate to blog page with search parameter
-					window.location.href = `/blog?search=${searchTerm}`;
+					// Redirect to listing page with search param
+					window.location.href = `${LISTING_PATH}?search=${searchTerm}`;
 				}
 			});
 
-			// Check for existing clear buttons and add handlers to them
+			// Add clear button handlers to existing buttons
 			document.querySelectorAll("[fs-list-element=clear]").forEach(addClearButtonHandler);
 
-			// Set up a mutation observer to watch for clear buttons being added to the DOM
+			// Mutation observer for dynamically added clear buttons
 			const observerConfig = { childList: true, subtree: true };
 			const observer = new MutationObserver((mutations) => {
 				mutations.forEach((mutation) => {
 					if (mutation.type === "childList" && mutation.addedNodes.length) {
 						mutation.addedNodes.forEach((node) => {
-							// Check if the node itself is a clear button
 							if (
 								node.nodeType === 1 &&
 								node.getAttribute &&
@@ -3932,8 +3953,6 @@ function main() {
 							) {
 								addClearButtonHandler(node);
 							}
-
-							// Check if the node contains clear buttons
 							if (node.nodeType === 1 && node.querySelectorAll) {
 								node.querySelectorAll("[fs-list-element=clear]").forEach(addClearButtonHandler);
 							}
@@ -3941,42 +3960,39 @@ function main() {
 					}
 				});
 			});
-
-			// Start observing the document body for changes
 			observer.observe(document.body, observerConfig);
 
-			// Add enter key support for search input
+			// Enter key support for search input
 			searchInput.addEventListener("keydown", (e) => {
-				if (e.key === "Enter") {
-					searchButton.click();
-				}
+				if (e.key === "Enter") searchButton.click();
 			});
 
-			// Check URL for search parameter on page load
-			if (window.location.pathname === "/blog" || window.location.pathname === "/blog/") {
+			// On page load: check for search param and apply filter/state class
+			if (
+				window.location.pathname === LISTING_PATH ||
+				window.location.pathname === LISTING_PATH + "/"
+			) {
 				const urlParams = new URLSearchParams(window.location.search);
-				const searchParam = urlParams.get("*_contain");
+				const searchParam = urlParams.get("*_contain") || urlParams.get("search") || "";
 
 				if (searchParam) {
-					// Set the search input value
 					searchInput.value = searchParam;
-
-					// Keep the search component expanded
 					timeline.play();
-
-					// Also update the Finsweet filter input
-					const blogListSearch = document.querySelector(".blog-list_search > input");
-					if (blogListSearch) {
-						blogListSearch.value = searchParam;
-
-						// Trigger input event to activate Finsweet filtering
+					const filterInput = document.querySelector(FILTER_INPUT_SELECTOR);
+					if (filterInput) {
+						filterInput.value = searchParam;
 						const inputEvent = new Event("input", { bubbles: true });
-						blogListSearch.dispatchEvent(inputEvent);
+						filterInput.dispatchEvent(inputEvent);
 					}
+					setStateClass(true);
+				} else {
+					setStateClass(false);
 				}
+			} else {
+				setStateClass(false);
 			}
 
-			// on resize to mobile (with a debounce), clear all
+			// On resize to mobile, clear all and remove state class
 			window.addEventListener(
 				"resize",
 				lenus.helperFunctions.debounce(() => {
@@ -3984,6 +4000,7 @@ function main() {
 						searchInput.value = "";
 						triggerClearButton();
 						timeline.reverse();
+						setStateClass(false);
 					}
 				})
 			);
@@ -4659,8 +4676,100 @@ Features:
 	navHover();
 	toggleSlider();
 	navOpen();
-	blogSearch();
+	// GSAP-powered nav hide/show on scroll
+	function navHideShowScrollTrigger() {
+		const nav = document.querySelector(".nav");
+		navHideShowScrollTrigger();
+		if (!nav) return;
+		let lastScroll = window.scrollY;
+		let navVisible = true;
+		let navHeight = () =>
+			parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav--height")) ||
+			nav.offsetHeight ||
+			0;
+
+		// Reference navOpen state from navOpen()
+		let navOpenState = () => {
+			// Use a global or window property if available, otherwise fallback
+			return window.lenusNavOpen || false;
+		};
+
+		// Animation timeline
+		const tl = gsap.timeline({ paused: true });
+		tl.to(nav, { y: -navHeight(), autoAlpha: 0, duration: 0.5, ease: "power2.inOut" });
+
+		// Show nav
+		function showNav() {
+			if (!navVisible) {
+				tl.reverse();
+				navVisible = true;
+			}
+		}
+		// Hide nav
+		function hideNav() {
+			if (navVisible) {
+				tl.play();
+				navVisible = false;
+			}
+		}
+
+		// Scroll handler
+		function onScroll() {
+			const currentScroll = window.scrollY;
+			const scrollingDown = currentScroll > lastScroll;
+			const scrollingUp = currentScroll < lastScroll;
+			lastScroll = currentScroll;
+
+			// Only hide if nav is not open
+			if (navOpenState()) {
+				showNav();
+				return;
+			}
+
+			// Hide nav when scrolling down, show when scrolling up
+			if (scrollingDown && currentScroll > navHeight() + 10) {
+				hideNav();
+			} else if (scrollingUp || currentScroll <= navHeight()) {
+				showNav();
+			}
+		}
+
+		// Responsive nav height and refresh
+		const onResize = lenus.helperFunctions.debounce(() => {
+			tl.invalidate();
+			tl.clear();
+			tl.to(nav, { y: -navHeight(), autoAlpha: 0, duration: 0.5, ease: "power2.inOut" });
+			ScrollTrigger.refresh();
+		}, 200);
+
+		window.addEventListener("scroll", onScroll);
+		window.addEventListener("resize", onResize);
+
+		// Initial state
+		showNav();
+	}
+	handleSearch();
 	pricingOptions();
 	pricingFeatures();
 	headerThemeScrollTrigger();
 }
+
+// Finsweet Attributes v2: Refresh ScrollTrigger after list render
+function setupFinsweetScrollTriggerRefresh() {
+	window.FinsweetAttributes ||= [];
+	window.FinsweetAttributes.push([
+		"list",
+		(listInstances) => {
+			listInstances.forEach((list) => {
+				list.addHook("afterRender", () => {
+					console.log("Finsweet list afterRender - refreshing ScrollTrigger");
+					ScrollTrigger.refresh();
+					// if (window.ScrollTrigger && typeof window.ScrollTrigger.refresh === "function") {
+					// 	window.ScrollTrigger.refresh();
+					// }
+				});
+			});
+		},
+	]);
+}
+setupFinsweetScrollTriggerRefresh();
