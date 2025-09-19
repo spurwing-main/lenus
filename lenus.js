@@ -1728,80 +1728,6 @@ function main() {
 		}
 	}
 
-	function toggleSlider_v1() {
-		const CSS_VARS = { width: "--toggle-slider--w", left: "--toggle-slider--l" };
-
-		document.querySelectorAll(".c-toggle-slider").forEach(setupSlider);
-
-		function setupSlider(component) {
-			const list = component.querySelector(".toggle-slider_list");
-			const track = component.querySelector(".toggle-slider_track");
-			const items = Array.from(component.querySelectorAll(".c-toggle-slider-item"));
-			const radios = Array.from(component.querySelectorAll("input[type=radio]"));
-			const labels = Array.from(component.querySelectorAll(".toggle-slider_label"));
-			let activeItem;
-
-			if (!list || radios.length === 0) return;
-
-			// Move highlight under initially checked radio
-			const initial = radios.find((r) => r.checked) || radios[0];
-			const initialLabel = component.querySelector(`label[for="${initial.id}"]`);
-			activeItem = items.find((it) => it.contains(initial));
-			moveHighlight(activeItem, true);
-
-			// Change handler
-			radios.forEach((radio) => {
-				radio.addEventListener("change", () => {
-					console.log("Radio changed:", radio);
-					if (radio.checked) {
-						const label = component.querySelector(`label[for="${radio.id}"]`);
-						items.forEach((it) => it.classList.toggle("is-active", it.contains(label)));
-						moveHighlight(label);
-						activeItem = items.find((it) => it.contains(label));
-					}
-				});
-			});
-
-			// On resize, re-calc position for checked item
-			window.addEventListener(
-				"resize",
-				lenus.helperFunctions.debounce(() => {
-					moveHighlight(activeItem);
-				})
-			);
-
-			// Core animation
-			function moveHighlight(target, isInitial = false) {
-				if (!target) return;
-
-				const targetRect = target.getBoundingClientRect();
-				const listRect = list.getBoundingClientRect();
-
-				const left = targetRect.left - listRect.left;
-				const width = targetRect.width;
-
-				if (isInitial) {
-					gsap.set(component, {
-						[CSS_VARS.left]: `${left}px`,
-						[CSS_VARS.width]: `${width}px`,
-					});
-					// set active
-					items.forEach((it) =>
-						it.classList.toggle("is-active", it.contains(target) || it === target)
-					);
-				} else {
-					gsap.to(component, {
-						[CSS_VARS.left]: `${left}px`,
-						[CSS_VARS.width]: `${width}px`,
-						duration: 0.3,
-						ease: "power2.out",
-					});
-				}
-			}
-		}
-	}
-
-	// ...existing code...
 	function toggleSlider() {
 		const CSS_VARS = { width: "--toggle-slider--w", left: "--toggle-slider--l" };
 
@@ -4005,6 +3931,203 @@ function main() {
 				})
 			);
 		});
+
+		function clearSearch() {
+			const searchInputs = document.querySelectorAll('input[fs-list-field="*"]');
+			searchInputs.forEach((input) => {
+				if (input.value) {
+					input.value = "";
+					input.dispatchEvent(new Event("input", { bubbles: true }));
+				}
+			});
+
+			// Remove search-active class if no filters are active
+			if (!hasActiveFilters()) {
+				document.documentElement.classList.remove("search-active");
+			}
+		}
+
+		function hasActiveFilters() {
+			// Check if any category filters are active
+			const activeRadios = document.querySelectorAll(
+				'input[type="radio"][fs-list-field="category"]:checked'
+			);
+			const activeSubBlogRadios = document.querySelectorAll(
+				'input[type="radio"][fs-list-field="sub-blog"]:checked'
+			);
+
+			return activeRadios.length > 0 || activeSubBlogRadios.length > 0;
+		}
+	}
+
+	function handleFiltering() {
+		const isStorePage = window.location.pathname === "/store";
+		const isBlogPage = window.location.pathname === "/blog";
+		const isProductPage = window.location.pathname.includes("/products/");
+		const isBlogPostPage = window.location.pathname.includes("/blog/") && !isBlogPage;
+
+		if (isStorePage) {
+			setupStoreFiltering();
+		} else if (isBlogPage) {
+			setupBlogFiltering();
+		} else if (isProductPage || isBlogPostPage) {
+			setupProductBlogPageFiltering();
+		}
+
+		function setupStoreFiltering() {
+			const navLinks = document.querySelectorAll(".nav.is-store .nav-item_link");
+			const hiddenForm = document.querySelector(".products-listing_grid .u-display-none form");
+			const hiddenClearBtn = hiddenForm?.querySelector('[fs-list-element="clear"]');
+			const hiddenRadios = hiddenForm?.querySelectorAll('input[type="radio"]');
+
+			navLinks.forEach((link) => {
+				link.addEventListener("click", function (e) {
+					e.preventDefault();
+
+					const url = new URL(this.href);
+					const categoryParam = url.searchParams.get("category_equal");
+
+					// Reset search first
+					lenus.functions.clearSearch?.();
+
+					// Apply search-active class for layout changes
+					document.documentElement.classList.add("search-active");
+
+					if (!categoryParam || this.textContent.trim() === "Everything") {
+						// Clear all filters
+						hiddenClearBtn?.click();
+						updateNavActiveState(this);
+					} else {
+						// Find and trigger the matching radio button
+						const matchingRadio = Array.from(hiddenRadios).find(
+							(radio) => radio.getAttribute("fs-list-value") === categoryParam
+						);
+
+						if (matchingRadio) {
+							matchingRadio.checked = true;
+							matchingRadio.dispatchEvent(new Event("change", { bubbles: true }));
+							updateNavActiveState(this);
+						}
+					}
+				});
+			});
+		}
+
+		function setupBlogFiltering() {
+			const navLinks = document.querySelectorAll(".nav.is-blog .nav-item_link");
+			const visibleForm = document.querySelector(".blog-list_filters-form");
+			const visibleClearBtn = visibleForm?.querySelector('[fs-list-element="clear"]');
+			const visibleRadios = visibleForm?.querySelectorAll(
+				'input[type="radio"][fs-list-field="category"]'
+			);
+			const searchInput = visibleForm?.querySelector('input[fs-list-field="*"]');
+
+			navLinks.forEach((link) => {
+				link.addEventListener("click", function (e) {
+					e.preventDefault();
+
+					const url = new URL(this.href);
+					const subBlogParam = url.searchParams.get("category_equal"); // This will become sub-blog param
+
+					// Clear search and category filters when switching sub-blogs
+					if (searchInput) {
+						searchInput.value = "";
+						searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+					}
+
+					// Clear category filters
+					visibleClearBtn?.click();
+
+					// Remove search-active class since we're clearing everything
+					document.documentElement.classList.remove("search-active");
+
+					// For now, using category filters as sub-blog filters
+					// When you split these out, you'll have separate sub-blog filter logic here
+					if (subBlogParam) {
+						const matchingRadio = Array.from(visibleRadios).find(
+							(radio) => radio.getAttribute("fs-list-value") === subBlogParam
+						);
+
+						if (matchingRadio) {
+							matchingRadio.checked = true;
+							matchingRadio.dispatchEvent(new Event("change", { bubbles: true }));
+							// Apply search-active class for layout changes
+							document.documentElement.classList.add("search-active");
+						}
+					}
+
+					updateNavActiveState(this);
+				});
+			});
+
+			// Handle visible category filter changes
+			visibleRadios.forEach((radio) => {
+				radio.addEventListener("change", function () {
+					if (this.checked) {
+						document.documentElement.classList.add("search-active");
+					}
+				});
+			});
+
+			// Handle clear button
+			visibleClearBtn?.addEventListener("click", function () {
+				document.documentElement.classList.remove("search-active");
+			});
+		}
+
+		function setupProductBlogPageFiltering() {
+			// On product/blog post pages, use URL navigation as before
+			const navLinks = document.querySelectorAll(".nav .nav-item_link");
+
+			navLinks.forEach((link) => {
+				link.addEventListener("click", function (e) {
+					// Let default navigation happen - no preventDefault
+					// This will take user back to listing page with filter applied
+				});
+			});
+		}
+
+		function updateNavActiveState(activeLink) {
+			const nav = activeLink.closest(".nav");
+			const allNavLinks = nav.querySelectorAll(".nav-item_link");
+			const navItems = nav.querySelectorAll(".c-nav-item");
+
+			// Remove active states
+			allNavLinks.forEach((link) => {
+				link.classList.remove("is-current");
+				link.style.color = "";
+			});
+			navItems.forEach((item) => {
+				item.style.color = "";
+			});
+
+			// Add active state to clicked link
+			activeLink.classList.add("is-current");
+			const parentNavItem = activeLink.closest(".c-nav-item");
+			if (parentNavItem) {
+				parentNavItem.style.color = "var(--_theme---nav--link-active)";
+			}
+
+			// Update nav highlight position
+			updateNavHighlight(nav, parentNavItem || activeLink.parentElement);
+		}
+
+		function updateNavHighlight(nav, activeItem) {
+			const highlight = nav.querySelector(".nav_menu-highlight");
+			if (highlight && activeItem) {
+				const rect = activeItem.getBoundingClientRect();
+				const navRect = nav.querySelector(".nav_menu").getBoundingClientRect();
+
+				const left = rect.left - navRect.left;
+				const width = rect.width;
+
+				nav.style.setProperty("--nav--menu-bg-l", `${left}px`);
+				nav.style.setProperty("--nav--menu-bg-w", `${width}px`);
+
+				highlight.style.opacity = "1";
+				highlight.style.visibility = "inherit";
+			}
+		}
 	}
 
 	function pricingOptions() {
@@ -4648,6 +4771,160 @@ Features:
 		return timeline;
 	};
 
+	// Finsweet Attributes v2: Refresh ScrollTrigger after list render
+	function setupFinsweetScrollTriggerRefresh() {
+		window.FinsweetAttributes ||= [];
+		window.FinsweetAttributes.push([
+			"list",
+			(listInstances) => {
+				listInstances.forEach((list) => {
+					list.addHook("afterRender", () => {
+						console.log("Finsweet list afterRender - refreshing ScrollTrigger");
+						ScrollTrigger.refresh();
+						// if (window.ScrollTrigger && typeof window.ScrollTrigger.refresh === "function") {
+						// 	window.ScrollTrigger.refresh();
+						// }
+					});
+				});
+			},
+		]);
+	}
+
+	function largeButtonHover() {
+		if (window.matchMedia("(hover: none)").matches) return; // disable on touch/mobile
+
+		const buttons = document.querySelectorAll(".button.is-large");
+		if (buttons.length === 0) return;
+
+		buttons.forEach((btn) => setupButton(btn));
+
+		function setupButton(btn) {
+			const textEl = btn.querySelector(".button_text");
+			if (!textEl) return;
+
+			let directionToggle = true; // true = up/left, false = down/right
+			let animating = false;
+
+			// Create dual text layers
+			const originalText = textEl.textContent;
+			console.log("Original button text:", originalText);
+			textEl.innerHTML = `
+      <div class="btn-text-layer btn-text-current">${originalText}</div>
+      <div class="btn-text-layer btn-text-next" aria-hidden="true">${originalText}</div>
+    `;
+
+			const currentLayer = textEl.querySelector(".btn-text-current");
+			const nextLayer = textEl.querySelector(".btn-text-next");
+
+			let splitCurrent = new SplitText(currentLayer, { type: "chars" });
+			let splitNext = new SplitText(nextLayer, { type: "chars" });
+
+			let charsCurrent = splitCurrent.chars;
+			let charsNext = splitNext.chars;
+
+			// Ensure next layer is stacked
+			gsap.set(nextLayer, { position: "absolute", top: 0, left: 0, width: "100%" });
+
+			// Resize handling (re-split)
+			const resizeHandler = debounce(() => {
+				splitCurrent.revert();
+				splitNext.revert();
+				splitCurrent = new SplitText(currentLayer, { type: "chars" });
+				splitNext = new SplitText(nextLayer, { type: "chars" });
+				charsCurrent = splitCurrent.chars;
+				charsNext = splitNext.chars;
+			}, 200);
+			window.addEventListener("resize", resizeHandler);
+
+			btn.addEventListener("mouseenter", () => {
+				if (animating) return;
+				animating = true;
+
+				const dir = directionToggle ? -1 : 1; // up vs down
+				const fromSide = directionToggle ? "start" : "end";
+				directionToggle = !directionToggle;
+
+				const tl = gsap.timeline({
+					onComplete: () => (animating = false),
+				});
+
+				// Animate current chars out
+				tl.to(
+					charsCurrent,
+					{
+						yPercent: dir * -100,
+						rotationX: dir * -90,
+
+						duration: 0.5,
+						ease: "power2.in",
+						stagger: { each: 0.03, from: fromSide },
+					},
+					0
+				).to(
+					charsCurrent,
+					{
+						opacity: 0,
+						filter: "blur(4px)",
+						duration: 0.25,
+						ease: "power2.in",
+						stagger: { each: 0.03, from: fromSide },
+					},
+					0
+				);
+
+				// Animate next chars in
+				tl.fromTo(
+					charsNext,
+					{
+						yPercent: dir * 100,
+						rotationX: dir * 90,
+					},
+					{
+						yPercent: 0,
+						rotationX: 0,
+
+						duration: 0.5,
+						ease: "power2.out",
+						stagger: { each: 0.03, from: fromSide },
+					},
+					0
+				).fromTo(
+					charsNext,
+					{
+						opacity: 0,
+						filter: "blur(4px)",
+					},
+					{
+						opacity: 1,
+						filter: "blur(0px)",
+						duration: 0.25,
+						ease: "power2.out",
+						stagger: { each: 0.03, from: fromSide },
+					},
+					0.15
+				);
+
+				// Swap layers at end (so next becomes current for next round)
+				tl.add(() => {
+					textEl.insertBefore(nextLayer, currentLayer);
+					[splitCurrent, splitNext] = [splitNext, splitCurrent];
+					[charsCurrent, charsNext] = [charsNext, charsCurrent];
+					currentLayer.classList.toggle("btn-text-current");
+					nextLayer.classList.toggle("btn-text-next");
+				});
+			});
+		}
+
+		// Simple debounce helper
+		function debounce(fn, delay) {
+			let t;
+			return (...args) => {
+				clearTimeout(t);
+				t = setTimeout(() => fn.apply(this, args), delay);
+			};
+		}
+	}
+
 	parallax();
 	loadVideos();
 	gradTest1();
@@ -4676,100 +4953,11 @@ Features:
 	navHover();
 	toggleSlider();
 	navOpen();
-	// GSAP-powered nav hide/show on scroll
-	function navHideShowScrollTrigger() {
-		const nav = document.querySelector(".nav");
-		navHideShowScrollTrigger();
-		if (!nav) return;
-		let lastScroll = window.scrollY;
-		let navVisible = true;
-		let navHeight = () =>
-			parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav--height")) ||
-			nav.offsetHeight ||
-			0;
-
-		// Reference navOpen state from navOpen()
-		let navOpenState = () => {
-			// Use a global or window property if available, otherwise fallback
-			return window.lenusNavOpen || false;
-		};
-
-		// Animation timeline
-		const tl = gsap.timeline({ paused: true });
-		tl.to(nav, { y: -navHeight(), autoAlpha: 0, duration: 0.5, ease: "power2.inOut" });
-
-		// Show nav
-		function showNav() {
-			if (!navVisible) {
-				tl.reverse();
-				navVisible = true;
-			}
-		}
-		// Hide nav
-		function hideNav() {
-			if (navVisible) {
-				tl.play();
-				navVisible = false;
-			}
-		}
-
-		// Scroll handler
-		function onScroll() {
-			const currentScroll = window.scrollY;
-			const scrollingDown = currentScroll > lastScroll;
-			const scrollingUp = currentScroll < lastScroll;
-			lastScroll = currentScroll;
-
-			// Only hide if nav is not open
-			if (navOpenState()) {
-				showNav();
-				return;
-			}
-
-			// Hide nav when scrolling down, show when scrolling up
-			if (scrollingDown && currentScroll > navHeight() + 10) {
-				hideNav();
-			} else if (scrollingUp || currentScroll <= navHeight()) {
-				showNav();
-			}
-		}
-
-		// Responsive nav height and refresh
-		const onResize = lenus.helperFunctions.debounce(() => {
-			tl.invalidate();
-			tl.clear();
-			tl.to(nav, { y: -navHeight(), autoAlpha: 0, duration: 0.5, ease: "power2.inOut" });
-			ScrollTrigger.refresh();
-		}, 200);
-
-		window.addEventListener("scroll", onScroll);
-		window.addEventListener("resize", onResize);
-
-		// Initial state
-		showNav();
-	}
+	handleFiltering();
 	handleSearch();
 	pricingOptions();
 	pricingFeatures();
 	headerThemeScrollTrigger();
+	setupFinsweetScrollTriggerRefresh();
+	largeButtonHover();
 }
-
-// Finsweet Attributes v2: Refresh ScrollTrigger after list render
-function setupFinsweetScrollTriggerRefresh() {
-	window.FinsweetAttributes ||= [];
-	window.FinsweetAttributes.push([
-		"list",
-		(listInstances) => {
-			listInstances.forEach((list) => {
-				list.addHook("afterRender", () => {
-					console.log("Finsweet list afterRender - refreshing ScrollTrigger");
-					ScrollTrigger.refresh();
-					// if (window.ScrollTrigger && typeof window.ScrollTrigger.refresh === "function") {
-					// 	window.ScrollTrigger.refresh();
-					// }
-				});
-			});
-		},
-	]);
-}
-setupFinsweetScrollTriggerRefresh();
