@@ -3753,6 +3753,18 @@ function main() {
 		const FILTER_INPUT_SELECTOR =
 			PAGE_TYPE === "blog" ? ".blog-list_search > input" : ".store-list_search > input";
 		const STATE_CLASS = "search-active";
+		const isOnListingPage = () =>
+			window.location.pathname === LISTING_PATH ||
+			window.location.pathname === LISTING_PATH + "/";
+		const blogHeader =
+			PAGE_TYPE === "blog" ? document.querySelector(".blog-list_header h2") : null;
+		const blogHeaderDefaultText = blogHeader?.textContent?.trim() || "All posts";
+		const BLOG_HEADER_SEARCH_TEXT = "Search results";
+
+		const updateBlogHeader = (active) => {
+			if (!blogHeader || PAGE_TYPE !== "blog" || !isOnListingPage()) return;
+			blogHeader.textContent = active ? BLOG_HEADER_SEARCH_TEXT : blogHeaderDefaultText;
+		};
 
 		searchComponents.forEach((component) => {
 			const searchInput = component.querySelector(".search_input");
@@ -3765,10 +3777,7 @@ function main() {
 
 			// DRY: shared filter logic
 			const applyFilter = (searchValue) => {
-				const isOnListingPage =
-					window.location.pathname === LISTING_PATH ||
-					window.location.pathname === LISTING_PATH + "/";
-				if (isOnListingPage) {
+				if (isOnListingPage()) {
 					const filterInput = document.querySelector(FILTER_INPUT_SELECTOR);
 					if (filterInput) {
 						filterInput.value = searchValue;
@@ -3796,7 +3805,9 @@ function main() {
 
 			// Helper: set/remove state class
 			const setStateClass = (active) => {
-				document.documentElement.classList.toggle(STATE_CLASS, !!active);
+				const isActive = !!active;
+				document.documentElement.classList.toggle(STATE_CLASS, isActive);
+				updateBlogHeader(isActive);
 			};
 
 			// Hover events for animation
@@ -3851,11 +3862,8 @@ function main() {
 				const searchTerm = encodeURIComponent(value);
 				if (!searchTerm) return;
 
-				const isOnListingPage =
-					window.location.pathname === LISTING_PATH ||
-					window.location.pathname === LISTING_PATH + "/";
 
-				if (isOnListingPage) {
+				if (isOnListingPage()) {
 					applyFilter(value);
 				} else {
 					// Redirect to listing page with search param
@@ -3894,10 +3902,7 @@ function main() {
 			});
 
 			// On page load: check for search param and apply filter/state class
-			if (
-				window.location.pathname === LISTING_PATH ||
-				window.location.pathname === LISTING_PATH + "/"
-			) {
+			if (isOnListingPage()) {
 				const urlParams = new URLSearchParams(window.location.search);
 				const searchParam = urlParams.get("*_contain") || urlParams.get("search") || "";
 
@@ -3940,6 +3945,7 @@ function main() {
 					input.dispatchEvent(new Event("input", { bubbles: true }));
 				}
 			});
+			updateBlogHeader(false);
 
 			// Remove search-active class if no filters are active
 			if (!hasActiveFilters()) {
@@ -4925,6 +4931,82 @@ Features:
 		}
 	}
 
+	function hideShowNav() {
+		const nav = document.querySelector(".nav");
+		if (!nav) return;
+
+		const navLogoText = document.querySelector(".nav_logo-group-text");
+
+		const showThreshold = 50; // Always show when within this distance from top
+		const hideThreshold = 150; // Can hide only after passing this
+		const logoThreshold = 60; // Independent threshold for logo text animation
+		const revealBuffer = 50; // Scroll-up distance before revealing
+
+		let lastScrollY = window.scrollY;
+		let revealDistance = 0;
+		let logoHidden = false;
+
+		if (navLogoText) {
+			gsap.set(navLogoText, { x: 0, opacity: 1 });
+		}
+
+		ScrollTrigger.create({
+			trigger: document.body,
+			start: "top top",
+			end: "bottom bottom",
+			onUpdate() {
+				const y = window.scrollY;
+				const delta = y - lastScrollY;
+
+				if (y <= showThreshold) {
+					nav.classList.remove("is-hidden", "is-past-threshold");
+					revealDistance = 0;
+				} else if (delta > 0 && y > hideThreshold) {
+					// scrolling down
+					nav.classList.add("is-hidden", "is-past-threshold");
+					revealDistance = 0;
+				} else if (delta < 0) {
+					// scrolling up
+					revealDistance -= delta; // delta is negative
+					if (revealDistance >= revealBuffer) {
+						nav.classList.remove("is-hidden");
+						revealDistance = 0;
+					}
+				}
+
+				if (y > hideThreshold) {
+					nav.classList.add("is-past-threshold");
+				} else {
+					nav.classList.remove("is-past-threshold");
+				}
+
+				if (navLogoText) {
+					if (y > logoThreshold && !logoHidden) {
+						logoHidden = true;
+						gsap.to(navLogoText, {
+							x: "-1.25rem",
+							opacity: 0,
+							duration: 0.35,
+							ease: "power2.out",
+							overwrite: "auto",
+						});
+					} else if (y <= logoThreshold && logoHidden) {
+						logoHidden = false;
+						gsap.to(navLogoText, {
+							x: "0rem",
+							opacity: 1,
+							duration: 0.35,
+							ease: "power2.out",
+							overwrite: "auto",
+						});
+					}
+				}
+
+				lastScrollY = y;
+			},
+		});
+	}
+
 	parallax();
 	loadVideos();
 	gradTest1();
@@ -4960,4 +5042,5 @@ Features:
 	headerThemeScrollTrigger();
 	setupFinsweetScrollTriggerRefresh();
 	largeButtonHover();
+	hideShowNav();
 }
