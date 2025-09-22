@@ -629,7 +629,6 @@ function main() {
 	}
 
 	function videoCarousel() {
-		return;
 		const imgSelector = ".testim-card_bg img";
 		const videoSelector = "video";
 		// for each video carousel component .c-testim-carousel.splide
@@ -671,7 +670,19 @@ function main() {
 			const { Slides } = splideInstance.Components;
 			const cards = component.querySelectorAll(".c-testim-card");
 
+			// splideInstance.on("active", () => {
+			// 	lenus.helperFunctions.resetAllCards(cards);
+			// });
+
 			lenus.helperFunctions.setUpProgressBar(component, cards, splideInstance, Slides);
+
+			component.querySelectorAll(".carousel_arrow, .carousel_progress").forEach((el) => {
+				el.addEventListener("click", resetAllAndPause);
+			});
+
+			function resetAllAndPause() {
+				lenus.helperFunctions.resetAllCards(cards);
+			}
 
 			Slides.get().forEach((slideObj) => {
 				const slideEl = slideObj.slide; // the actual DOM node
@@ -882,7 +893,7 @@ function main() {
 
 	function accordion() {
 		document.querySelectorAll(".c-accordion, .c-faq").forEach((component) => {
-			const items = gsap.utils.toArray(".accordion-item", component);
+			const items = gsap.utils.toArray(".accordion-item, .faq-item", component);
 			const images = gsap.utils.toArray(".accordion-img", component);
 			const borderColorDefault = getComputedStyle(component).getPropertyValue(
 				"--_theme---accordion-border"
@@ -892,8 +903,8 @@ function main() {
 			);
 
 			items.forEach((item, index) => {
-				const header = item.querySelector(".accordion-item_header");
-				const content = item.querySelector(".accordion-item_content");
+				const header = item.querySelector(".accordion-item_header, .faq-item_header");
+				const content = item.querySelector(".accordion-item_content, .faq-item_body");
 				const image = images[index] || null; // if no image, set to null
 
 				// prepare content for auto-height animation
@@ -934,6 +945,7 @@ function main() {
 				item._tl = tl;
 
 				// accessibility setup
+
 				header.setAttribute("role", "button");
 				header.setAttribute("tabindex", "0");
 				header.setAttribute("aria-expanded", "false");
@@ -943,7 +955,9 @@ function main() {
 					items.forEach((other) => {
 						if (other !== item) {
 							other._tl.reversed(true);
-							other.querySelector(".accordion-item_header").setAttribute("aria-expanded", "false");
+							other
+								.querySelector(".accordion-item_header, .faq-item_header")
+								.setAttribute("aria-expanded", "false");
 						}
 					});
 
@@ -954,11 +968,15 @@ function main() {
 				});
 			});
 
+			console.log(items);
+
 			// on load have first item open
 			if (items.length > 0) {
 				const firstItem = items[0];
 				firstItem._tl.reversed(false);
-				firstItem.querySelector(".accordion-item_header").setAttribute("aria-expanded", "true");
+				firstItem
+					.querySelector(".accordion-item_header, .faq-item_header")
+					.setAttribute("aria-expanded", "true");
 			}
 		});
 	}
@@ -1053,11 +1071,13 @@ function main() {
 				gap: "1rem",
 				trimSpace: "move",
 				mediaQuery: "min",
-				768: {
-					destroy: true,
-				},
-				767: {
-					perPage: 1,
+				breakpoints: {
+					768: {
+						destroy: true,
+					},
+					767: {
+						perPage: 1,
+					},
 				},
 				snap: true,
 				drag: true,
@@ -2501,13 +2521,16 @@ function main() {
 				}
 
 				// make draggable
-				setupDraggable(component);
+				setupDraggable(componentObj);
 			});
 
 			return tl;
 		};
 
-		function setupDraggable(component) {
+		function setupDraggable(componentObj) {
+			const component = componentObj.component;
+			const section = componentObj.section;
+			// find all images
 			const imgs = component.querySelectorAll(".scatter-img");
 			if (imgs.length === 0) return;
 
@@ -2529,7 +2552,7 @@ function main() {
 
 				function setupTranslateDraggable(el) {
 					let translateDrag = new Draggable(el, {
-						bounds: window,
+						bounds: section,
 						throwProps: true,
 						inertia: true,
 						zIndexBoost: false,
@@ -2590,6 +2613,7 @@ function main() {
 		document.querySelectorAll(".c-scatter-hero").forEach((component) => {
 			let componentObj = {
 				component: component,
+				section: component.closest(".section"),
 				images: gsap.utils.toArray(".scatter-img", component),
 				inAnimationCompleted: false,
 				outAnimationToRun: false,
@@ -3065,100 +3089,91 @@ function main() {
 	}
 
 	function navHover() {
-		const menu = document.querySelector(".nav_menu");
-		const items = gsap.utils.toArray(".c-nav-item");
-		const expandBtn = document.querySelector(".nav_expand-btn.is-menu");
+		const state = {
+			menu: null,
+			items: [],
+			expandBtn: null,
+			hoverables: [],
+			highlight: null,
+			activeItem: null, // .c-nav-item element
+			activeAnchor: null, // <a> inside .c-nav-item
+			itemClicked: false,
+			moveTween: null,
+			fadeTween: null,
+			handlers: {
+				mouseenters: [],
+				menuMouseleave: null,
+				itemClicks: [],
+				resize: null,
+			},
+			inited: false,
+		};
 
-		const activeLink = document.querySelector(".nav-item_link.w--current");
-
-		// create highlight element
-		const highlight = document.createElement("div");
-		highlight.classList.add("nav_menu-highlight");
-		menu.prepend(highlight);
-
-		if (!menu || !items.length || !highlight) return;
-
-		// Combine nav items and expand button for hoverable elements
-		const hoverableElements = [...items];
-		if (expandBtn) {
-			hoverableElements.push(expandBtn);
+		function qsAllArray(sel, root = document) {
+			return Array.from(root.querySelectorAll(sel));
 		}
 
-		let activeItem = activeLink ? activeLink.closest(".c-nav-item") : null;
-		let itemClicked = false;
-		let movementAnimation = null;
-		let opacityAnimation = null;
-
-		function resetActiveLink() {
-			if (!activeLink) return;
-			activeLink.classList.remove("w--current");
-			activeLink.classList.add("is-current");
+		function getRects(target) {
+			const menuRect = state.menu.getBoundingClientRect();
+			const rect = target.getBoundingClientRect();
+			return {
+				width: rect.width,
+				left: rect.left - menuRect.left,
+			};
 		}
 
-		// Set up initial state
-		if (activeItem) {
-			const itemRect = activeItem.getBoundingClientRect();
-			const menuRect = menu.getBoundingClientRect();
+		function setHighlightOpacity(visible) {
+			if (!state.highlight) return;
+			if (state.fadeTween) state.fadeTween.kill();
 
-			gsap.set(highlight, {
-				autoAlpha: 1,
-				"--nav--menu-bg-w": `${itemRect.width}px`,
-				"--nav--menu-bg-l": `${itemRect.left - menuRect.left}px`,
-			});
-			gsap.set(activeItem, { color: "var(--_theme---nav--link-active)" });
-			resetActiveLink();
-		} else {
-			gsap.set(highlight, {
-				autoAlpha: 0,
-				"--nav--menu-bg-w": "0px",
-				"--nav--menu-bg-l": "0px",
-			});
-		}
-
-		// Separate functions for managing opacity and movement
-		const setHighlightOpacity = (visible) => {
-			if (opacityAnimation) {
-				opacityAnimation.kill();
-			}
-
-			opacityAnimation = gsap.to(highlight, {
+			state.fadeTween = gsap.to(state.highlight, {
 				autoAlpha: visible ? 1 : 0,
-				duration: 0.3,
+				duration: 0.25,
 				ease: "power2.out",
 				onComplete: () => {
 					if (!visible) {
-						gsap.set(highlight, {
+						gsap.set(state.highlight, {
 							"--nav--menu-bg-w": "0px",
 							"--nav--menu-bg-l": "0px",
 						});
 					}
 				},
 			});
-		};
+		}
 
-		const moveHighlight = (target) => {
-			if (itemClicked) return;
+		function colorAllInactive() {
+			gsap.to(state.hoverables, {
+				color: "var(--_theme---nav--link-inactive)",
+				duration: 0.2,
+				ease: "power3.out",
+			});
+		}
 
-			const targetRect = target.getBoundingClientRect();
-			const menuRect = menu.getBoundingClientRect();
-			const width = targetRect.width;
-			const left = targetRect.left - menuRect.left;
+		function colorTargetActive(target) {
+			gsap.to(target, {
+				color: "var(--_theme---nav--link-active)",
+				duration: 0.2,
+				ease: "power3.out",
+			});
+		}
 
-			// Kill any existing movement animation
-			if (movementAnimation) {
-				movementAnimation.kill();
-			}
+		function moveHighlightTo(target, animate = true) {
+			if (!state.menu || !state.highlight || !target) return;
+			if (state.itemClicked) return; // avoid anim jank on click nav
 
-			// If highlight is currently invisible, set position instantly before showing
-			if (gsap.getProperty(highlight, "autoAlpha") < 0.5) {
-				gsap.set(highlight, {
+			const { width, left } = getRects(target);
+
+			if (state.moveTween) state.moveTween.kill();
+
+			const isHidden = gsap.getProperty(state.highlight, "autoAlpha") < 0.5;
+			if (!animate || isHidden) {
+				gsap.set(state.highlight, {
 					"--nav--menu-bg-w": `${width}px`,
 					"--nav--menu-bg-l": `${left}px`,
 				});
 				setHighlightOpacity(true);
 			} else {
-				// Otherwise, animate to the new position
-				movementAnimation = gsap.to(highlight, {
+				state.moveTween = gsap.to(state.highlight, {
 					"--nav--menu-bg-w": `${width}px`,
 					"--nav--menu-bg-l": `${left}px`,
 					duration: 0.3,
@@ -3166,79 +3181,299 @@ function main() {
 				});
 			}
 
-			// Always update text colors
-			gsap.to(hoverableElements, {
-				color: "var(--_theme---nav--link-inactive)",
-				duration: 0.2,
-				ease: "power3.out",
-			});
+			// colors
+			colorAllInactive();
+			colorTargetActive(target);
+		}
 
-			gsap.to(target, {
-				color: "var(--_theme---nav--link-active)",
-				duration: 0.2,
-				ease: "power3.out",
-			});
-		};
+		function makeHighlight() {
+			const el = document.createElement("div");
+			el.classList.add("nav_menu-highlight");
+			state.menu.prepend(el);
+			return el;
+		}
 
-		// Hover handlers
-		hoverableElements.forEach((element) => {
-			element.addEventListener("mouseenter", () => moveHighlight(element));
-		});
+		function findInitialActive() {
+			// Prefer Webflow's .w--current or any persisted .is-current
+			const activeLink =
+				document.querySelector(".nav-item_link.w--current") ||
+				document.querySelector(".nav-item_link.is-current");
 
-		// Reset to active item when leaving menu
-		menu.addEventListener("mouseleave", () => {
-			if (activeItem) {
-				moveHighlight(activeItem);
+			if (!activeLink) return { item: null, anchor: null };
+
+			const item = activeLink.closest(".c-nav-item");
+			return { item, anchor: activeLink };
+		}
+
+		function setAnchorCurrent(anchor, isCurrent) {
+			if (!anchor) return;
+			anchor.classList.toggle("is-current", !!isCurrent);
+			// Optional: if you want to strip Webflow's .w--current once we've taken over
+			anchor.classList.remove("w--current");
+		}
+
+		function clearAllCurrents() {
+			qsAllArray(".nav-item_link.is-current").forEach((a) => a.classList.remove("is-current"));
+		}
+
+		function applyActive(targetItem) {
+			state.activeItem = targetItem || null;
+			state.activeAnchor = state.activeItem
+				? state.activeItem.querySelector(".nav-item_link")
+				: null;
+
+			clearAllCurrents();
+			if (state.activeAnchor) setAnchorCurrent(state.activeAnchor, true);
+
+			if (state.activeItem) {
+				moveHighlightTo(state.activeItem, false); // place without animation
 			} else {
+				// no active
 				setHighlightOpacity(false);
-				gsap.to(hoverableElements, {
-					color: "var(--_theme---nav--link-inactive)",
-					duration: 0.2,
-					ease: "power3.out",
-				});
+				colorAllInactive();
+				if (state.expandBtn)
+					gsap.set(state.expandBtn, { color: "var(--_theme---nav--link-inactive)" });
 			}
-		});
+		}
 
-		// Set click flag for links only (not expand button)
-		items.forEach((item) => {
-			item.addEventListener("click", () => {
-				itemClicked = true;
+		function wireHoverHandlers() {
+			// element hovers
+			state.hoverables.forEach((el) => {
+				const h = () => moveHighlightTo(el, true);
+				el.addEventListener("mouseenter", h);
+				state.handlers.mouseenters.push({ el, h });
 			});
-		});
 
-		// Handle resize
-		window.addEventListener(
-			"resize",
-			lenus.helperFunctions.debounce(() => {
-				itemClicked = false; // Reset click state on resize
-				if (activeItem) {
-					// Skip animation on resize
-					const itemRect = activeItem.getBoundingClientRect();
-					const menuRect = menu.getBoundingClientRect();
-
-					gsap.set(highlight, {
-						autoAlpha: 1,
-						"--nav--menu-bg-w": `${itemRect.width}px`,
-						"--nav--menu-bg-l": `${itemRect.left - menuRect.left}px`,
-					});
-					gsap.set(activeItem, { color: "var(--_theme---nav--link-active)" });
-					gsap.set(
-						items.filter((item) => item !== activeItem),
-						{
-							color: "var(--_theme---nav--link-inactive)",
-						}
-					);
+			// leave menu => return to active (if any)
+			const onLeave = () => {
+				if (state.activeItem) {
+					moveHighlightTo(state.activeItem, true);
 				} else {
-					gsap.set(highlight, {
+					setHighlightOpacity(false);
+					colorAllInactive();
+				}
+			};
+			state.menu.addEventListener("mouseleave", onLeave);
+			state.handlers.menuMouseleave = onLeave;
+
+			// click → suppress subsequent hover animation until next resize - unless we are on blog listing or store pages (where nav reflects current page)
+			state.items.forEach((item) => {
+				const h = () => {
+					// if page URL contains '/blog' or '/store' then ignore click suppression
+					if (
+						window.location.pathname.includes("/blog") ||
+						window.location.pathname.includes("/store")
+					) {
+						return;
+					}
+					state.itemClicked = true;
+				};
+				item.addEventListener("click", h);
+				state.handlers.itemClicks.push({ el: item, h });
+			});
+
+			// resize
+			const onResize = lenus.helperFunctions.debounce(() => {
+				state.itemClicked = false;
+
+				if (!state.highlight) return;
+
+				if (state.activeItem) {
+					const { width, left } = getRects(state.activeItem);
+					gsap.set(state.highlight, {
+						autoAlpha: 1,
+						"--nav--menu-bg-w": `${width}px`,
+						"--nav--menu-bg-l": `${left}px`,
+					});
+					colorAllInactive();
+					colorTargetActive(state.activeItem);
+				} else {
+					gsap.set(state.highlight, {
 						autoAlpha: 0,
 						"--nav--menu-bg-w": "0px",
 						"--nav--menu-bg-l": "0px",
 					});
-					gsap.set(items, { color: "var(--_theme---nav--link-inactive)" });
+					colorAllInactive();
 				}
-				gsap.set(expandBtn, { color: "var(--_theme---nav--link-inactive)" });
-			}, 200)
-		);
+
+				if (state.expandBtn)
+					gsap.set(state.expandBtn, { color: "var(--_theme---nav--link-inactive)" });
+			}, 200);
+
+			window.addEventListener("resize", onResize);
+			state.handlers.resize = onResize;
+		}
+
+		function unwireHandlers() {
+			// element hovers
+			state.handlers.mouseenters.forEach(({ el, h }) => el.removeEventListener("mouseenter", h));
+			state.handlers.mouseenters = [];
+
+			// menu leave
+			if (state.handlers.menuMouseleave) {
+				state.menu?.removeEventListener("mouseleave", state.handlers.menuMouseleave);
+			}
+			state.handlers.menuMouseleave = null;
+
+			// clicks
+			state.handlers.itemClicks.forEach(({ el, h }) => el.removeEventListener("click", h));
+			state.handlers.itemClicks = [];
+
+			// resize
+			if (state.handlers.resize) window.removeEventListener("resize", state.handlers.resize);
+			state.handlers.resize = null;
+		}
+
+		function collectDom(options) {
+			const root = options?.root || document;
+			state.menu = root.querySelector(".nav_menu");
+			state.items = gsap.utils.toArray(root.querySelectorAll(".c-nav-item"));
+			state.expandBtn = root.querySelector(".nav_expand-btn.is-menu");
+			state.hoverables = [...state.items];
+			if (state.expandBtn) state.hoverables.push(state.expandBtn);
+		}
+
+		function ensureHighlight() {
+			if (!state.menu) return;
+			// Prevent duplicate highlights on re-init
+			const existing = state.menu.querySelector(".nav_menu-highlight");
+			state.highlight = existing || makeHighlight();
+		}
+
+		// PUBLIC API
+		function init(options = {}) {
+			kill(); // clean slate if already inited
+
+			collectDom(options);
+			if (!state.menu || !state.items.length) {
+				state.inited = false;
+				return;
+			}
+
+			ensureHighlight();
+
+			// initial placement
+			const { item } = findInitialActive();
+			applyActive(item);
+
+			// default hidden when no active
+			if (!item) {
+				gsap.set(state.highlight, {
+					autoAlpha: 0,
+					"--nav--menu-bg-w": "0px",
+					"--nav--menu-bg-l": "0px",
+				});
+			}
+
+			wireHoverHandlers();
+			state.inited = true;
+			return api; // allow chaining if you want
+		}
+
+		// Re-scan DOM and re-place highlight (use if nav items change without full re-init)
+		function refresh(options = {}) {
+			if (!state.inited) return init(options);
+			unwireHandlers();
+
+			const currentActive = state.activeItem; // remember
+			collectDom(options);
+			ensureHighlight();
+			wireHoverHandlers();
+
+			// Re-apply active if still present, otherwise compute again
+			if (currentActive && state.items.includes(currentActive)) {
+				applyActive(currentActive);
+			} else {
+				const { item } = findInitialActive();
+				applyActive(item);
+			}
+		}
+
+		function kill({ removeHighlight = false } = {}) {
+			unwireHandlers();
+
+			if (state.moveTween) state.moveTween.kill();
+			if (state.fadeTween) state.fadeTween.kill();
+			state.moveTween = null;
+			state.fadeTween = null;
+
+			if (removeHighlight && state.highlight && state.highlight.parentNode) {
+				state.highlight.parentNode.removeChild(state.highlight);
+			}
+
+			// clear references
+			state.menu = null;
+			state.items = [];
+			state.expandBtn = null;
+			state.hoverables = [];
+			state.highlight = null;
+			state.activeItem = null;
+			state.activeAnchor = null;
+			state.itemClicked = false;
+			state.inited = false;
+		}
+
+		// External controls
+		// - target can be: Element (.c-nav-item or an <a> inside it), a selector, or an index
+		function setActive(target) {
+			if (!state.inited) return;
+
+			let itemEl = null;
+
+			if (typeof target === "number") {
+				itemEl = state.items[target] || null;
+			} else if (typeof target === "string") {
+				const found = document.querySelector(target);
+				itemEl = found ? found.closest(".c-nav-item") || found : null;
+			} else if (target instanceof Element) {
+				itemEl = target.closest(".c-nav-item") || target;
+			}
+
+			applyActive(itemEl);
+		}
+
+		function setActiveByHref(href, { exact = false } = {}) {
+			if (!state.inited) return;
+
+			const anchors = qsAllArray(".c-nav-item .nav-item_link", state.menu || document);
+			const url = href || window.location.pathname + window.location.search + window.location.hash;
+
+			let match = null;
+			anchors.some((a) => {
+				const aHref = a.getAttribute("href") || "";
+				if (exact ? aHref === url : url.startsWith(aHref)) {
+					match = a;
+					return true;
+				}
+				return false;
+			});
+
+			setActive(match || null);
+		}
+
+		function clearActive() {
+			setActive(null);
+		}
+
+		function getState() {
+			return {
+				inited: state.inited,
+				hasHighlight: !!state.highlight,
+				items: state.items.length,
+				activeIndex: state.activeItem ? state.items.indexOf(state.activeItem) : -1,
+				activeText: state.activeAnchor?.textContent?.trim() || null,
+			};
+		}
+
+		const api = { init, refresh, kill, setActive, setActiveByHref, clearActive, getState };
+
+		// expose
+		lenus.navHover = api;
+
+		//   // Backwards-compat wrapper
+		//   window.navHover = function () {
+		//     return api.init();
+		//   };
 	}
 
 	function navOpen() {
@@ -3754,10 +3989,8 @@ function main() {
 			PAGE_TYPE === "blog" ? ".blog-list_search > input" : ".store-list_search > input";
 		const STATE_CLASS = "search-active";
 		const isOnListingPage = () =>
-			window.location.pathname === LISTING_PATH ||
-			window.location.pathname === LISTING_PATH + "/";
-		const blogHeader =
-			PAGE_TYPE === "blog" ? document.querySelector(".blog-list_header h2") : null;
+			window.location.pathname === LISTING_PATH || window.location.pathname === LISTING_PATH + "/";
+		const blogHeader = PAGE_TYPE === "blog" ? document.querySelector(".blog-list_header h2") : null;
 		const blogHeaderDefaultText = blogHeader?.textContent?.trim() || "All posts";
 		const BLOG_HEADER_SEARCH_TEXT = "Search results";
 
@@ -3766,12 +3999,20 @@ function main() {
 			blogHeader.textContent = active ? BLOG_HEADER_SEARCH_TEXT : blogHeaderDefaultText;
 		};
 
+		const initTimeline = (timeline, component) => {
+			timeline.to(component, {
+				width: "var(--search--full-w)",
+				duration: 0.5,
+				ease: "power2.out",
+			});
+		};
+
 		searchComponents.forEach((component) => {
 			const searchInput = component.querySelector(".search_input");
 			const searchButton = component.querySelector(".search_icon-wrap");
 			const searchForm = component.querySelector("form");
 
-			const timeline = gsap.timeline({ paused: true });
+			let timeline = gsap.timeline({ paused: true });
 
 			if (!searchInput || !searchButton) return;
 
@@ -3797,11 +4038,7 @@ function main() {
 			}
 
 			// Animation timeline for expanding search
-			timeline.to(component, {
-				width: "var(--search--full-w)",
-				duration: 0.5,
-				ease: "power2.out",
-			});
+			initTimeline(timeline, component);
 
 			// Helper: set/remove state class
 			const setStateClass = (active) => {
@@ -3862,7 +4099,6 @@ function main() {
 				const searchTerm = encodeURIComponent(value);
 				if (!searchTerm) return;
 
-
 				if (isOnListingPage()) {
 					applyFilter(value);
 				} else {
@@ -3905,6 +4141,8 @@ function main() {
 			if (isOnListingPage()) {
 				const urlParams = new URLSearchParams(window.location.search);
 				const searchParam = urlParams.get("*_contain") || urlParams.get("search") || "";
+				const blogParam = urlParams.get("blog_equal") || "";
+				const categoryParam = urlParams.get("category_equal") || "";
 
 				if (searchParam) {
 					searchInput.value = searchParam;
@@ -3916,6 +4154,9 @@ function main() {
 						filterInput.dispatchEvent(inputEvent);
 					}
 					setStateClass(true);
+				} else if (blogParam || categoryParam) {
+					// Apply search-active class if any filter is applied via URL params
+					setStateClass(true);
 				} else {
 					setStateClass(false);
 				}
@@ -3923,15 +4164,22 @@ function main() {
 				setStateClass(false);
 			}
 
+			function mobileHandler() {
+				searchInput.value = "";
+				triggerClearButton();
+				timeline.reverse();
+				setStateClass(false);
+			}
 			// On resize to mobile, clear all and remove state class
 			window.addEventListener(
 				"resize",
 				lenus.helperFunctions.debounce(() => {
 					if (window.innerWidth < 768) {
-						searchInput.value = "";
-						triggerClearButton();
+						mobileHandler();
+					} else {
+						// revert timeline and restart
 						timeline.reverse();
-						setStateClass(false);
+						gsap.set(component, { clearProps: "all" });
 					}
 				})
 			);
@@ -3959,7 +4207,7 @@ function main() {
 				'input[type="radio"][fs-list-field="category"]:checked'
 			);
 			const activeSubBlogRadios = document.querySelectorAll(
-				'input[type="radio"][fs-list-field="sub-blog"]:checked'
+				'input[type="radio"][fs-list-field="blog"]:checked'
 			);
 
 			return activeRadios.length > 0 || activeSubBlogRadios.length > 0;
@@ -3971,6 +4219,17 @@ function main() {
 		const isBlogPage = window.location.pathname === "/blog";
 		const isProductPage = window.location.pathname.includes("/products/");
 		const isBlogPostPage = window.location.pathname.includes("/blog/") && !isBlogPage;
+
+		console.log(
+			"Page type - Store:",
+			isStorePage,
+			"Blog:",
+			isBlogPage,
+			"Product:",
+			isProductPage,
+			"Blog Post:",
+			isBlogPostPage
+		);
 
 		if (isStorePage) {
 			setupStoreFiltering();
@@ -4002,7 +4261,7 @@ function main() {
 					if (!categoryParam || this.textContent.trim() === "Everything") {
 						// Clear all filters
 						hiddenClearBtn?.click();
-						updateNavActiveState(this);
+						lenus.navHover.clearActive();
 					} else {
 						// Find and trigger the matching radio button
 						const matchingRadio = Array.from(hiddenRadios).find(
@@ -4010,9 +4269,8 @@ function main() {
 						);
 
 						if (matchingRadio) {
-							matchingRadio.checked = true;
-							matchingRadio.dispatchEvent(new Event("change", { bubbles: true }));
-							updateNavActiveState(this);
+							matchingRadio.click();
+							lenus.navHover.setActive(this);
 						}
 					}
 				});
@@ -4023,17 +4281,21 @@ function main() {
 			const navLinks = document.querySelectorAll(".nav.is-blog .nav-item_link");
 			const visibleForm = document.querySelector(".blog-list_filters-form");
 			const visibleClearBtn = visibleForm?.querySelector('[fs-list-element="clear"]');
-			const visibleRadios = visibleForm?.querySelectorAll(
+			const categoryRadios = visibleForm?.querySelectorAll(
 				'input[type="radio"][fs-list-field="category"]'
 			);
+			const blogRadios = visibleForm?.querySelectorAll('input[type="radio"][fs-list-field="blog"]');
+			const allRadios = visibleForm?.querySelectorAll('input[type="radio"]');
 			const searchInput = visibleForm?.querySelector('input[fs-list-field="*"]');
 
 			navLinks.forEach((link) => {
 				link.addEventListener("click", function (e) {
 					e.preventDefault();
 
+					console.log("Blog nav link clicked:", this.href);
+
 					const url = new URL(this.href);
-					const subBlogParam = url.searchParams.get("category_equal"); // This will become sub-blog param
+					const blogParam = url.searchParams.get("blog_equal");
 
 					// Clear search and category filters when switching sub-blogs
 					if (searchInput) {
@@ -4041,33 +4303,32 @@ function main() {
 						searchInput.dispatchEvent(new Event("input", { bubbles: true }));
 					}
 
-					// Clear category filters
+					// Clear filters
 					visibleClearBtn?.click();
+
+					console.log(blogParam);
 
 					// Remove search-active class since we're clearing everything
 					document.documentElement.classList.remove("search-active");
 
-					// For now, using category filters as sub-blog filters
-					// When you split these out, you'll have separate sub-blog filter logic here
-					if (subBlogParam) {
-						const matchingRadio = Array.from(visibleRadios).find(
-							(radio) => radio.getAttribute("fs-list-value") === subBlogParam
+					if (blogParam) {
+						const matchingRadio = Array.from(blogRadios).find(
+							(radio) => radio.getAttribute("fs-list-value") === blogParam
 						);
 
 						if (matchingRadio) {
-							matchingRadio.checked = true;
-							matchingRadio.dispatchEvent(new Event("change", { bubbles: true }));
+							matchingRadio.click();
 							// Apply search-active class for layout changes
 							document.documentElement.classList.add("search-active");
 						}
 					}
 
-					updateNavActiveState(this);
+					lenus.navHover.setActive(this);
 				});
 			});
 
 			// Handle visible category filter changes
-			visibleRadios.forEach((radio) => {
+			allRadios.forEach((radio) => {
 				radio.addEventListener("change", function () {
 					if (this.checked) {
 						document.documentElement.classList.add("search-active");
@@ -4146,6 +4407,11 @@ function main() {
 				arrows: true,
 				pagination: false,
 				gap: "0",
+				breakpoints: {
+					767: {
+						destroy: true,
+					},
+				},
 				autoplay: false,
 				trimSpace: "move",
 				snap: false,
@@ -4154,16 +4420,16 @@ function main() {
 			});
 			splideInstance.mount();
 
-			// destroy carousel on mobile
-			const mediaQuery = window.matchMedia("(max-width: 768px)");
-			const destroyCarousel = () => {
-				if (mediaQuery.matches) {
-					splideInstance.destroy();
-				} else {
-					splideInstance.mount();
-				}
-			};
-			mediaQuery.addEventListener("change", destroyCarousel);
+			// // destroy carousel on mobile
+			// const mediaQuery = window.matchMedia("(max-width: 768px)");
+			// const destroyCarousel = () => {
+			// 	if (mediaQuery.matches) {
+			// 		splideInstance.destroy();
+			// 	} else {
+			// 		splideInstance.mount();
+			// 	}
+			// };
+			// mediaQuery.addEventListener("change", destroyCarousel);
 		});
 	}
 
@@ -5033,6 +5299,7 @@ Features:
 	featBlogCard();
 	jobScroll();
 	navHover();
+	lenus.navHover.init();
 	toggleSlider();
 	navOpen();
 	handleFiltering();
