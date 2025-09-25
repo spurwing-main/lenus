@@ -28,6 +28,32 @@ function main() {
 		ease: "power2.out",
 		duration: 0.5,
 	});
+
+	// GSDevTools setup for development
+	let gsDevToolsEnabled = false;
+	function loadGSDevTools() {
+		if (gsDevToolsEnabled || window.GSDevTools) return Promise.resolve();
+
+		return new Promise((resolve, reject) => {
+			const script = document.createElement("script");
+			script.src = "https://cdn.jsdelivr.net/npm/gsap@3/dist/GSDevTools.min.js";
+			script.onload = () => {
+				if (window.GSDevTools) {
+					gsap.registerPlugin(GSDevTools);
+					gsDevToolsEnabled = true;
+					console.log("GSDevTools loaded and ready");
+					resolve();
+				} else {
+					reject(new Error("GSDevTools failed to load"));
+				}
+			};
+			script.onerror = () => reject(new Error("Failed to load GSDevTools script"));
+			document.head.appendChild(script);
+		});
+	}
+
+	// Global timeline storage for debugging
+	window._debugTimelines = window._debugTimelines || {};
 	// Header theme scroll logic
 	function headerThemeScrollTrigger() {
 		const DARK_THEMES = ["dark", "ivy", "wolfram", "olive"];
@@ -583,151 +609,121 @@ function main() {
 		});
 	}
 
+	const VIDEO_PLAY_SELECTOR = "btn[name='play'], [data-video-play]";
+	const VIDEO_CARD_CONFIGS = [
+		{
+			match: ".c-testim-card",
+			videoSelector: "video",
+			imgSelector: ".testim-card_bg img",
+		},
+		{
+			match: ".c-wide-card",
+			videoSelector: "video",
+			imgSelector: ".wide-card_bg img",
+		},
+	];
+
+	function getVideoConfig(card) {
+		return VIDEO_CARD_CONFIGS.find((config) => card.matches(config.match));
+	}
+
+	function registerVideoCard(card, overrides = {}) {
+		const config = getVideoConfig(card);
+		if (!config) return null;
+		const controller = lenus.helperFunctions.videoController;
+		if (!controller || controller.isRegistered(card)) return null;
+		const selectors = {
+			video: config.videoSelector || "video",
+			img: config.imgSelector || "img",
+			play: overrides.playSelector || config.playSelector || VIDEO_PLAY_SELECTOR,
+		};
+
+		return controller.register({
+			card,
+			selectors,
+			pauseOthers: overrides.pauseOthers ?? true,
+			onPlay: overrides.onPlay,
+			onPause: overrides.onPause,
+			startVisible: overrides.startVisible ?? false,
+		});
+	}
+
 	function testimCardVideos() {
-		// on play button click, play video and pause others
-		// for all c-testimonial components, get child media and button[name="play"] elements
+		const standaloneCards = [
+			...document.querySelectorAll(".c-testim .c-testim-card"),
+			...document.querySelectorAll(".c-wide-card"),
+		];
 
-		document.querySelectorAll(".c-testim").forEach((component) => {
-			const cards = component.querySelectorAll(".c-testim-card");
-			const videoSelector = "video";
-			const imgSelector = ".testim-card_bg img";
-
-			cards.forEach((card) => {
-				const playBtn = card.querySelector("btn[name='play']");
-				if (!playBtn) return;
-				const video = card.querySelector(videoSelector);
-				if (!video) return;
-				const img = card.querySelector(imgSelector);
-				if (!img) return;
-
-				// hide video and show image by default
-				gsap.set(video, {
-					autoAlpha: 0,
-				});
-
-				// on click, play video and pause others
-				playBtn.addEventListener("click", () => {
-					lenus.helperFunctions.showVideo(card, videoSelector, imgSelector, true); // show video, hide image
-					video.play();
-					video.controls = true;
-					card.classList.add("playing");
-				});
-
-				// on video pause, reset card
-				video.addEventListener("pause", () => {
-					if (card.classList.contains("playing")) {
-						lenus.helperFunctions.resetCard(card, videoSelector, imgSelector);
-					}
-				});
-
-				// on video end, reset card
-				video.addEventListener("ended", () => {
-					lenus.helperFunctions.resetCard(card, videoSelector, imgSelector);
-				});
-			});
+		standaloneCards.forEach((card) => {
+			if (card.closest(".splide")) return; // handled by carousel setup
+			registerVideoCard(card);
 		});
 	}
 
 	function videoCarousel() {
-		const imgSelector = ".testim-card_bg img";
-		const videoSelector = "video";
-		// for each video carousel component .c-testim-carousel.splide
-		document.querySelectorAll(".c-testim-carousel.splide").forEach((component) => {
-			// initalise Splide
-			var splideInstance = new Splide(component, {
-				type: "loop",
-				autoplay: false,
-				autoScroll: {
-					speed: 1,
-					pauseOnHover: true,
-				},
-				intersection: {
-					inView: {
-						autoScroll: true,
+		const controller = lenus.helperFunctions.videoController;
+		if (!controller) return;
+		const carouselSelector = ".c-testim-carousel.splide, .c-carousel.splide";
+
+		document.querySelectorAll(carouselSelector).forEach((component) => {
+			const shouldAutoScroll = component.dataset.autoscroll !== "false";
+			const splideInstance = lenus.helperFunctions.initSplideCarousel(component, {
+				useAutoScroll: shouldAutoScroll,
+				config: {
+					type: "loop",
+					autoplay: false,
+					clones: 5,
+					autoWidth: true,
+					arrows: true,
+					pagination: false,
+					trimSpace: "move",
+					snap: false,
+					drag: "free",
+					focus: "center",
+					breakpoints: {
+						767: {
+							autoWidth: true,
+						},
 					},
-					outView: {
-						autoScroll: false,
-					},
 				},
-				breakpoints: {
-					767: {
-						// gap: "1rem",
-						autoWidth: true,
-					},
-				},
-				clones: 5,
-				arrows: true,
-				trimSpace: "move",
-				pagination: false,
-				snap: false,
-				drag: "free",
-				autoWidth: true,
-				focus: "center",
 			});
-			splideInstance.mount(window.splide.Extensions);
-			let autoScroll = splideInstance.Components.AutoScroll;
+
+			if (!splideInstance) return;
 
 			const { Slides } = splideInstance.Components;
-			const cards = component.querySelectorAll(".c-testim-card");
+			const autoScroll = shouldAutoScroll ? splideInstance.Components.AutoScroll : null;
+			const unregisterFns = [];
+			const cards = [];
 
-			// splideInstance.on("active", () => {
-			// 	lenus.helperFunctions.resetAllCards(cards);
-			// });
+			Slides.get().forEach((slideObj) => {
+				if (slideObj.isClone) return;
+				const card = slideObj.slide.querySelector(".c-testim-card, .c-wide-card");
+				if (!card) return;
+				cards.push(card);
+				const unregister = registerVideoCard(card, {
+					onPlay: () => {
+						splideInstance.go(slideObj.index);
+						autoScroll?.pause();
+					},
+					onPause: () => {
+						autoScroll?.play();
+					},
+				});
+				if (typeof unregister === "function") {
+					unregisterFns.push(unregister);
+				}
+			});
 
 			lenus.helperFunctions.setUpProgressBar(component, cards, splideInstance, Slides);
 
 			component.querySelectorAll(".carousel_arrow, .carousel_progress").forEach((el) => {
-				el.addEventListener("click", resetAllAndPause);
+				const handler = () => controller.pauseAll();
+				el.addEventListener("click", handler);
+				unregisterFns.push(() => el.removeEventListener("click", handler));
 			});
 
-			function resetAllAndPause() {
-				lenus.helperFunctions.resetAllCards(cards);
-			}
-
-			Slides.get().forEach((slideObj) => {
-				const slideEl = slideObj.slide; // the actual DOM node
-
-				const card = slideObj.slide.querySelector(".c-testim-card");
-				const playBtn = card.querySelector("btn[name='play']");
-				if (!playBtn) return;
-				const video = card.querySelector("video");
-				if (!video) return;
-				const img = card.querySelector(".testim-card_bg img");
-				if (!img) return;
-
-				// hide video and show image by default. Then when card is clicked, show video and hide image
-				gsap.set(video, {
-					autoAlpha: 0,
-				});
-
-				// on click, play video and pause others
-				playBtn.addEventListener("click", () => {
-					const idx = slideObj.index;
-
-					lenus.helperFunctions.resetAllCards(cards);
-					// jump to slide
-					splideInstance.go(idx);
-
-					lenus.helperFunctions.showVideo(card, videoSelector, imgSelector, true); // show video, hide image
-					video.play();
-					video.controls = true;
-					card.classList.add("playing");
-					autoScroll.pause();
-				});
-
-				// on video pause, resume autoScroll
-				video.addEventListener("pause", () => {
-					if (card.classList.contains("playing")) {
-						lenus.helperFunctions.resetCard(card, videoSelector, imgSelector);
-						autoScroll.play();
-					}
-				});
-
-				// on video end, reset card
-				video.addEventListener("ended", () => {
-					lenus.helperFunctions.resetCard(card, videoSelector, imgSelector);
-					autoScroll.play();
-				});
+			splideInstance.on("destroy", () => {
+				unregisterFns.forEach((fn) => fn());
 			});
 		});
 	}
@@ -4711,6 +4707,209 @@ function main() {
 		});
 	};
 
+	lenus.helperFunctions.videoController = (function () {
+		const registry = new Map();
+		const listeners = {
+			play: new Set(),
+			pause: new Set(),
+		};
+
+		function isRegistered(card) {
+			return registry.has(card);
+		}
+
+		function register({
+			card,
+			selectors = {},
+			pauseOthers = true,
+			onPlay,
+			onPause,
+			startVisible = false,
+		}) {
+			if (!card) return null;
+			const videoSelector = selectors.video || "video";
+			const imgSelector = selectors.img || "img";
+			const playSelector = selectors.play;
+			const video = card.querySelector(videoSelector);
+			if (!video) return null;
+
+			if (isRegistered(card)) unregister(card);
+
+			const entry = {
+				card,
+				video,
+				videoSelector,
+				imgSelector,
+				pauseOthers,
+				onPlay,
+				onPause,
+				handlers: [],
+			};
+			registry.set(card, entry);
+
+			const img = imgSelector ? card.querySelector(imgSelector) : null;
+
+			if (!startVisible && !video.autoplay) {
+				gsap.set(video, { autoAlpha: 0 });
+				if (img) gsap.set(img, { autoAlpha: 1 });
+				card.classList.remove("playing");
+			} else if (startVisible) {
+				gsap.set(video, { autoAlpha: 1 });
+				if (img) gsap.set(img, { autoAlpha: 0 });
+				card.classList.add("playing");
+			}
+
+			video.controls = false;
+			video.pause();
+
+			if (playSelector) {
+				const triggers = Array.from(card.querySelectorAll(playSelector));
+				triggers.forEach((trigger) => {
+					const handler = (event) => {
+						event.preventDefault();
+						play(card);
+					};
+					trigger.addEventListener("click", handler);
+					entry.handlers.push({ element: trigger, type: "click", handler });
+				});
+			}
+
+			const handleVideoPause = () => {
+				if (!card.classList.contains("playing")) return;
+				pause(card);
+			};
+			const handleVideoEnded = () => pause(card);
+
+			video.addEventListener("pause", handleVideoPause);
+			video.addEventListener("ended", handleVideoEnded);
+			entry.handlers.push({ element: video, type: "pause", handler: handleVideoPause });
+			entry.handlers.push({ element: video, type: "ended", handler: handleVideoEnded });
+
+			return () => unregister(card);
+		}
+
+		function unregister(card) {
+			const entry = registry.get(card);
+			if (!entry) return;
+			entry.handlers.forEach(({ element, type, handler }) => {
+				element.removeEventListener(type, handler);
+			});
+			registry.delete(card);
+		}
+
+		function play(card) {
+			const entry = registry.get(card);
+			if (!entry) return;
+			const { video, videoSelector, imgSelector } = entry;
+			if (entry.pauseOthers) pauseAll(card);
+			lenus.helperFunctions.showVideo(card, videoSelector, imgSelector, true);
+			video.controls = true;
+			const playAttempt = video.play();
+			if (playAttempt && typeof playAttempt.catch === "function") {
+				playAttempt.catch((error) => {
+					console.warn("Video play prevented", error);
+				});
+			}
+			emit("play", { card, video });
+			entry.onPlay?.({ card, video });
+		}
+
+		function pause(card) {
+			const entry = registry.get(card);
+			if (!entry) return;
+			const wasPlaying = card.classList.contains("playing");
+			const { videoSelector, imgSelector, video } = entry;
+			lenus.helperFunctions.resetCard(card, videoSelector, imgSelector);
+			if (!wasPlaying) return;
+			emit("pause", { card, video });
+			entry.onPause?.({ card, video });
+		}
+
+		function pauseAll(excludeCard = null) {
+			registry.forEach((entry, card) => {
+				if (card === excludeCard) return;
+				pause(card);
+			});
+		}
+
+		function on(event, handler) {
+			if (!listeners[event]) return () => {};
+			listeners[event].add(handler);
+			return () => listeners[event].delete(handler);
+		}
+
+		function emit(event, payload) {
+			const subs = listeners[event];
+			if (!subs) return;
+			subs.forEach((handler) => handler(payload));
+		}
+
+		return {
+			register,
+			unregister,
+			isRegistered,
+			play,
+			pause,
+			pauseAll,
+			on,
+		};
+	})();
+
+	lenus.helperFunctions.initSplideCarousel = function (component, options = {}) {
+		if (!component) return null;
+		const { config = {}, mountExtensions = true, useAutoScroll } = options;
+
+		const defaultConfig = {
+			type: "loop",
+			gap: "0rem",
+			arrows: false,
+			pagination: false,
+			focus: 0,
+			speed: 600,
+			dragAngleThreshold: 60,
+			autoWidth: false,
+			rewind: false,
+			rewindSpeed: 400,
+			waitForTransition: false,
+			updateOnMove: true,
+			trimSpace: "move",
+			drag: true,
+			snap: true,
+		};
+
+		const mergedConfig = { ...defaultConfig, ...config };
+		const autoScrollPreference =
+			typeof useAutoScroll === "boolean" ? useAutoScroll : component.dataset.autoscroll !== "false";
+
+		if (autoScrollPreference) {
+			mergedConfig.autoScroll = {
+				speed: 1,
+				pauseOnHover: true,
+				...(config.autoScroll || {}),
+			};
+			mergedConfig.intersection = {
+				inView: {
+					autoScroll: true,
+				},
+				outView: {
+					autoScroll: false,
+				},
+				...(config.intersection || {}),
+			};
+		} else {
+			delete mergedConfig.autoScroll;
+			delete mergedConfig.intersection;
+		}
+
+		const instance = new Splide(component, mergedConfig);
+		if (mountExtensions && window.splide && window.splide.Extensions) {
+			instance.mount(window.splide.Extensions);
+		} else {
+			instance.mount();
+		}
+		return instance;
+	};
+
 	lenus.helperFunctions.destroySplide = function (instance) {
 		if (instance) {
 			instance.destroy();
@@ -5068,14 +5267,15 @@ Features:
 		const buttons = document.querySelectorAll(".button.is-large");
 		if (buttons.length === 0) return;
 
-		buttons.forEach((btn) => setupButton(btn));
+		buttons.forEach((btn, index) => setupButton(btn, index));
 
-		function setupButton(btn) {
+		function setupButton(btn, index) {
 			const textEl = btn.querySelector(".button_text");
 			if (!textEl) return;
 
 			let directionToggle = true; // true = up/left, false = down/right
-			let animating = false;
+			let hoverTimeline = null; // Store the main hover timeline
+			let isHovered = false;
 
 			// Create dual text layers
 			const originalText = textEl.textContent;
@@ -5108,82 +5308,142 @@ Features:
 			}, 200);
 			window.addEventListener("resize", resizeHandler);
 
-			btn.addEventListener("mouseenter", () => {
-				if (animating) return;
-				animating = true;
+			// Create the main hover animation timeline (paused by default)
+			function createHoverTimeline() {
+				if (hoverTimeline) hoverTimeline.kill();
 
-				const dir = directionToggle ? -1 : 1; // up vs down
+				const dir = directionToggle ? 1 : -1; // up vs down
 				const fromSide = directionToggle ? "start" : "end";
 				directionToggle = !directionToggle;
 
 				const tl = gsap.timeline({
-					onComplete: () => (animating = false),
+					paused: true,
+					onComplete: () => {
+						// Swap layers at end (so next becomes current for next round)
+						textEl.insertBefore(nextLayer, currentLayer);
+						[splitCurrent, splitNext] = [splitNext, splitCurrent];
+						[charsCurrent, charsNext] = [charsNext, charsCurrent];
+						currentLayer.classList.toggle("btn-text-current");
+						nextLayer.classList.toggle("btn-text-next");
+					},
 				});
+
+				tl.timeScale(1.35);
+
+				const staggerAmount = 0.07;
+				const duration = 0.5;
+				const ease = "power2.out";
+				// let ease = "linear";
+				const delayTransformCurrent = 0; // anim just starts
+				const delayTransformNext = 0.12; // how long til next chars move
+				const delayBlurCurrent = 0.03; // how long til current chars blur out
+				const delayBlurNext = 0.03; // how long til next chars blur in
+				const delayOpacityCurrent = 0.06; // how long til current chars fade out
+				const delayOpacityNext = 0.1; // how long til next chars fade in
+				const translate = 30; // how far chars move
 
 				// Animate current chars out
 				tl.to(
 					charsCurrent,
 					{
-						yPercent: dir * -100,
+						yPercent: dir * -translate,
 						rotationX: dir * -90,
 
-						duration: 0.5,
-						ease: "power2.in",
-						stagger: { each: 0.03, from: fromSide },
+						duration: duration,
+						ease: ease,
+						stagger: { each: staggerAmount, from: fromSide },
 					},
-					0
-				).to(
-					charsCurrent,
-					{
-						opacity: 0,
-						filter: "blur(4px)",
-						duration: 0.25,
-						ease: "power2.in",
-						stagger: { each: 0.03, from: fromSide },
-					},
-					0
-				);
+					delayTransformCurrent
+				)
+					.to(
+						charsCurrent,
+						{
+							filter: "blur(4px)",
+							duration: duration,
+							ease: ease,
+							stagger: { each: staggerAmount, from: fromSide },
+						},
+						delayBlurCurrent
+					)
+					.to(
+						charsCurrent,
+						{
+							opacity: 0,
+							duration: duration,
+							ease: ease,
+							stagger: { each: staggerAmount, from: fromSide },
+						},
+						delayOpacityCurrent
+					);
 
 				// Animate next chars in
 				tl.fromTo(
 					charsNext,
 					{
-						yPercent: dir * 100,
+						yPercent: dir * translate,
 						rotationX: dir * 90,
 					},
 					{
 						yPercent: 0,
 						rotationX: 0,
 
-						duration: 0.5,
-						ease: "power2.out",
-						stagger: { each: 0.03, from: fromSide },
+						duration: duration,
+						ease: ease,
+						stagger: { each: staggerAmount, from: fromSide },
 					},
-					0
-				).fromTo(
-					charsNext,
-					{
-						opacity: 0,
-						filter: "blur(4px)",
-					},
-					{
-						opacity: 1,
-						filter: "blur(0px)",
-						duration: 0.25,
-						ease: "power2.out",
-						stagger: { each: 0.03, from: fromSide },
-					},
-					0.15
-				);
+					delayTransformNext
+				)
+					.fromTo(
+						charsNext,
+						{
+							filter: "blur(4px)",
+						},
+						{
+							filter: "blur(0px)",
+							duration: duration,
+							ease: ease,
+							stagger: { each: staggerAmount, from: fromSide },
+						},
+						delayBlurNext
+					)
+					.fromTo(
+						charsNext,
+						{
+							opacity: 0,
+						},
+						{
+							opacity: 1,
+							duration: duration,
+							ease: ease,
+							stagger: { each: staggerAmount, from: fromSide },
+						},
+						delayOpacityNext
+					);
 
-				// Swap layers at end (so next becomes current for next round)
-				tl.add(() => {
-					textEl.insertBefore(nextLayer, currentLayer);
-					[splitCurrent, splitNext] = [splitNext, splitCurrent];
-					[charsCurrent, charsNext] = [charsNext, charsCurrent];
-					currentLayer.classList.toggle("btn-text-current");
-					nextLayer.classList.toggle("btn-text-next");
-				});
+				return tl;
+			}
+
+			// Mouse enter handler
+			btn.addEventListener("mouseenter", () => {
+				isHovered = true;
+
+				// Create new timeline for this direction if needed
+				if (!hoverTimeline || hoverTimeline.progress() === 1) {
+					hoverTimeline = createHoverTimeline();
+				}
+
+				// Play forward immediately
+				hoverTimeline.play();
+			});
+
+			// Mouse leave handler
+			btn.addEventListener("mouseleave", () => {
+				isHovered = false;
+
+				// If we have an active timeline, reverse it immediately
+				if (hoverTimeline) {
+					hoverTimeline.reverse();
+				}
 			});
 		}
 
