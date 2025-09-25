@@ -5332,15 +5332,15 @@ Features:
 
 				const staggerAmount = 0.07;
 				const duration = 0.5;
-				const ease = "power2.out";
-				// let ease = "linear";
+				const durationOpacity = 0.15;
+				const ease = "power1.inOut";
 				const delayTransformCurrent = 0; // anim just starts
 				const delayTransformNext = 0.12; // how long til next chars move
-				const delayBlurCurrent = 0.03; // how long til current chars blur out
-				const delayBlurNext = 0.03; // how long til next chars blur in
-				const delayOpacityCurrent = 0.06; // how long til current chars fade out
-				const delayOpacityNext = 0.1; // how long til next chars fade in
-				const translate = 30; // how far chars move
+				const delayBlurCurrent = 0; // how long til current chars blur out
+				const delayBlurNext = 0.1; // how long til next chars blur in
+				const delayOpacityCurrent = 0.1; // how long til current chars fade out
+				const delayOpacityNext = 0; // how long til next chars fade in
+				const translate = 50; // how far chars move
 
 				// Animate current chars out
 				tl.to(
@@ -5369,7 +5369,7 @@ Features:
 						charsCurrent,
 						{
 							opacity: 0,
-							duration: duration,
+							duration: durationOpacity,
 							ease: ease,
 							stagger: { each: staggerAmount, from: fromSide },
 						},
@@ -5413,7 +5413,7 @@ Features:
 						},
 						{
 							opacity: 1,
-							duration: duration,
+							duration: durationOpacity,
 							ease: ease,
 							stagger: { each: staggerAmount, from: fromSide },
 						},
