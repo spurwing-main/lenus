@@ -52,8 +52,12 @@ function main() {
 		});
 	}
 
+	// Lenus variables
+	lenus.search = { stateClass: "search-active" };
+
 	// Global timeline storage for debugging
 	window._debugTimelines = window._debugTimelines || {};
+
 	// Header theme scroll logic
 	function headerThemeScrollTrigger() {
 		const DARK_THEMES = ["dark", "ivy", "wolfram", "olive"];
@@ -3960,6 +3964,143 @@ function main() {
 		}
 	}
 
+	// Global featured section animation controller for blog pages
+	const blogFeaturedSectionController = (() => {
+		let currentlyHidden = false;
+		let timeline = null;
+		let featuredSection = null;
+		let blogListSection = null;
+		let isInitialized = false;
+		let resizeHandler = null;
+
+		function createTimeline() {
+			// Kill existing timeline if it exists
+			if (timeline) {
+				timeline.kill();
+			}
+
+			// Create a simple timeline using CSS auto height - no measurement needed
+			timeline = gsap.timeline({
+				paused: true,
+				onReverseComplete: () => {
+					gsap.set(featuredSection, { display: "", opacity: 1, height: "auto" });
+				},
+			});
+
+			// Hide animation: fade out and collapse height
+			timeline
+				.to(featuredSection, {
+					opacity: 0,
+					duration: 0.3,
+					ease: "power2.inOut",
+				})
+				.to(featuredSection, {
+					height: 0,
+					duration: 0.3,
+					ease: "power2.inOut",
+				})
+				.set(featuredSection, { display: "none" })
+				.to(
+					blogListSection,
+					{
+						paddingTop: "var(--section--padding-top-nav)",
+						duration: 0.6,
+						ease: "power2.inOut",
+					},
+					0
+				);
+
+			// Set initial state based on current status
+			if (currentlyHidden) {
+				timeline.progress(1);
+			} else {
+				timeline.progress(0);
+				// Ensure proper expanded state
+				gsap.set(featuredSection, {
+					display: "",
+					opacity: 1,
+					height: "auto",
+				});
+			}
+		}
+
+		function initialize() {
+			if (isInitialized) return true;
+
+			// Check if we're on a blog page
+			const nav = document.querySelector(".nav");
+			const isBlogPage = nav && nav.classList.contains("is-blog");
+			const isOnListingPage =
+				window.location.pathname === "/blog" || window.location.pathname === "/blog/";
+
+			if (!isBlogPage || !isOnListingPage) return false;
+
+			featuredSection = document.querySelector("#featured-blog");
+			blogListSection = document.querySelector("#blog-list");
+
+			if (!featuredSection || !blogListSection) return false;
+
+			// Set initial state based on current search-active class
+			const hasSearchActiveClass = document.documentElement.classList.contains("search-active");
+			currentlyHidden = hasSearchActiveClass;
+
+			// Create initial timeline
+			createTimeline();
+
+			isInitialized = true;
+			return true;
+		}
+
+		function cleanup() {
+			if (timeline) {
+				timeline.kill();
+				timeline = null;
+			}
+			if (resizeHandler) {
+				window.removeEventListener("resize", resizeHandler);
+				resizeHandler = null;
+			}
+			isInitialized = false;
+		}
+
+		function hide() {
+			if (!initialize() || currentlyHidden) return;
+
+			timeline.play();
+			currentlyHidden = true;
+		}
+
+		function show() {
+			if (!initialize() || !currentlyHidden) return;
+
+			// Prepare section for show animation
+			gsap.set(featuredSection, {
+				display: "",
+				height: 0,
+				opacity: 0,
+			});
+
+			// Reverse the timeline to show the section
+			timeline.reverse();
+			currentlyHidden = false;
+		}
+
+		function toggle(shouldHide) {
+			if (shouldHide) {
+				hide();
+			} else {
+				show();
+			}
+		}
+
+		return { hide, show, toggle, cleanup };
+	})();
+
+	// Convenience function for backward compatibility
+	function globalAnimateFeaturedSection(hide) {
+		blogFeaturedSectionController.toggle(hide);
+	}
+
 	/**
 	 * Unified handleSearch for Blog and Store pages.
 	 * - Nav search input: .c-search .search_input
@@ -3983,7 +4124,6 @@ function main() {
 		const LISTING_PATH = PAGE_TYPE === "blog" ? "/blog" : "/store";
 		const FILTER_INPUT_SELECTOR =
 			PAGE_TYPE === "blog" ? ".blog-list_search > input" : ".store-list_search > input";
-		const STATE_CLASS = "search-active";
 		const isOnListingPage = () =>
 			window.location.pathname === LISTING_PATH || window.location.pathname === LISTING_PATH + "/";
 		const blogHeader = PAGE_TYPE === "blog" ? document.querySelector(".blog-list_header h2") : null;
@@ -4039,8 +4179,9 @@ function main() {
 			// Helper: set/remove state class
 			const setStateClass = (active) => {
 				const isActive = !!active;
-				document.documentElement.classList.toggle(STATE_CLASS, isActive);
+				document.documentElement.classList.toggle(lenus.search.stateClass, isActive);
 				updateBlogHeader(isActive);
+				globalAnimateFeaturedSection(isActive);
 			};
 
 			// Hover events for animation
@@ -4066,26 +4207,59 @@ function main() {
 				if (clearButton) clearButton.click();
 			};
 
-			// Input change: live filter, clear logic, and state class
-			searchInput.addEventListener("input", (e) => {
-				const value = e.target.value;
+			// Debounced search functionality
+			let searchDebounceTimer = null;
+			const SEARCH_DEBOUNCE_DELAY = 1000; // milliseconds
+
+			const performSearch = (value) => {
 				applyFilter(value);
 				setStateClass(!!value.trim());
 				if (!value.trim()) {
 					triggerClearButton();
 					timeline.reverse();
 				}
+			};
+
+			// Input change: debounced filter, immediate UI feedback
+			searchInput.addEventListener("input", (e) => {
+				const value = e.target.value;
+
+				// Clear existing debounce timer
+				if (searchDebounceTimer) {
+					clearTimeout(searchDebounceTimer);
+				}
+
+				// Immediate UI feedback for empty input
+				if (!value.trim()) {
+					performSearch(value);
+					return;
+				}
+
+				// Debounce the actual search for non-empty input
+				searchDebounceTimer = setTimeout(() => {
+					performSearch(value);
+				}, SEARCH_DEBOUNCE_DELAY);
 			});
 
 			// Escape/Enter key handling
 			searchInput.addEventListener("keydown", (e) => {
 				if (e.key === "Escape") {
+					// Clear debounce timer
+					if (searchDebounceTimer) {
+						clearTimeout(searchDebounceTimer);
+						searchDebounceTimer = null;
+					}
 					searchInput.value = "";
 					triggerClearButton();
 					timeline.reverse();
 					setStateClass(false);
 				} else if (e.key === "Enter") {
-					searchButton.click();
+					// Clear debounce timer and perform immediate search
+					if (searchDebounceTimer) {
+						clearTimeout(searchDebounceTimer);
+						searchDebounceTimer = null;
+					}
+					performSearch(searchInput.value);
 				}
 			});
 
@@ -4093,10 +4267,17 @@ function main() {
 			searchButton.addEventListener("click", () => {
 				const value = searchInput.value.trim();
 				const searchTerm = encodeURIComponent(value);
+
+				// Clear debounce timer for immediate search
+				if (searchDebounceTimer) {
+					clearTimeout(searchDebounceTimer);
+					searchDebounceTimer = null;
+				}
+
 				if (!searchTerm) return;
 
 				if (isOnListingPage()) {
-					applyFilter(value);
+					performSearch(value);
 				} else {
 					// Redirect to listing page with search param
 					window.location.href = `${LISTING_PATH}?search=${searchTerm}`;
@@ -4193,7 +4374,8 @@ function main() {
 
 			// Remove search-active class if no filters are active
 			if (!hasActiveFilters()) {
-				document.documentElement.classList.remove("search-active");
+				document.documentElement.classList.remove(lenus.search.stateClass);
+				globalAnimateFeaturedSection(false);
 			}
 		}
 
@@ -4252,7 +4434,7 @@ function main() {
 					lenus.functions.clearSearch?.();
 
 					// Apply search-active class for layout changes
-					document.documentElement.classList.add("search-active");
+					document.documentElement.classList.add(lenus.search.stateClass);
 
 					if (!categoryParam || this.textContent.trim() === "Everything") {
 						// Clear all filters
@@ -4283,6 +4465,40 @@ function main() {
 			const blogRadios = visibleForm?.querySelectorAll('input[type="radio"][fs-list-field="blog"]');
 			const allRadios = visibleForm?.querySelectorAll('input[type="radio"]');
 			const searchInput = visibleForm?.querySelector('input[fs-list-field="*"]');
+			// Get category filter items using a more compatible selector
+			const categoryFilterItems = Array.from(
+				document.querySelectorAll(".filters_list-item")
+			).filter((item) => item.querySelector('input[fs-list-field="category"]'));
+
+			// Flag to prevent clear button from updating category visibility when triggered programmatically
+			let skipClearButtonCategoryUpdate = false;
+
+			// Function to show/hide category filters based on current sub-blog
+			function updateCategoryVisibility(currentBlog = "auto") {
+				// If "auto", try to get it from currently checked blog radio
+				if (currentBlog === "auto") {
+					const checkedBlogRadio = document.querySelector('input[fs-list-field="blog"]:checked');
+					currentBlog = checkedBlogRadio?.getAttribute("fs-list-value") || null;
+				}
+
+				categoryFilterItems.forEach((filterItem) => {
+					if (!currentBlog) {
+						// If no sub-blog selected, show all categories
+						filterItem.style.display = "";
+						return;
+					}
+
+					// Find nested data elements that specify which blogs this category should show for
+					const blogDataElements = filterItem.querySelectorAll("[data-show-for-blog]");
+					const shouldShow = Array.from(blogDataElements).some((element) => {
+						const blogValue = element.getAttribute("data-show-for-blog");
+						return blogValue === currentBlog;
+					});
+
+					// Show or hide the entire filter item
+					filterItem.style.display = shouldShow ? "" : "none";
+				});
+			}
 
 			navLinks.forEach((link) => {
 				link.addEventListener("click", function (e) {
@@ -4299,13 +4515,22 @@ function main() {
 						searchInput.dispatchEvent(new Event("input", { bubbles: true }));
 					}
 
+					// Set flag to prevent clear button from updating category visibility
+					skipClearButtonCategoryUpdate = true;
+
 					// Clear filters
 					visibleClearBtn?.click();
 
+					// Reset flag after a short delay
+					setTimeout(() => {
+						skipClearButtonCategoryUpdate = false;
+					}, 10);
+
 					console.log(blogParam);
 
-					// Remove search-active class since we're clearing everything
-					document.documentElement.classList.remove("search-active");
+					// Remove lenus.search.stateClass class since we're clearing everything
+					document.documentElement.classList.remove(lenus.search.stateClass);
+					globalAnimateFeaturedSection(false);
 
 					if (blogParam) {
 						const matchingRadio = Array.from(blogRadios).find(
@@ -4314,9 +4539,16 @@ function main() {
 
 						if (matchingRadio) {
 							matchingRadio.click();
-							// Apply search-active class for layout changes
-							document.documentElement.classList.add("search-active");
+							// Apply lenus.search.stateClass class for layout changes
+							document.documentElement.classList.add(lenus.search.stateClass);
+							globalAnimateFeaturedSection(true);
 						}
+
+						// Update category visibility based on selected sub-blog
+						updateCategoryVisibility(blogParam);
+					} else {
+						// No blog param means "all blogs" - show all categories
+						updateCategoryVisibility(null);
 					}
 
 					lenus.navHover.setActive(this);
@@ -4327,15 +4559,58 @@ function main() {
 			allRadios.forEach((radio) => {
 				radio.addEventListener("change", function () {
 					if (this.checked) {
-						document.documentElement.classList.add("search-active");
+						document.documentElement.classList.add(lenus.search.stateClass);
+						globalAnimateFeaturedSection(true);
 					}
 				});
 			});
 
 			// Handle clear button
 			visibleClearBtn?.addEventListener("click", function () {
-				document.documentElement.classList.remove("search-active");
+				document.documentElement.classList.remove(lenus.search.stateClass);
+				globalAnimateFeaturedSection(false);
+				// Show all categories when clearing filters - but only if not triggered programmatically
+				if (!skipClearButtonCategoryUpdate) {
+					setTimeout(() => {
+						updateCategoryVisibility(null);
+					}, 0);
+				}
+				// Clear nav highlight to show no sub-blog is selected
+				lenus.navHover.clearActive();
 			});
+
+			// Handle initial page load with URL parameters
+			function handleInitialUrlParams() {
+				const urlParams = new URLSearchParams(window.location.search);
+				const blogParam = urlParams.get("posts_blog_equal");
+
+				if (blogParam) {
+					// Find the corresponding nav link and set it as active
+					const matchingNavLink = Array.from(navLinks).find((link) => {
+						const linkUrl = new URL(link.href);
+						return linkUrl.searchParams.get("blog_equal") === blogParam;
+					});
+
+					if (matchingNavLink) {
+						lenus.navHover.setActive(matchingNavLink);
+					}
+
+					// Update category visibility based on the URL parameter
+					updateCategoryVisibility(blogParam);
+				} else {
+					// No blog parameter in URL, show all categories
+					updateCategoryVisibility("auto");
+				}
+			}
+
+			// Expose utilities globally for Finsweet callback
+			window.blogFilteringUtils = {
+				handleInitialUrlParams,
+				updateCategoryVisibility,
+			};
+
+			// Initialize on page load (this will be called again from Finsweet callback if needed)
+			handleInitialUrlParams();
 		}
 
 		function setupProductBlogPageFiltering() {
@@ -5242,7 +5517,7 @@ Features:
 		return timeline;
 	};
 
-	// Finsweet Attributes v2: Refresh ScrollTrigger after list render
+	// Finsweet Attributes v2: Refresh ScrollTrigger after list render and handle blog filtering
 	function setupFinsweetScrollTriggerRefresh() {
 		window.FinsweetAttributes ||= [];
 		window.FinsweetAttributes.push([
@@ -5252,9 +5527,12 @@ Features:
 					list.addHook("afterRender", () => {
 						console.log("Finsweet list afterRender - refreshing ScrollTrigger");
 						ScrollTrigger.refresh();
-						// if (window.ScrollTrigger && typeof window.ScrollTrigger.refresh === "function") {
-						// 	window.ScrollTrigger.refresh();
-						// }
+
+						// Handle blog category filtering after Finsweet has rendered
+						const isBlogPage = window.location.pathname === "/blog";
+						if (isBlogPage && window.blogFilteringUtils) {
+							window.blogFilteringUtils.handleInitialUrlParams();
+						}
 					});
 				});
 			},
@@ -5457,6 +5735,43 @@ Features:
 		}
 	}
 
+	function multiQuote() {
+		const components = document.querySelectorAll(".c-quote.splide");
+		if (components.length === 0) return;
+
+		components.forEach((component) => {
+			const items = component.querySelectorAll(".quote_list-item");
+			if (items.length <= 1) {
+				// No need to animate if only one item
+				const controls = component.querySelector(".carousel_controls");
+				if (controls) controls.remove();
+				return;
+			}
+
+			// Initialize Splide with breakpoints for desktop/mobile configs
+			const splideInstance = lenus.helperFunctions.initSplideCarousel(component, {
+				config: {
+					// Desktop defaults (768px and above)
+					type: "fade",
+					rewind: true,
+					autoplay: true,
+					interval: 5000,
+					pauseOnHover: true,
+					pagination: false,
+					speed: 600,
+					// Mobile breakpoint
+					breakpoints: {
+						767: {
+							arrows: true,
+							gap: "0rem",
+						},
+					},
+				},
+				useAutoScroll: false,
+			});
+		});
+	}
+
 	function hideShowNav() {
 		const nav = document.querySelector(".nav");
 		if (!nav) return;
@@ -5545,6 +5860,7 @@ Features:
 	animateTitles();
 	tabbedHero();
 	wideCarousel();
+	multiQuote();
 	bentoHero();
 	locations();
 	miniCarousel();
