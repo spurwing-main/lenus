@@ -3893,6 +3893,8 @@ function main() {
 
 		if (navBtnMbl) {
 			navBtnMbl.addEventListener("click", () => {
+				console.log("mobile nav btn clicked");
+
 				if (currentMode !== "mobile") return;
 
 				if (navOpen) {
@@ -3900,12 +3902,15 @@ function main() {
 						// re-enable scroll
 						document.body.style.overflow = "";
 						mobileTl.reverse();
-					} else {
+					}
+				} else {
+					if (mobileTl) {
 						//disable scroll
 						document.body.style.overflow = "hidden";
 						if (mobileTl) mobileTl.play();
 					}
 				}
+
 				navOpen = !navOpen;
 			});
 		}
