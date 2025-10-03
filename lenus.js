@@ -3094,7 +3094,8 @@ function main() {
 			items: [],
 			expandBtn: null,
 			hoverables: [],
-			highlight: null,
+			highlight: null, // this is the moving highlight that follows the mouse
+			passiveHighlight: null, // this is the one that doesn't move and remains under the "active" item at all times
 			activeItem: null, // .c-nav-item element
 			activeAnchor: null, // <a> inside .c-nav-item
 			itemClicked: false,
@@ -3104,9 +3105,18 @@ function main() {
 				mouseenters: [],
 				menuMouseleave: null,
 				itemClicks: [],
+				mousedowns: [],
+				mouseups: [],
 				resize: null,
 			},
 			inited: false,
+			variables: {
+				activeLinkColor: "var(--_theme---nav--link-active)",
+				inactiveLinkColor: "var(--_theme---nav--link-inactive)",
+				highlightBg: "var(--_theme---nav--accent)",
+				highlightBgHover: "var(--_theme---nav--accent-hover)",
+				highlightBgPressed: "var(--_theme---nav--accent-pressed)",
+			},
 		};
 
 		function qsAllArray(sel, root = document) {
@@ -3141,9 +3151,28 @@ function main() {
 			});
 		}
 
+		function setHighlightColor(highlight = state.highlight, color) {
+			if (!highlight) return;
+
+			// Get the current computed background color to ensure smooth transition
+			const currentColor = getComputedStyle(highlight).backgroundColor;
+
+			gsap.fromTo(
+				highlight,
+				{
+					backgroundColor: currentColor,
+				},
+				{
+					backgroundColor: color,
+					duration: 0.15,
+					ease: "power2.out",
+				}
+			);
+		}
+
 		function colorAllInactive() {
 			gsap.to(state.hoverables, {
-				color: "var(--_theme---nav--link-inactive)",
+				color: state.variables.inactiveLinkColor,
 				duration: 0.2,
 				ease: "power3.out",
 			});
@@ -3151,29 +3180,29 @@ function main() {
 
 		function colorTargetActive(target) {
 			gsap.to(target, {
-				color: "var(--_theme---nav--link-active)",
+				color: state.variables.activeLinkColor,
 				duration: 0.2,
 				ease: "power3.out",
 			});
 		}
 
-		function moveHighlightTo(target, animate = true) {
-			if (!state.menu || !state.highlight || !target) return;
+		function moveHighlightTo(highlight = state.highlight, target, animate = true) {
+			if (!state.menu || !highlight || !target) return;
 			if (state.itemClicked) return; // avoid anim jank on click nav
 
 			const { width, left } = getRects(target);
 
 			if (state.moveTween) state.moveTween.kill();
 
-			const isHidden = gsap.getProperty(state.highlight, "autoAlpha") < 0.5;
+			const isHidden = gsap.getProperty(highlight, "autoAlpha") < 0.5;
 			if (!animate || isHidden) {
-				gsap.set(state.highlight, {
+				gsap.set(highlight, {
 					"--nav--menu-bg-w": `${width}px`,
 					"--nav--menu-bg-l": `${left}px`,
 				});
 				setHighlightOpacity(true);
 			} else {
-				state.moveTween = gsap.to(state.highlight, {
+				state.moveTween = gsap.to(highlight, {
 					"--nav--menu-bg-w": `${width}px`,
 					"--nav--menu-bg-l": `${left}px`,
 					duration: 0.3,
@@ -3186,9 +3215,10 @@ function main() {
 			colorTargetActive(target);
 		}
 
-		function makeHighlight() {
+		function makeHighlight(elClassModifier = null) {
 			const el = document.createElement("div");
 			el.classList.add("nav_menu-highlight");
+			if (elClassModifier) el.classList.add(elClassModifier);
 			state.menu.prepend(el);
 			return el;
 		}
@@ -3226,28 +3256,46 @@ function main() {
 			if (state.activeAnchor) setAnchorCurrent(state.activeAnchor, true);
 
 			if (state.activeItem) {
-				moveHighlightTo(state.activeItem, false); // place without animation
+				moveHighlightTo(state.highlight, state.activeItem, false); // place without animation
+				moveHighlightTo(state.passiveHighlight, state.activeItem, false); // place without animation
 			} else {
 				// no active
 				setHighlightOpacity(false);
 				colorAllInactive();
 				if (state.expandBtn)
-					gsap.set(state.expandBtn, { color: "var(--_theme---nav--link-inactive)" });
+					gsap.set(state.expandBtn, { color: state.variables.inactiveLinkColor });
 			}
 		}
 
 		function wireHoverHandlers() {
 			// element hovers
 			state.hoverables.forEach((el) => {
-				const h = () => moveHighlightTo(el, true);
-				el.addEventListener("mouseenter", h);
-				state.handlers.mouseenters.push({ el, h });
+				const hoverHandler = () => {
+					moveHighlightTo(state.highlight, el, true);
+					setHighlightColor(state.highlight, state.variables.highlightBgHover);
+				};
+
+				const mousedownHandler = () => {
+					setHighlightColor(state.highlight, state.variables.highlightBgPressed);
+				};
+
+				const mouseupHandler = () => {
+					setHighlightColor(state.highlight, state.variables.highlightBgHover);
+				};
+
+				el.addEventListener("mouseenter", hoverHandler);
+				el.addEventListener("mousedown", mousedownHandler);
+				el.addEventListener("mouseup", mouseupHandler);
+				state.handlers.mouseenters.push({ el, h: hoverHandler });
+				state.handlers.mousedowns.push({ el, h: mousedownHandler });
+				state.handlers.mouseups.push({ el, h: mouseupHandler });
 			});
 
 			// leave menu => return to active (if any)
 			const onLeave = () => {
+				setHighlightColor(state.highlight, state.variables.highlightBg); // reset highlight color
 				if (state.activeItem) {
-					moveHighlightTo(state.activeItem, true);
+					moveHighlightTo(state.highlight, state.activeItem, true);
 				} else {
 					setHighlightOpacity(false);
 					colorAllInactive();
@@ -3297,7 +3345,7 @@ function main() {
 				}
 
 				if (state.expandBtn)
-					gsap.set(state.expandBtn, { color: "var(--_theme---nav--link-inactive)" });
+					gsap.set(state.expandBtn, { color: state.variables.inactiveLinkColor });
 			}, 200);
 
 			window.addEventListener("resize", onResize);
@@ -3308,6 +3356,14 @@ function main() {
 			// element hovers
 			state.handlers.mouseenters.forEach(({ el, h }) => el.removeEventListener("mouseenter", h));
 			state.handlers.mouseenters = [];
+
+			// mousedown handlers
+			state.handlers.mousedowns.forEach(({ el, h }) => el.removeEventListener("mousedown", h));
+			state.handlers.mousedowns = [];
+
+			// mouseup handlers
+			state.handlers.mouseups.forEach(({ el, h }) => el.removeEventListener("mouseup", h));
+			state.handlers.mouseups = [];
 
 			// menu leave
 			if (state.handlers.menuMouseleave) {
@@ -3336,8 +3392,10 @@ function main() {
 		function ensureHighlight() {
 			if (!state.menu) return;
 			// Prevent duplicate highlights on re-init
-			const existing = state.menu.querySelector(".nav_menu-highlight");
-			state.highlight = existing || makeHighlight();
+			const existingActiveHighlight = state.menu.querySelector(".nav_menu-highlight");
+			const existingPassiveHighlight = state.menu.querySelector(".nav_menu-highlight.is-passive");
+			state.highlight = existingActiveHighlight || makeHighlight();
+			state.passiveHighlight = existingPassiveHighlight || makeHighlight("is-passive");
 		}
 
 		// PUBLIC API
@@ -3407,6 +3465,7 @@ function main() {
 			state.expandBtn = null;
 			state.hoverables = [];
 			state.highlight = null;
+			state.passiveHighlight = null;
 			state.activeItem = null;
 			state.activeAnchor = null;
 			state.itemClicked = false;
