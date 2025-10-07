@@ -700,7 +700,7 @@ function main() {
 			const cards = [];
 
 			Slides.get().forEach((slideObj) => {
-				if (slideObj.isClone) return;
+				// if (slideObj.isClone) return;
 				const card = slideObj.slide.querySelector(".c-testim-card, .c-wide-card");
 				if (!card) return;
 				cards.push(card);
@@ -3393,8 +3393,14 @@ function main() {
 			if (!state.menu) return;
 			// Prevent duplicate highlights on re-init
 			const existingActiveHighlight = state.menu.querySelector(".nav_menu-highlight");
-			const existingPassiveHighlight = state.menu.querySelector(".nav_menu-highlight.is-passive");
 			state.highlight = existingActiveHighlight || makeHighlight();
+		}
+
+		function ensurePassiveHighlight() {
+			if (!state.menu) return;
+
+			// Prevent duplicate passive highlights on re-init
+			const existingPassiveHighlight = state.menu.querySelector(".nav_menu-highlight.is-passive");
 			state.passiveHighlight = existingPassiveHighlight || makeHighlight("is-passive");
 		}
 
@@ -3413,6 +3419,12 @@ function main() {
 			// initial placement
 			const { item } = findInitialActive();
 			applyActive(item);
+
+			// only create passive highlight if we have an active item
+			// (otherwise it just sits there doing nothing)
+			if (item) {
+				ensurePassiveHighlight();
+			}
 
 			// default hidden when no active
 			if (!item) {
@@ -5088,17 +5100,21 @@ function main() {
 
 			const img = imgSelector ? card.querySelector(imgSelector) : null;
 
-			if (!startVisible && !video.autoplay) {
+			if (!startVisible) {
+				console.log("Hiding video initially for", video);
 				gsap.set(video, { autoAlpha: 0 });
 				if (img) gsap.set(img, { autoAlpha: 1 });
 				card.classList.remove("playing");
 			} else if (startVisible) {
+				console.log("Showing video initially for", video);
 				gsap.set(video, { autoAlpha: 1 });
 				if (img) gsap.set(img, { autoAlpha: 0 });
 				card.classList.add("playing");
 			}
 
 			video.controls = false;
+			video.autoplay = false;
+			video.removeAttribute("autoplay");
 			video.pause();
 
 			if (playSelector) {
