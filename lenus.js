@@ -65,8 +65,10 @@ function main() {
 		const header = document.querySelector(".header");
 		if (!header) return;
 		let state = "light"; // current theme state
+		const attributeName = "data-wf--section-group--theme";
 
-		const sectionGroups = gsap.utils.toArray("[data-wf--section-group--variant]");
+		const sectionGroups = gsap.utils.toArray(`[${attributeName}]`);
+
 		const getNavHeight = () =>
 			parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav--height")) || 0;
 
@@ -150,8 +152,9 @@ function main() {
 		function createHeaderThemeScrollTriggers() {
 			killHeaderThemeScrollTriggers();
 			sectionGroups.forEach((group, idx) => {
-				const variant = group.getAttribute("data-wf--section-group--variant");
+				const variant = group.getAttribute(attributeName);
 				const theme = getTheme(variant);
+				console.log(`Section idx=${idx}, variant=${variant}, theme=${theme}`);
 
 				if (DARK_THEMES.includes(variant)) {
 					const trigger = ScrollTrigger.create({
@@ -177,7 +180,7 @@ function main() {
 							// if next section is dark, do nothing, else reverse
 							const nextGroup = sectionGroups[idx + 1];
 							if (nextGroup) {
-								const nextVariant = nextGroup.getAttribute("data-wf--section-group--variant");
+								const nextVariant = nextGroup.getAttribute(attributeName);
 								if (DARK_THEMES.includes(nextVariant)) {
 									// Do nothing
 								} else {
@@ -192,7 +195,7 @@ function main() {
 							// if previous section is dark, do nothing, else play
 							const prevGroup = sectionGroups[idx - 1];
 							if (prevGroup) {
-								const prevVariant = prevGroup.getAttribute("data-wf--section-group--variant");
+								const prevVariant = prevGroup.getAttribute(attributeName);
 								if (DARK_THEMES.includes(prevVariant)) {
 									// Do nothing
 								} else {
