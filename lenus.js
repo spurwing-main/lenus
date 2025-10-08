@@ -460,6 +460,17 @@ function main() {
 			clearAllLogos();
 			updateLogos();
 			animateLogos();
+
+			// DEV: Stop after first animation and keep logos visible
+			// if (tl) {
+			// 	tl.eventCallback("onComplete", function () {
+			// 		// Clear the onComplete callback to prevent scheduling next animation
+			// 		tl.eventCallback("onComplete", null);
+			// 		// Clear any pending timeouts
+			// 		clearTimeout(timerId);
+			// 		console.log("Logo swap animation stopped for dev");
+			// 	});
+			// }
 		});
 	}
 
@@ -765,14 +776,28 @@ function main() {
 	}
 
 	function ctaImage() {
+		// Store contexts globally to allow cleanup
+		if (!window._ctaImageContexts) {
+			window._ctaImageContexts = new Map();
+		}
+
 		document.querySelectorAll(".c-cta").forEach((component) => {
+			// Clean up existing context for this component
+			if (window._ctaImageContexts.has(component)) {
+				const existingContext = window._ctaImageContexts.get(component);
+				existingContext.revert();
+				window._ctaImageContexts.delete(component);
+			}
+
 			const isSplit = component.classList.contains("is-split");
 			const img = component.querySelector(".cta_img");
 			const content = component.querySelector(".cta_content");
 			const pinned = component.querySelector(".cta_pinned");
 			const endParent = component.querySelector(".cta_spacer");
 			const title = component.querySelector(".cta_title");
-			let ctx; // GSAP context
+
+			// Get all images inside .cta_img
+			const images = img ? Array.from(img.querySelectorAll("img")) : [];
 
 			// Helper to check if the viewport is mobile
 			const isMobile = () => window.matchMedia("(max-width: 768px)").matches;
@@ -780,8 +805,7 @@ function main() {
 			const createTimeline = () => {
 				// If it's a split variant and on mobile, revert to static
 				if (isSplit && isMobile()) {
-					ctx && ctx.revert(); // Revert any GSAP animations
-					gsap.set([img, content, title], { clearProps: "all" }); // Clear inline styles
+					gsap.set([img, content, title], { clearProps: "all" });
 					return;
 				}
 
@@ -789,73 +813,120 @@ function main() {
 				const titleSpans = title.querySelectorAll("span");
 				const spanWidth = (content.offsetWidth - gap) / 2;
 
-				ctx && ctx.revert(); // Revert previous GSAP context
-				ctx = gsap.context(() => {
-					// Start with the image at full size
-					gsap.set(img, {
-						width: "100%",
-						height: "100%",
-						scale: 1.05,
-					});
+				// Start with the image at full size
+				gsap.set(img, {
+					width: "100%",
+					height: "100%",
+					scale: 1.05,
+				});
 
-					// }
-					const tl = gsap.timeline({
-						scrollTrigger: {
-							trigger: component,
-							start: "top top",
-							end: "+=100%",
-							scrub: 0.5,
-							pin: pinned,
+				// Set up images - first image visible, others hidden
+				if (images.length > 1) {
+					gsap.set(images[0], { autoAlpha: 1 });
+					gsap.set(images.slice(1), { autoAlpha: 0 });
+				}
+
+				// for each image, set progress time we animate it
+				// weight towards end so we move quickly through images
+				let imgTimes = [];
+				images.forEach((image, index) => {
+					const imgTimeObj = {};
+					imgTimeObj.img = image;
+					imgTimeObj.time = (index / (images.length - 1)) * 0.5; // Spread across 75% of timeline
+					imgTimes.push(imgTimeObj);
+				});
+
+				console.log("Image times:", imgTimes);
+
+				const tl = gsap.timeline({
+					scrollTrigger: {
+						trigger: component,
+						start: "top top",
+						end: "+=100%",
+						scrub: 0.5,
+						pin: pinned,
+						onUpdate(self) {
+							if (images.length < 2) return; // no need to adjust nav if no image fades
+							const p = self.progress;
+
+							imgTimes.forEach((time, index) => {
+								if (p >= time.time) {
+									gsap.to(time.img, {
+										autoAlpha: 1,
+										duration: 0.15,
+										ease: "power2.inOut",
+									});
+								}
+							});
+							// hide images that are ahead of current progress
+							imgTimes.forEach((time, index) => {
+								if (p < time.time) {
+									gsap.to(time.img, {
+										autoAlpha: 0,
+										duration: 0.15,
+										ease: "power2.inOut",
+									});
+								}
+							});
 						},
-					});
-					if (isSplit) {
-						console.log(titleSpans, spanWidth);
-						// ensure title doesn't reflow as we adjust the gap - first fix the size of each .cta_title > span to (container width - gap)/2
-						gsap.set(titleSpans, {
-							width: spanWidth,
-						});
-						gsap.set(titleSpans[0], {
-							textAlign: "right",
-						});
-						gsap.set(titleSpans[1], {
-							textAlign: "left",
-						});
+					},
+					onStart: () => {
+						console.log("CTA animation started");
+					},
+				});
 
-						tl.to(
-							title,
-							{
-								gap: gap,
-							},
-							// title,
-							// {
-							// 	gap: () => {
-							// 		endParent.offsetWidth + 32 + "px";
-							// 	},
-							// 	duration: 0.5,
-							// 	ease: "power1.inOut",
-							// },
-							"<"
-						);
-					}
-					tl.add(Flip.fit(img, endParent, { duration: 0.5 }), "<");
+				if (isSplit) {
+					console.log(titleSpans, spanWidth);
+					// ensure title doesn't reflow as we adjust the gap - first fix the size of each .cta_title > span to (container width - gap)/2
+					gsap.set(titleSpans, {
+						width: spanWidth,
+					});
+					gsap.set(titleSpans[0], {
+						textAlign: "right",
+					});
+					gsap.set(titleSpans[1], {
+						textAlign: "left",
+					});
 
 					tl.to(
 						title,
 						{
-							backgroundPosition: "0% 0%",
-							ease: "none",
-							duration: 0.3,
+							gap: gap,
 						},
-						"0.2"
+						"<"
 					);
-				});
+				}
+
+				tl.add(Flip.fit(img, endParent, { duration: 0.5 }), "<");
+
+				tl.to(
+					title,
+					{
+						backgroundPosition: "0% 0%",
+						ease: "none",
+						duration: 0.3,
+					},
+					"0.2"
+				);
 			};
 
-			// Debounced resize handler
-			const debouncedResize = lenus.helperFunctions.debounce(createTimeline, 200);
+			// Create a new context for this component
+			const ctx = gsap.context(() => {
+				createTimeline();
+			}, component);
 
-			// Initial setup
-			createTimeline();
+			// Store the context for later cleanup
+			window._ctaImageContexts.set(component, ctx);
+
+			// Debounced resize handler
+			const debouncedResize = lenus.helperFunctions.debounce(() => {
+				// Clean up and recreate context on resize
+				ctx.revert();
+				const newCtx = gsap.context(() => {
+					createTimeline();
+				}, component);
+				window._ctaImageContexts.set(component, newCtx);
+			}, 200);
 
 			// Add resize event listener
 			window.addEventListener("resize", debouncedResize);
@@ -907,7 +978,7 @@ function main() {
 
 			items.forEach((item, index) => {
 				const header = item.querySelector(".accordion-item_header, .faq-item_header");
-				const content = item.querySelector(".accordion-item_content, .faq-item_body");
+				const content = item.querySelector(".accordion-item_content, .faq-item_body-wrap");
 				const image = images[index] || null; // if no image, set to null
 
 				// prepare content for auto-height animation
@@ -2057,6 +2128,7 @@ function main() {
 						scale: 1.05,
 					});
 					const tl = gsap.timeline({
+						onComplete: () => {},
 						scrollTrigger: {
 							trigger: component,
 							start: 20,
@@ -2065,6 +2137,9 @@ function main() {
 							scrub: 1,
 							pin: true,
 							pinSpacing: true,
+							onLeave: () => {
+								ctaImage();
+							},
 						},
 					});
 
