@@ -5856,7 +5856,7 @@ Features:
 		const nav = document.querySelector(".nav");
 		if (!nav) return;
 
-		const navLogoText = document.querySelector(".nav_logo-group-text");
+		const navLogoText = document.querySelector(".nav_logo-link.is-wordmark");
 
 		const showThreshold = 50; // Always show when within this distance from top
 		const hideThreshold = 150; // Can hide only after passing this
@@ -5868,7 +5868,7 @@ Features:
 		let logoHidden = false;
 
 		if (navLogoText) {
-			gsap.set(navLogoText, { x: 0, opacity: 1 });
+			gsap.set(navLogoText, { x: 0, autoAlpha: 1 });
 		}
 
 		ScrollTrigger.create({
@@ -5906,7 +5906,7 @@ Features:
 						logoHidden = true;
 						gsap.to(navLogoText, {
 							x: "-1.25rem",
-							opacity: 0,
+							autoAlpha: 0,
 							duration: 0.35,
 							ease: "power2.out",
 							overwrite: "auto",
@@ -5915,7 +5915,7 @@ Features:
 						logoHidden = false;
 						gsap.to(navLogoText, {
 							x: "0rem",
-							opacity: 1,
+							autoAlpha: 1,
 							duration: 0.35,
 							ease: "power2.out",
 							overwrite: "auto",
