@@ -2,7 +2,7 @@ function main() {
 	// splide defaults
 	Splide.defaults = {
 		perMove: 1,
-		gap: "0rem",
+		gap: "1.5rem",
 		arrows: false,
 		pagination: false,
 		focus: 0,
@@ -18,6 +18,7 @@ function main() {
 		drag: true,
 		snap: true,
 		autoplay: true,
+		easing: "cubic-bezier(0.5, 0, 0.75, 0)",
 		// clones: 2,
 	};
 
@@ -687,6 +688,7 @@ function main() {
 			const instance = lenus.helperFunctions.initSplideCarousel(component, {
 				config: {
 					type: "loop",
+					gap: "1.5rem",
 					autoplay: false,
 					clones: 5,
 					autoWidth: true,
@@ -1975,10 +1977,11 @@ function main() {
 			console.log("Initializing wide carousel:", component);
 			const instance = lenus.helperFunctions.initSplideCarousel(component, {
 				config: {
-					focus: "center",
+					// focus: "center",
+					gap: "3rem",
 					breakpoints: {
 						767: {
-							gap: "1rem",
+							// gap: "1rem",
 							autoWidth: false,
 						},
 					},
@@ -4832,6 +4835,315 @@ function main() {
 		}
 	}
 
+	function largeButtonHover() {
+		if (window.matchMedia("(hover: none)").matches) return; // disable on touch/mobile
+
+		const buttons = document.querySelectorAll(".button.is-large");
+		if (buttons.length === 0) return;
+
+		buttons.forEach((btn, index) => setupButton(btn, index));
+
+		function setupButton(btn, index) {
+			const textEl = btn.querySelector(".button_text");
+			if (!textEl) return;
+
+			let directionToggle = true; // true = up/left, false = down/right
+			let hoverTimeline = null; // Store the main hover timeline
+			let isHovered = false;
+
+			// Create dual text layers
+			const originalText = textEl.textContent;
+			console.log("Original button text:", originalText);
+			textEl.innerHTML = `
+      <div class="btn-text-layer btn-text-current">${originalText}</div>
+      <div class="btn-text-layer btn-text-next" aria-hidden="true">${originalText}</div>
+    `;
+
+			const currentLayer = textEl.querySelector(".btn-text-current");
+			const nextLayer = textEl.querySelector(".btn-text-next");
+
+			let splitCurrent = new SplitText(currentLayer, { type: "chars" });
+			let splitNext = new SplitText(nextLayer, { type: "chars" });
+
+			let charsCurrent = splitCurrent.chars;
+			let charsNext = splitNext.chars;
+
+			// Ensure next layer is stacked
+			gsap.set(nextLayer, { position: "absolute", top: 0, left: 0, width: "100%" });
+
+			// Resize handling (re-split)
+			const resizeHandler = debounce(() => {
+				splitCurrent.revert();
+				splitNext.revert();
+				splitCurrent = new SplitText(currentLayer, { type: "chars" });
+				splitNext = new SplitText(nextLayer, { type: "chars" });
+				charsCurrent = splitCurrent.chars;
+				charsNext = splitNext.chars;
+			}, 200);
+			window.addEventListener("resize", resizeHandler);
+
+			// Create the main hover animation timeline (paused by default)
+			function createHoverTimeline() {
+				if (hoverTimeline) hoverTimeline.kill();
+
+				const dir = directionToggle ? 1 : -1; // up vs down
+				const fromSide = directionToggle ? "start" : "end";
+				directionToggle = !directionToggle;
+
+				const tl = gsap.timeline({
+					paused: true,
+					onComplete: () => {
+						// Swap layers at end (so next becomes current for next round)
+						textEl.insertBefore(nextLayer, currentLayer);
+						[splitCurrent, splitNext] = [splitNext, splitCurrent];
+						[charsCurrent, charsNext] = [charsNext, charsCurrent];
+						currentLayer.classList.toggle("btn-text-current");
+						nextLayer.classList.toggle("btn-text-next");
+					},
+				});
+
+				tl.timeScale(1.35);
+
+				const staggerAmount = 0.07;
+				const duration = 0.5;
+				const durationOpacity = 0.15;
+				const ease = "power1.inOut";
+				const delayTransformCurrent = 0; // anim just starts
+				const delayTransformNext = 0.12; // how long til next chars move
+				const delayBlurCurrent = 0; // how long til current chars blur out
+				const delayBlurNext = 0.1; // how long til next chars blur in
+				const delayOpacityCurrent = 0.1; // how long til current chars fade out
+				const delayOpacityNext = 0; // how long til next chars fade in
+				const translate = 50; // how far chars move
+
+				// Animate current chars out
+				tl.to(
+					charsCurrent,
+					{
+						yPercent: dir * -translate,
+						rotationX: dir * -90,
+
+						duration: duration,
+						ease: ease,
+						stagger: { each: staggerAmount, from: fromSide },
+					},
+					delayTransformCurrent
+				)
+					.to(
+						charsCurrent,
+						{
+							filter: "blur(4px)",
+							duration: duration,
+							ease: ease,
+							stagger: { each: staggerAmount, from: fromSide },
+						},
+						delayBlurCurrent
+					)
+					.to(
+						charsCurrent,
+						{
+							opacity: 0,
+							duration: durationOpacity,
+							ease: ease,
+							stagger: { each: staggerAmount, from: fromSide },
+						},
+						delayOpacityCurrent
+					);
+
+				// Animate next chars in
+				tl.fromTo(
+					charsNext,
+					{
+						yPercent: dir * translate,
+						rotationX: dir * 90,
+					},
+					{
+						yPercent: 0,
+						rotationX: 0,
+
+						duration: duration,
+						ease: ease,
+						stagger: { each: staggerAmount, from: fromSide },
+					},
+					delayTransformNext
+				)
+					.fromTo(
+						charsNext,
+						{
+							filter: "blur(4px)",
+						},
+						{
+							filter: "blur(0px)",
+							duration: duration,
+							ease: ease,
+							stagger: { each: staggerAmount, from: fromSide },
+						},
+						delayBlurNext
+					)
+					.fromTo(
+						charsNext,
+						{
+							opacity: 0,
+						},
+						{
+							opacity: 1,
+							duration: durationOpacity,
+							ease: ease,
+							stagger: { each: staggerAmount, from: fromSide },
+						},
+						delayOpacityNext
+					);
+
+				return tl;
+			}
+
+			// Mouse enter handler
+			btn.addEventListener("mouseenter", () => {
+				isHovered = true;
+
+				// Create new timeline for this direction if needed
+				if (!hoverTimeline || hoverTimeline.progress() === 1) {
+					hoverTimeline = createHoverTimeline();
+				}
+
+				// Play forward immediately
+				hoverTimeline.play();
+			});
+
+			// Mouse leave handler
+			btn.addEventListener("mouseleave", () => {
+				isHovered = false;
+
+				// If we have an active timeline, reverse it immediately
+				if (hoverTimeline) {
+					hoverTimeline.reverse();
+				}
+			});
+		}
+
+		// Simple debounce helper
+		function debounce(fn, delay) {
+			let t;
+			return (...args) => {
+				clearTimeout(t);
+				t = setTimeout(() => fn.apply(this, args), delay);
+			};
+		}
+	}
+
+	function multiQuote() {
+		const components = document.querySelectorAll(".c-quote.splide");
+		if (components.length === 0) return;
+
+		components.forEach((component) => {
+			const items = component.querySelectorAll(".quote_list-item");
+			if (items.length <= 1) {
+				// No need to animate if only one item
+				const controls = component.querySelector(".carousel_controls");
+				if (controls) controls.remove();
+				return;
+			}
+
+			// Initialize Splide with breakpoints for desktop/mobile configs
+			const splideInstance = lenus.helperFunctions.initSplideCarousel(component, {
+				config: {
+					// Desktop defaults (768px and above)
+					type: "fade",
+					rewind: true,
+					autoplay: true,
+					interval: 5000,
+					pauseOnHover: true,
+					pagination: false,
+					speed: 600,
+					// Mobile breakpoint
+					breakpoints: {
+						767: {
+							arrows: true,
+							gap: "0rem",
+						},
+					},
+				},
+				useAutoScroll: false,
+			});
+		});
+	}
+
+	function hideShowNav() {
+		const nav = document.querySelector(".nav");
+		if (!nav) return;
+
+		const navLogoText = document.querySelector(".nav_logo-link.is-wordmark");
+
+		const showThreshold = 50; // Always show when within this distance from top
+		const hideThreshold = 150; // Can hide only after passing this
+		const logoThreshold = 60; // Independent threshold for logo text animation
+		const revealBuffer = 50; // Scroll-up distance before revealing
+
+		let lastScrollY = window.scrollY;
+		let revealDistance = 0;
+		let logoHidden = false;
+
+		if (navLogoText) {
+			gsap.set(navLogoText, { x: 0, autoAlpha: 1 });
+		}
+
+		ScrollTrigger.create({
+			trigger: document.body,
+			start: "top top",
+			end: "bottom bottom",
+			onUpdate() {
+				const y = window.scrollY;
+				const delta = y - lastScrollY;
+
+				if (y <= showThreshold) {
+					nav.classList.remove("is-hidden", "is-past-threshold");
+					revealDistance = 0;
+				} else if (delta > 0 && y > hideThreshold) {
+					// scrolling down
+					nav.classList.add("is-hidden", "is-past-threshold");
+					revealDistance = 0;
+				} else if (delta < 0) {
+					// scrolling up
+					revealDistance -= delta; // delta is negative
+					if (revealDistance >= revealBuffer) {
+						nav.classList.remove("is-hidden");
+						revealDistance = 0;
+					}
+				}
+
+				if (y > hideThreshold) {
+					nav.classList.add("is-past-threshold");
+				} else {
+					nav.classList.remove("is-past-threshold");
+				}
+
+				if (navLogoText) {
+					if (y > logoThreshold && !logoHidden) {
+						logoHidden = true;
+						gsap.to(navLogoText, {
+							x: "-1.25rem",
+							autoAlpha: 0,
+							duration: 0.35,
+							ease: "power2.out",
+							overwrite: "auto",
+						});
+					} else if (y <= logoThreshold && logoHidden) {
+						logoHidden = false;
+						gsap.to(navLogoText, {
+							x: "0rem",
+							autoAlpha: 1,
+							duration: 0.35,
+							ease: "power2.out",
+							overwrite: "auto",
+						});
+					}
+				}
+
+				lastScrollY = y;
+			},
+		});
+	}
+
 	/* helper functions */
 
 	/* for a card with a video and an image, show the video and hide the image or vice versa */
@@ -5699,315 +6011,6 @@ Features:
 				});
 			},
 		]);
-	}
-
-	function largeButtonHover() {
-		if (window.matchMedia("(hover: none)").matches) return; // disable on touch/mobile
-
-		const buttons = document.querySelectorAll(".button.is-large");
-		if (buttons.length === 0) return;
-
-		buttons.forEach((btn, index) => setupButton(btn, index));
-
-		function setupButton(btn, index) {
-			const textEl = btn.querySelector(".button_text");
-			if (!textEl) return;
-
-			let directionToggle = true; // true = up/left, false = down/right
-			let hoverTimeline = null; // Store the main hover timeline
-			let isHovered = false;
-
-			// Create dual text layers
-			const originalText = textEl.textContent;
-			console.log("Original button text:", originalText);
-			textEl.innerHTML = `
-      <div class="btn-text-layer btn-text-current">${originalText}</div>
-      <div class="btn-text-layer btn-text-next" aria-hidden="true">${originalText}</div>
-    `;
-
-			const currentLayer = textEl.querySelector(".btn-text-current");
-			const nextLayer = textEl.querySelector(".btn-text-next");
-
-			let splitCurrent = new SplitText(currentLayer, { type: "chars" });
-			let splitNext = new SplitText(nextLayer, { type: "chars" });
-
-			let charsCurrent = splitCurrent.chars;
-			let charsNext = splitNext.chars;
-
-			// Ensure next layer is stacked
-			gsap.set(nextLayer, { position: "absolute", top: 0, left: 0, width: "100%" });
-
-			// Resize handling (re-split)
-			const resizeHandler = debounce(() => {
-				splitCurrent.revert();
-				splitNext.revert();
-				splitCurrent = new SplitText(currentLayer, { type: "chars" });
-				splitNext = new SplitText(nextLayer, { type: "chars" });
-				charsCurrent = splitCurrent.chars;
-				charsNext = splitNext.chars;
-			}, 200);
-			window.addEventListener("resize", resizeHandler);
-
-			// Create the main hover animation timeline (paused by default)
-			function createHoverTimeline() {
-				if (hoverTimeline) hoverTimeline.kill();
-
-				const dir = directionToggle ? 1 : -1; // up vs down
-				const fromSide = directionToggle ? "start" : "end";
-				directionToggle = !directionToggle;
-
-				const tl = gsap.timeline({
-					paused: true,
-					onComplete: () => {
-						// Swap layers at end (so next becomes current for next round)
-						textEl.insertBefore(nextLayer, currentLayer);
-						[splitCurrent, splitNext] = [splitNext, splitCurrent];
-						[charsCurrent, charsNext] = [charsNext, charsCurrent];
-						currentLayer.classList.toggle("btn-text-current");
-						nextLayer.classList.toggle("btn-text-next");
-					},
-				});
-
-				tl.timeScale(1.35);
-
-				const staggerAmount = 0.07;
-				const duration = 0.5;
-				const durationOpacity = 0.15;
-				const ease = "power1.inOut";
-				const delayTransformCurrent = 0; // anim just starts
-				const delayTransformNext = 0.12; // how long til next chars move
-				const delayBlurCurrent = 0; // how long til current chars blur out
-				const delayBlurNext = 0.1; // how long til next chars blur in
-				const delayOpacityCurrent = 0.1; // how long til current chars fade out
-				const delayOpacityNext = 0; // how long til next chars fade in
-				const translate = 50; // how far chars move
-
-				// Animate current chars out
-				tl.to(
-					charsCurrent,
-					{
-						yPercent: dir * -translate,
-						rotationX: dir * -90,
-
-						duration: duration,
-						ease: ease,
-						stagger: { each: staggerAmount, from: fromSide },
-					},
-					delayTransformCurrent
-				)
-					.to(
-						charsCurrent,
-						{
-							filter: "blur(4px)",
-							duration: duration,
-							ease: ease,
-							stagger: { each: staggerAmount, from: fromSide },
-						},
-						delayBlurCurrent
-					)
-					.to(
-						charsCurrent,
-						{
-							opacity: 0,
-							duration: durationOpacity,
-							ease: ease,
-							stagger: { each: staggerAmount, from: fromSide },
-						},
-						delayOpacityCurrent
-					);
-
-				// Animate next chars in
-				tl.fromTo(
-					charsNext,
-					{
-						yPercent: dir * translate,
-						rotationX: dir * 90,
-					},
-					{
-						yPercent: 0,
-						rotationX: 0,
-
-						duration: duration,
-						ease: ease,
-						stagger: { each: staggerAmount, from: fromSide },
-					},
-					delayTransformNext
-				)
-					.fromTo(
-						charsNext,
-						{
-							filter: "blur(4px)",
-						},
-						{
-							filter: "blur(0px)",
-							duration: duration,
-							ease: ease,
-							stagger: { each: staggerAmount, from: fromSide },
-						},
-						delayBlurNext
-					)
-					.fromTo(
-						charsNext,
-						{
-							opacity: 0,
-						},
-						{
-							opacity: 1,
-							duration: durationOpacity,
-							ease: ease,
-							stagger: { each: staggerAmount, from: fromSide },
-						},
-						delayOpacityNext
-					);
-
-				return tl;
-			}
-
-			// Mouse enter handler
-			btn.addEventListener("mouseenter", () => {
-				isHovered = true;
-
-				// Create new timeline for this direction if needed
-				if (!hoverTimeline || hoverTimeline.progress() === 1) {
-					hoverTimeline = createHoverTimeline();
-				}
-
-				// Play forward immediately
-				hoverTimeline.play();
-			});
-
-			// Mouse leave handler
-			btn.addEventListener("mouseleave", () => {
-				isHovered = false;
-
-				// If we have an active timeline, reverse it immediately
-				if (hoverTimeline) {
-					hoverTimeline.reverse();
-				}
-			});
-		}
-
-		// Simple debounce helper
-		function debounce(fn, delay) {
-			let t;
-			return (...args) => {
-				clearTimeout(t);
-				t = setTimeout(() => fn.apply(this, args), delay);
-			};
-		}
-	}
-
-	function multiQuote() {
-		const components = document.querySelectorAll(".c-quote.splide");
-		if (components.length === 0) return;
-
-		components.forEach((component) => {
-			const items = component.querySelectorAll(".quote_list-item");
-			if (items.length <= 1) {
-				// No need to animate if only one item
-				const controls = component.querySelector(".carousel_controls");
-				if (controls) controls.remove();
-				return;
-			}
-
-			// Initialize Splide with breakpoints for desktop/mobile configs
-			const splideInstance = lenus.helperFunctions.initSplideCarousel(component, {
-				config: {
-					// Desktop defaults (768px and above)
-					type: "fade",
-					rewind: true,
-					autoplay: true,
-					interval: 5000,
-					pauseOnHover: true,
-					pagination: false,
-					speed: 600,
-					// Mobile breakpoint
-					breakpoints: {
-						767: {
-							arrows: true,
-							gap: "0rem",
-						},
-					},
-				},
-				useAutoScroll: false,
-			});
-		});
-	}
-
-	function hideShowNav() {
-		const nav = document.querySelector(".nav");
-		if (!nav) return;
-
-		const navLogoText = document.querySelector(".nav_logo-link.is-wordmark");
-
-		const showThreshold = 50; // Always show when within this distance from top
-		const hideThreshold = 150; // Can hide only after passing this
-		const logoThreshold = 60; // Independent threshold for logo text animation
-		const revealBuffer = 50; // Scroll-up distance before revealing
-
-		let lastScrollY = window.scrollY;
-		let revealDistance = 0;
-		let logoHidden = false;
-
-		if (navLogoText) {
-			gsap.set(navLogoText, { x: 0, autoAlpha: 1 });
-		}
-
-		ScrollTrigger.create({
-			trigger: document.body,
-			start: "top top",
-			end: "bottom bottom",
-			onUpdate() {
-				const y = window.scrollY;
-				const delta = y - lastScrollY;
-
-				if (y <= showThreshold) {
-					nav.classList.remove("is-hidden", "is-past-threshold");
-					revealDistance = 0;
-				} else if (delta > 0 && y > hideThreshold) {
-					// scrolling down
-					nav.classList.add("is-hidden", "is-past-threshold");
-					revealDistance = 0;
-				} else if (delta < 0) {
-					// scrolling up
-					revealDistance -= delta; // delta is negative
-					if (revealDistance >= revealBuffer) {
-						nav.classList.remove("is-hidden");
-						revealDistance = 0;
-					}
-				}
-
-				if (y > hideThreshold) {
-					nav.classList.add("is-past-threshold");
-				} else {
-					nav.classList.remove("is-past-threshold");
-				}
-
-				if (navLogoText) {
-					if (y > logoThreshold && !logoHidden) {
-						logoHidden = true;
-						gsap.to(navLogoText, {
-							x: "-1.25rem",
-							autoAlpha: 0,
-							duration: 0.35,
-							ease: "power2.out",
-							overwrite: "auto",
-						});
-					} else if (y <= logoThreshold && logoHidden) {
-						logoHidden = false;
-						gsap.to(navLogoText, {
-							x: "0rem",
-							autoAlpha: 1,
-							duration: 0.35,
-							ease: "power2.out",
-							overwrite: "auto",
-						});
-					}
-				}
-
-				lastScrollY = y;
-			},
-		});
 	}
 
 	parallax();
