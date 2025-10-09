@@ -18,6 +18,7 @@ function main() {
 		drag: true,
 		snap: true,
 		autoplay: true,
+		// clones: 2,
 	};
 
 	// GSAP register
@@ -154,7 +155,7 @@ function main() {
 			sectionGroups.forEach((group, idx) => {
 				const variant = group.getAttribute(attributeName);
 				const theme = getTheme(variant);
-				console.log(`Section idx=${idx}, variant=${variant}, theme=${theme}`);
+				// console.log(`Section idx=${idx}, variant=${variant}, theme=${theme}`);
 
 				if (DARK_THEMES.includes(variant)) {
 					const trigger = ScrollTrigger.create({
@@ -681,12 +682,9 @@ function main() {
 	function videoCarousel() {
 		const controller = lenus.helperFunctions.videoController;
 		if (!controller) return;
-		const carouselSelector = ".c-testim-carousel.splide, .c-carousel.splide";
 
-		document.querySelectorAll(carouselSelector).forEach((component) => {
-			const shouldAutoScroll = component.dataset.autoscroll !== "false";
-			const splideInstance = lenus.helperFunctions.initSplideCarousel(component, {
-				useAutoScroll: shouldAutoScroll,
+		document.querySelectorAll(".c-carousel.is-testim").forEach((component) => {
+			const instance = lenus.helperFunctions.initSplideCarousel(component, {
 				config: {
 					type: "loop",
 					autoplay: false,
@@ -704,27 +702,33 @@ function main() {
 						},
 					},
 				},
+				onMounted: (instance) => {
+					// Register video cards and setup interactions
+					setupVideoCarouselInteractions(component, instance, controller);
+				},
 			});
-
-			if (!splideInstance) return;
-
-			const { Slides } = splideInstance.Components;
-			const autoScroll = shouldAutoScroll ? splideInstance.Components.AutoScroll : null;
+		});
+		function setupVideoCarouselInteractions(component, instance, controller) {
+			const { Slides } = instance.Components;
 			const unregisterFns = [];
 			const cards = [];
 
 			Slides.get().forEach((slideObj) => {
-				// if (slideObj.isClone) return;
 				const card = slideObj.slide.querySelector(".c-testim-card, .c-wide-card");
 				if (!card) return;
 				cards.push(card);
+
 				const unregister = registerVideoCard(card, {
 					onPlay: () => {
-						splideInstance.go(slideObj.index);
-						autoScroll?.pause();
+						instance.go(slideObj.index);
+						if (instance.Components.AutoScroll) {
+							instance.Components.AutoScroll.pause();
+						}
 					},
 					onPause: () => {
-						autoScroll?.play();
+						if (instance.Components.AutoScroll) {
+							instance.Components.AutoScroll.play();
+						}
 					},
 				});
 				if (typeof unregister === "function") {
@@ -732,18 +736,16 @@ function main() {
 				}
 			});
 
-			lenus.helperFunctions.setUpProgressBar(component, cards, splideInstance, Slides);
-
 			component.querySelectorAll(".carousel_arrow, .carousel_progress").forEach((el) => {
 				const handler = () => controller.pauseAll();
 				el.addEventListener("click", handler);
 				unregisterFns.push(() => el.removeEventListener("click", handler));
 			});
 
-			splideInstance.on("destroy", () => {
+			instance.on("destroy", () => {
 				unregisterFns.forEach((fn) => fn());
 			});
-		});
+		}
 	}
 
 	function gradTest1() {
@@ -835,8 +837,6 @@ function main() {
 					imgTimeObj.time = (index / (images.length - 1)) * 0.5; // Spread across 75% of timeline
 					imgTimes.push(imgTimeObj);
 				});
-
-				console.log("Image times:", imgTimes);
 
 				const tl = gsap.timeline({
 					scrollTrigger: {
@@ -1041,8 +1041,6 @@ function main() {
 					header.setAttribute("aria-expanded", isOpening);
 				});
 			});
-
-			console.log(items);
 
 			// on load have first item open
 			if (items.length > 0) {
@@ -1307,82 +1305,56 @@ function main() {
 	}
 
 	function cardGrid() {
-		const mediaQuery = window.matchMedia("(max-width: 768px)");
-
-		// Helper to know current mode
-		const isMobile = () => mediaQuery.matches;
-		let currentMode = isMobile() ? "mobile" : "desktop"; // Track the current mode
-		let splideInstance;
-
 		document.querySelectorAll(".c-card-grid").forEach((component) => {
-			const cards = gsap.utils.toArray(".card", component);
+			const cards = gsap.utils.toArray(".c-card", component);
+			console.log("Setting up card grid carousel for", component, cards);
 
-			let ctx = gsap.context(() => {});
-
-			// initialise
-			if (cards.length > 0) {
-				if (currentMode === "desktop") {
-				} else {
-					console.log("Mobile mode detected, switching to carousel.");
-					initSplide(cards, component);
-				}
-			}
-
-			// on resize
-			const onResize = lenus.helperFunctions.debounce(() => {
-				const newMode = isMobile() ? "mobile" : "desktop";
-				// if still in desktop, update the background images so they are correct
-				if (newMode === "desktop") {
-					console.log("Desktop mode detected, switching to card grid.");
-					if (splideInstance) {
-						lenus.helperFunctions.destroySplide(splideInstance);
-					}
-				}
-				if (newMode === currentMode) return; // Only reinitialize if mode has changed
-
-				currentMode = newMode; // Update the current mode
-
-				if (newMode === "mobile") {
-					console.log("Mobile mode detected, switching to carousel.");
-
-					initSplide(cards, component);
-				} else {
-				}
+			lenus.helperFunctions.handleResponsiveCarousel(component, {
+				config: {
+					type: "loop",
+					autoplay: false,
+					autoWidth: true,
+					arrows: true,
+					pagination: false,
+					gap: "1rem",
+					trimSpace: "move",
+					snap: true,
+					drag: true,
+				},
+				responsive: {
+					breakpoint: 768,
+					mobileOnly: true,
+					onModeChange: (mode, splideInstance) => {
+						if (mode === "mobile" && splideInstance) {
+							console.log("Mobile mode: setting up card grid carousel");
+							setupCardGridInteractions(splideInstance, cards);
+						} else {
+							console.log("Desktop mode: using native grid layout");
+							// Desktop uses native CSS grid - no additional setup needed
+						}
+					},
+				},
 			});
-			window.addEventListener("resize", onResize);
 		});
-
-		function initSplide(cards, component) {
-			splideInstance = new Splide(component, {
-				type: "loop",
-				autoplay: false,
-				autoWidth: true,
-				arrows: true,
-				pagination: false,
-				gap: "1rem",
-				trimSpace: "move",
-				mediaQuery: "min",
-				768: {
-					destroy: true,
-				},
-				767: {
-					perPage: 1,
-				},
-				snap: true,
-				drag: true,
-			});
-			splideInstance.mount();
-			const { Slides } = splideInstance.Components;
+		function setupCardGridInteractions(splideInstance, cards) {
+			const videoSelector = "video";
+			const imgSelector = "img";
 
 			// Set up progress bar
-			lenus.helperFunctions.setUpProgressBar(component, cards, splideInstance, Slides);
+			const component = splideInstance.root;
+			lenus.helperFunctions.setUpProgressBar(
+				component,
+				cards,
+				splideInstance,
+				splideInstance.Components.Slides
+			);
 
-			// When slide becomes active, if video exists, play it (and pause others)
+			// When slide becomes active, handle video playback
 			splideInstance.on("active", (slide) => {
 				let card;
 
 				// Ensure we only process the original slide, not clones
-				if (!slide || !slide.slide || slide.isClone) return; // Skip clones
+				if (!slide || !slide.slide || slide.isClone) return;
 
 				// Get card - it will either be the slide itself or a child of the slide
 				if (slide.slide.classList.contains("card")) {
@@ -1390,9 +1362,9 @@ function main() {
 				} else {
 					card = slide.slide.querySelector(".card");
 				}
-				if (!card) return; // Safety check
+				if (!card) return;
 
-				lenus.helperFunctions.resetAllCards(cards, card); // Reset all cards except the active one
+				lenus.helperFunctions.resetAllCards(cards, card);
 				const video = card.querySelector(videoSelector);
 				if (video) {
 					console.log("Playing video for card:", card);
@@ -1401,7 +1373,7 @@ function main() {
 				}
 			});
 
-			console.log("Splide carousel initialized.");
+			console.log("Card grid carousel initialized.");
 		}
 	}
 
@@ -1999,88 +1971,55 @@ function main() {
 	}
 
 	function wideCarousel() {
-		const splideSelector = ".c-wide-carousel";
-		const trackSelector = ".wide-carousel_track";
-		const listSelector = ".wide-carousel_list";
-		const slideSelector = ".wide-carousel_list-item";
-		document.querySelectorAll(splideSelector).forEach((component) => {
-			// ensure component has appropriate classes
-			if (!component.classList.contains("splide")) {
-				component.classList.add("splide");
-			}
-			const listEl = component.querySelector(listSelector);
-			if (!listEl) {
-				return;
-			}
-			if (!listEl.classList.contains("splide__list")) {
-				listEl.classList.add("splide__list");
-			}
-			const trackEl = component.querySelector(trackSelector);
-			if (!trackEl) {
-				return;
-			}
-			if (!trackEl.classList.contains("splide__track")) {
-				trackEl.classList.add("splide__track");
-			}
-			const slides = component.querySelectorAll(slideSelector);
-			if (slides.length < 2) {
-				// don't run Splide if 0 or 1 slide
-				return;
-			}
-			slides.forEach((slide) => {
-				if (!slide.classList.contains("splide__slide")) {
-					slide.classList.add("splide__slide");
-				}
+		document.querySelectorAll(".c-carousel.is-wide").forEach((component) => {
+			console.log("Initializing wide carousel:", component);
+			const instance = lenus.helperFunctions.initSplideCarousel(component, {
+				config: {
+					focus: "center",
+					breakpoints: {
+						767: {
+							gap: "1rem",
+							autoWidth: false,
+						},
+					},
+					clones: 5,
+				},
 			});
 
-			const autoscrollEnabled = component.dataset.autoscroll === "true";
-			// initalise Splide
-			var splideInstance = new Splide(component, {
-				type: "loop",
-				autoplay: false,
-				autoScroll: {
-					speed: 1,
-					pauseOnHover: false,
-				},
-				intersection: {
-					inView: {
-						autoScroll: autoscrollEnabled,
+			console.log("Wide carousel initialized.");
+		});
+	}
+	function miniCarousel() {
+		document.querySelectorAll(".c-carousel.is-mini").forEach((component) => {
+			console.log("Initializing mini carousel:", component);
+			const instance = lenus.helperFunctions.initSplideCarousel(component, {
+				config: {
+					focus: "center",
+					breakpoints: {
+						767: {
+							gap: "1rem",
+							autoWidth: false,
+						},
 					},
-					outView: {
-						autoScroll: false,
-					},
+					clones: 5,
 				},
-				breakpoints: {
-					767: {
-						gap: "1rem",
-						autoWidth: false,
-					},
-				},
-				clones: 5,
-				arrows: true,
-				trimSpace: "move",
-				pagination: false,
-				snap: false,
-				drag: "free",
-				autoWidth: true,
-				focus: "center",
 			});
-			if (autoscrollEnabled) {
-				splideInstance.mount(window.splide.Extensions);
-				let autoScroll = splideInstance.Components.AutoScroll;
-			} else {
-				// If autoscroll is not enabled, we can still use Splide's features
-				splideInstance.mount();
-			}
 
-			const { Slides } = splideInstance.Components;
-			const cards = component.querySelectorAll(".c-testim-card");
+			console.log("Wide carousel initialized.");
+		});
+	}
 
-			lenus.helperFunctions.setUpProgressBar(component, cards, splideInstance, Slides);
-
-			Slides.get().forEach((slideObj) => {
-				const slideEl = slideObj.slide; // the actual DOM node
+	function featureColumns() {
+		// set up splide instance for each .c-feature-cols component
+		document.querySelectorAll(".c-feature-cols").forEach((component) => {
+			console.log("Initializing feature columns:", component);
+			const instance = lenus.helperFunctions.initSplideCarousel(component, {
+				config: {
+					type: "slide",
+				},
 			});
+
+			console.log("Feature columns initialized.");
 		});
 	}
 
@@ -2422,31 +2361,6 @@ function main() {
 		});
 	}
 
-	function miniCarousel() {
-		// enable splide for all instances of c-mini-carousel and also set up progress bar
-		document.querySelectorAll(".c-mini-carousel.splide").forEach((component) => {
-			var splideInstance = new Splide(component, {
-				type: "loop",
-				autoWidth: true,
-				arrows: true,
-				pagination: false,
-				snap: false,
-				gap: "0",
-				autoplay: false,
-				drag: "free",
-			});
-			splideInstance.mount(window.splide.Extensions);
-
-			// set up progress bar
-			lenus.helperFunctions.setUpProgressBar(
-				component,
-				gsap.utils.toArray(".location-card", component),
-				splideInstance,
-				splideInstance.Components.Slides
-			);
-		});
-	}
-
 	function mapbox() {
 		// Set your Mapbox access token
 		mapboxgl.accessToken =
@@ -2769,71 +2683,25 @@ function main() {
 	}
 
 	function pastEvents() {
-		// Track current mode to detect changes
-		let currentMode = null;
-
-		function setupSplide(component) {
-			// Only create splide if it doesn't already exist
-			if (component.splide) return;
-
-			var splideInstance = new Splide(component, {
-				type: "loop",
-				autoWidth: true,
-				arrows: true,
-				pagination: false,
-				snap: true,
-				gap: "0",
-				autoplay: false,
-				drag: "free",
+		document.querySelectorAll(".c-past-events").forEach((component) => {
+			lenus.helperFunctions.initSplideCarousel(component, {
+				config: {
+					type: "loop",
+					autoWidth: true,
+					arrows: true,
+					pagination: false,
+					snap: true,
+					gap: "0",
+					autoplay: false,
+					drag: "free",
+				},
+				responsive: {
+					breakpoint: 768,
+					mobileOnly: true, // Only create carousel on mobile
+				},
 			});
-			splideInstance.mount();
-
-			// Store reference to splide instance on the component
-			component.splide = splideInstance;
-
-			// set up progress bar
-			lenus.helperFunctions.setUpProgressBar(
-				component,
-				gsap.utils.toArray(".past-event-card", component),
-				splideInstance,
-				splideInstance.Components.Slides
-			);
-		}
-
-		function destroySplide(component) {
-			const splideInstance = component.splide;
-			if (splideInstance) {
-				splideInstance.destroy();
-				component.splide = null;
-			}
-		}
-
-		function handleModeChange() {
-			const isMobile = window.matchMedia("(max-width: 768px)").matches;
-			const newMode = isMobile ? "mobile" : "desktop";
-
-			// Only process if mode has changed
-			if (currentMode === newMode) return;
-			currentMode = newMode;
-
-			document.querySelectorAll(".c-past-events.splide").forEach((component) => {
-				if (isMobile) {
-					// Create splide on mobile
-					setupSplide(component);
-				} else {
-					// Destroy splide on desktop
-					destroySplide(component);
-				}
-			});
-		}
-
-		// Initial setup
-		handleModeChange();
-
-		// Listen for resize events with debouncing
-		window.addEventListener("resize", lenus.helperFunctions.debounce(handleModeChange, 250));
+		});
 	}
-
 	function customSubmitButtons() {
 		document.querySelectorAll('[data-custom-submit="true"]').forEach((customBtn) => {
 			customBtn.addEventListener("click", function (e) {
@@ -4823,38 +4691,21 @@ function main() {
 	}
 
 	function pricingOptions() {
-		// add splide carousel with progress for .pricing-options, with carousel destroyed on mobile
-
-		document.querySelectorAll(".pricing-options.splide").forEach((component) => {
-			var splideInstance = new Splide(component, {
-				type: "slide",
-				autoWidth: true,
-				arrows: true,
-				pagination: false,
-				gap: "0",
-				breakpoints: {
-					767: {
-						destroy: true,
-					},
+		document.querySelectorAll(".pricing-options").forEach((component) => {
+			lenus.helperFunctions.initSplideCarousel(component, {
+				config: {
+					type: "slide",
+					autoWidth: true,
+					gap: "0",
+					focus: "left",
+					snap: false,
+					drag: "free",
 				},
-				autoplay: false,
-				trimSpace: "move",
-				snap: false,
-				drag: "free",
-				focus: "left",
+				responsive: {
+					breakpoint: 767,
+					desktopOnly: true, // Only create carousel on desktop
+				},
 			});
-			splideInstance.mount();
-
-			// // destroy carousel on mobile
-			// const mediaQuery = window.matchMedia("(max-width: 768px)");
-			// const destroyCarousel = () => {
-			// 	if (mediaQuery.matches) {
-			// 		splideInstance.destroy();
-			// 	} else {
-			// 		splideInstance.mount();
-			// 	}
-			// };
-			// mediaQuery.addEventListener("change", destroyCarousel);
 		});
 	}
 
@@ -5061,7 +4912,7 @@ function main() {
 		);
 
 		progress.innerHTML = ""; // clear existing progress lines
-		const slideLength = splideSlides.getLength((excludeClones = true));
+		const slideLength = splideSlides.getLength(true); // true to include clones
 
 		// create progress lines based on the number of slides
 		for (let i = 0; i < slideLength; i++) {
@@ -5179,12 +5030,12 @@ function main() {
 			const img = imgSelector ? card.querySelector(imgSelector) : null;
 
 			if (!startVisible) {
-				console.log("Hiding video initially for", video);
+				// console.log("Hiding video initially for", video);
 				gsap.set(video, { autoAlpha: 0 });
 				if (img) gsap.set(img, { autoAlpha: 1 });
 				card.classList.remove("playing");
 			} else if (startVisible) {
-				console.log("Showing video initially for", video);
+				// console.log("Showing video initially for", video);
 				gsap.set(video, { autoAlpha: 1 });
 				if (img) gsap.set(img, { autoAlpha: 0 });
 				card.classList.add("playing");
@@ -5288,19 +5139,37 @@ function main() {
 		};
 	})();
 
+	// Initialize a Splide carousel with common settings and optional progress bar
+	// Returns the Splide instance for further customization if needed
+	// Usage: lenus.helperFunctions.initSplideCarousel(component, { config: { ... }, onActive: fn, onOverflow: fn })
 	lenus.helperFunctions.initSplideCarousel = function (component, options = {}) {
 		if (!component) return null;
-		const { config = {}, mountExtensions = true, useAutoScroll } = options;
+		const {
+			config = {},
+			mountExtensions = true,
+			onActive = null,
+			onDestroy = null,
+			onMounted = null,
+			onReady = null,
+			onOverflow = null,
+			responsive = null,
+		} = options;
+
+		// if responsive, handle with separate responsive function
+		if (responsive) {
+			return lenus.helperFunctions.handleResponsiveCarousel(component, { ...options, responsive });
+		}
 
 		const defaultConfig = {
 			type: "loop",
+			autoplay: false, // not used
 			gap: "0rem",
-			arrows: false,
-			pagination: false,
+			arrows: false, // controlled by .carousel_controls presence
+			pagination: false, // never used
 			focus: 0,
 			speed: 600,
 			dragAngleThreshold: 60,
-			autoWidth: false,
+			autoWidth: true, // most common case
 			rewind: false,
 			rewindSpeed: 400,
 			waitForTransition: false,
@@ -5308,13 +5177,14 @@ function main() {
 			trimSpace: "move",
 			drag: true,
 			snap: true,
+			clones: 2, // default, will be disabled on overflow check
 		};
 
 		const mergedConfig = { ...defaultConfig, ...config };
-		const autoScrollPreference =
-			typeof useAutoScroll === "boolean" ? useAutoScroll : component.dataset.autoscroll !== "false";
 
-		if (autoScrollPreference) {
+		const hasAutoScroll = component.dataset.autoscroll === "true";
+
+		if (hasAutoScroll) {
 			mergedConfig.autoScroll = {
 				speed: 1,
 				pauseOnHover: true,
@@ -5329,18 +5199,152 @@ function main() {
 				},
 				...(config.intersection || {}),
 			};
-		} else {
-			delete mergedConfig.autoScroll;
-			delete mergedConfig.intersection;
+		}
+
+		// Controls detection - arrows enabled if .carousel_controls exists
+		const hasControls = !!component.querySelector(".carousel_controls");
+		if (hasControls) {
+			mergedConfig.arrows = true;
 		}
 
 		const instance = new Splide(component, mergedConfig);
-		if (mountExtensions && window.splide && window.splide.Extensions) {
+
+		// Overflow handling - disable features when not needed
+		instance.on("overflow", function (isOverflow) {
+			console.log("Carousel overflow status:", isOverflow);
+			instance.go(0);
+			const updates = {
+				arrows: hasControls && isOverflow, // arrows only if controls exist and overflow
+				drag: isOverflow ? mergedConfig.drag : false, // disable drag if no overflow
+				clones: isOverflow ? mergedConfig.clones : 0, // disable clones if no overflow
+			};
+
+			// Hide/show controls based on overflow - TODO do this with CSS instead
+			const controls = component.querySelector(".carousel_controls");
+			if (controls) {
+				controls.style.display = isOverflow ? "" : "none";
+			}
+
+			instance.options = updates;
+
+			// Custom overflow callback
+			if (onOverflow) onOverflow(isOverflow, instance);
+		});
+
+		// Event handlers - to be declared before mounting
+		if (onMounted)
+			instance.on("mounted", () => {
+				console.log("Splide mounted:", instance);
+				onMounted(instance);
+			});
+
+		if (onReady)
+			instance.on("ready", () => {
+				console.log("Splide ready:", instance);
+				onReady(instance);
+			});
+
+		// Mount with extensions if needed
+		if (hasAutoScroll && window.splide?.Extensions) {
 			instance.mount(window.splide.Extensions);
 		} else {
 			instance.mount();
 		}
+		// if (onDestroy) instance.on("destroy", onDestroy);
+		// if (onActive) instance.on("active", onActive);
+
+		// Progress bar setup - automatic if .carousel_progress exists
+		const progressContainer = component.querySelector(".carousel_progress");
+		if (progressContainer) {
+			// get slides and cards for progress bar and video control
+			const splideSlides = instance.Components.Slides;
+			const cards = lenus.helperFunctions.getSplideCards(component);
+			lenus.helperFunctions.setUpProgressBar(component, cards, instance, splideSlides);
+		}
+
 		return instance;
+	};
+
+	lenus.helperFunctions.getSplideCards = function (component) {
+		if (!component) return null;
+		return (cards = component.querySelectorAll("[class*='card']"));
+	};
+
+	// New responsive handler
+	lenus.helperFunctions.handleResponsiveCarousel = function (component, options = {}) {
+		const { responsive, config = {}, ...otherOptions } = options;
+		const {
+			breakpoint = 768,
+			mobileOnly = false,
+			desktopOnly = false,
+			onModeChange = null,
+		} = responsive;
+
+		const mediaQuery = window.matchMedia(`(max-width: ${breakpoint}px)`);
+		let currentMode = mediaQuery.matches ? "mobile" : "desktop";
+		let splideInstance = null;
+
+		const createSplide = () => {
+			if (splideInstance) return splideInstance;
+
+			splideInstance = lenus.helperFunctions.initSplideCarousel(component, {
+				config,
+				...otherOptions,
+				responsive: null, // Remove responsive to prevent recursion
+			});
+
+			component.splide = splideInstance; // Store reference
+			return splideInstance;
+		};
+
+		const destroySplide = () => {
+			if (splideInstance) {
+				lenus.helperFunctions.destroySplide(splideInstance);
+				splideInstance = null;
+				component.splide = null;
+			}
+		};
+
+		const handleModeChange = (isInitial = false) => {
+			const isMobile = mediaQuery.matches;
+			const newMode = isMobile ? "mobile" : "desktop";
+
+			// Only skip if not initial and mode hasn't changed
+			if (!isInitial && currentMode === newMode) return;
+			currentMode = newMode;
+
+			if (mobileOnly) {
+				// Mobile-only pattern (like pastEvents)
+				if (isMobile) {
+					createSplide();
+				} else {
+					destroySplide();
+				}
+			} else if (desktopOnly) {
+				// Desktop-only pattern (like pricingOptions)
+				if (!isMobile) {
+					createSplide();
+				} else {
+					destroySplide();
+				}
+			}
+
+			if (onModeChange) onModeChange(newMode, splideInstance);
+		};
+
+		// Initial setup
+		handleModeChange(true);
+
+		// Listen for changes
+		window.addEventListener("resize", lenus.helperFunctions.debounce(handleModeChange, 250));
+
+		return {
+			getInstance: () => splideInstance,
+			destroy: () => {
+				window.removeEventListener("resize", handleModeChange);
+				destroySplide();
+			},
+		};
 	};
 
 	lenus.helperFunctions.destroySplide = function (instance) {
@@ -6022,6 +6026,7 @@ Features:
 	bentoHero();
 	locations();
 	miniCarousel();
+	featureColumns();
 	mapbox();
 	cardGrid();
 	testimCardVideos();
