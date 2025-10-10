@@ -1044,7 +1044,7 @@ function main() {
 		let splideInstance;
 
 		document.querySelectorAll(".c-card-train").forEach((component) => {
-			const cards = gsap.utils.toArray(".card", component);
+			const cards = gsap.utils.toArray(".c-card", component);
 			const bgs = gsap.utils.toArray(".card_media", component);
 			const contents = gsap.utils.toArray(".card_content", component);
 			let ctx = gsap.context(() => {});
