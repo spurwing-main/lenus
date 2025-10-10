@@ -1974,7 +1974,8 @@ function main() {
 			console.log("Initializing mini carousel:", component);
 			const instance = lenus.helperFunctions.initSplideCarousel(component, {
 				config: {
-					focus: "center",
+					// focus: "center",
+					speed: 400,
 					breakpoints: {
 						767: {
 							gap: "1rem",
