@@ -1,27 +1,4 @@
 function main() {
-	// splide defaults
-	Splide.defaults = {
-		perMove: 1,
-		gap: "1.5rem",
-		arrows: false,
-		pagination: false,
-		focus: 0,
-		speed: 600,
-		dragAngleThreshold: 60,
-		autoWidth: false,
-		rewind: false,
-		rewindSpeed: 400,
-		waitForTransition: false,
-		updateOnMove: true,
-		trimSpace: "move",
-		type: "loop",
-		drag: true,
-		snap: true,
-		autoplay: true,
-		easing: "cubic-bezier(0.5, 0, 0.75, 0)",
-		// clones: 2,
-	};
-
 	// GSAP register
 	gsap.registerPlugin(ScrollTrigger);
 
@@ -5485,23 +5462,25 @@ function main() {
 		}
 
 		const defaultConfig = {
+			perMove: 1,
 			type: "loop",
 			autoplay: false, // not used
-			gap: "0rem",
+			gap: "1.5rem",
 			arrows: false, // controlled by .carousel_controls presence
 			pagination: false, // never used
 			focus: 0,
-			speed: 600,
+			speed: 800,
 			dragAngleThreshold: 60,
 			autoWidth: true, // most common case
 			rewind: false,
-			rewindSpeed: 400,
+			rewindSpeed: 1000,
 			waitForTransition: false,
 			updateOnMove: true,
 			trimSpace: "move",
 			drag: true,
 			snap: true,
 			clones: 2, // default, will be disabled on overflow check
+			easing: "cubic-bezier(0.5, 0, 0.75, 0)",
 		};
 
 		const mergedConfig = { ...defaultConfig, ...config };
