@@ -1981,11 +1981,33 @@ function main() {
 							autoWidth: false,
 						},
 					},
-					clones: 5,
+				},
+				onMounted: (instance) => {
+					// Find slide with .w--current link - use original slides only
+					const slides = instance.Components.Slides.get();
+					let targetIndex = null;
+
+					// Filter out clones and only check original slides
+					const originalSlides = slides.filter((slideObj) => !slideObj.isClone);
+
+					originalSlides.forEach((slideObj, index) => {
+						const currentLink = slideObj.slide.querySelector("a.w--current");
+						if (currentLink) {
+							targetIndex = slideObj.index; // Use the slideObj's actual index
+						}
+					});
+
+					// If we found a slide with .w--current, go to it
+					if (targetIndex !== null) {
+						console.log(
+							`Setting mini carousel active slide to index ${targetIndex} (contains .w--current)`
+						);
+						instance.go(targetIndex);
+					}
 				},
 			});
 
-			console.log("Wide carousel initialized.");
+			console.log("Mini carousel initialized.");
 		});
 	}
 
