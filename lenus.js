@@ -2389,7 +2389,7 @@ function main() {
 
 			const map = new mapboxgl.Map({
 				container: mapContainer,
-				style: "mapbox://styles/spurwing-sp/cmc99cxxj008j01sh73j11qbt",
+				style: "mapbox://styles/spurwing-sp/cm0pfyq2r00je01pb5lf74zb3",
 				center: [lng, lat],
 				zoom: 15,
 			});
@@ -5456,6 +5456,18 @@ function main() {
 	// Usage: lenus.helperFunctions.initSplideCarousel(component, { config: { ... }, onActive: fn, onOverflow: fn })
 	lenus.helperFunctions.initSplideCarousel = function (component, options = {}) {
 		if (!component) return null;
+
+		// Validate component structure first
+		const validation = lenus.helperFunctions.validateSplideStructure(component);
+		if (!validation.isValid) {
+			console.warn(
+				`Skipping Splide initialization due to invalid structure:`,
+				component,
+				validation.missing
+			);
+			return null;
+		}
+
 		const {
 			config = {},
 			mountExtensions = true,
@@ -5575,6 +5587,53 @@ function main() {
 		}
 
 		return instance;
+	};
+
+	lenus.helperFunctions.validateSplideStructure = function (component) {
+		if (!component) {
+			console.warn("Splide validation: No component provided");
+			return { isValid: false, missing: ["component"] };
+		}
+
+		const required = {
+			track: ".splide__track",
+			list: ".splide__list",
+			slides: ".splide__slide",
+		};
+
+		const missing = [];
+		const elements = {};
+
+		// Check for track
+		elements.track = component.querySelector(required.track);
+		if (!elements.track) {
+			missing.push("track");
+		} else {
+			// If track present, check for list
+			elements.list = elements.track.querySelector(required.list);
+			if (!elements.list) {
+				missing.push("list");
+			} else {
+				// if list present, check for slides
+				elements.slides = elements.list.querySelectorAll(required.slides);
+				if (elements.slides.length === 0) {
+					missing.push("slides");
+				}
+			}
+		}
+
+		const isValid = missing.length === 0;
+
+		if (!isValid) {
+			// console.warn(`Splide validation failed for component:`, component);
+		}
+
+		return {
+			isValid,
+			missing,
+			elements,
+			slideCount: elements.slides ? elements.slides.length : 0,
+		};
 	};
 
 	lenus.helperFunctions.getSplideCards = function (component) {
