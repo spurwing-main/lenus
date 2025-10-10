@@ -34,6 +34,35 @@ function main() {
 	// Lenus variables
 	lenus.search = { stateClass: "search-active" };
 
+	// all the card classes we use
+	lenus.cardClasses = [
+		"c-card",
+		"c-wide-card",
+		"c-mini-card",
+		"c-blog-card",
+		"c-feat-blog-card",
+		"c-large-card",
+		"c-testim-card",
+		"c-location-card",
+	];
+
+	// Helper function to create the selector
+	lenus.helperFunctions.getCardSelector = function () {
+		return "." + lenus.cardClasses.join(", .");
+	};
+
+	// Helper function to get card elements from a container
+	// Helper function to get card elements from a container - returns array
+	lenus.helperFunctions.getCards = function (container = document) {
+		if (!container) return [];
+		return gsap.utils.toArray(lenus.helperFunctions.getCardSelector(), container);
+	};
+
+	// Helper to check if an element is a card
+	lenus.helperFunctions.isCard = function (element) {
+		return lenus.cardClasses.some((className) => element.classList.contains(className));
+	};
+
 	// Global timeline storage for debugging
 	window._debugTimelines = window._debugTimelines || {};
 
@@ -1044,7 +1073,7 @@ function main() {
 		let splideInstance;
 
 		document.querySelectorAll(".c-card-train").forEach((component) => {
-			const cards = gsap.utils.toArray(".c-card", component);
+			const cards = lenus.helperFunctions.getCards(component);
 			const bgs = gsap.utils.toArray(".card_media", component);
 			const contents = gsap.utils.toArray(".card_content", component);
 			let ctx = gsap.context(() => {});
@@ -1285,7 +1314,7 @@ function main() {
 
 	function cardGrid() {
 		document.querySelectorAll(".c-card-grid").forEach((component) => {
-			const cards = gsap.utils.toArray(".c-card", component);
+			const cards = lenus.helperFunctions.getCards(component);
 			console.log("Setting up card grid carousel for", component, cards);
 
 			lenus.helperFunctions.handleResponsiveCarousel(component, {
@@ -2291,8 +2320,7 @@ function main() {
 
 			if (isMobile) return; // Skip hover interactions on mobile
 
-			const cards = gsap.utils.toArray(".location-card", component);
-
+			const cards = lenus.helperFunctions.getCards(component);
 			cards.forEach((card) => {
 				const media = card.querySelector(".location-card_media-inner");
 				const details = card.querySelector(".location-card_details");
@@ -5584,7 +5612,7 @@ function main() {
 		if (progressContainer) {
 			// get slides and cards for progress bar and video control
 			const splideSlides = instance.Components.Slides;
-			const cards = lenus.helperFunctions.getSplideCards(component);
+			const cards = lenus.helperFunctions.getCards(component);
 			lenus.helperFunctions.setUpProgressBar(component, cards, instance, splideSlides);
 		}
 
@@ -5636,11 +5664,6 @@ function main() {
 			elements,
 			slideCount: elements.slides ? elements.slides.length : 0,
 		};
-	};
-
-	lenus.helperFunctions.getSplideCards = function (component) {
-		if (!component) return null;
-		return (cards = component.querySelectorAll("[class*='card']"));
 	};
 
 	// New responsive handler
