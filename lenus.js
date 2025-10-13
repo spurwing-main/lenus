@@ -977,12 +977,12 @@ function main() {
 		document.querySelectorAll(".c-accordion, .c-faq").forEach((component) => {
 			const items = gsap.utils.toArray(".accordion-item, .faq-item", component);
 			const images = gsap.utils.toArray(".accordion-img", component);
-			const borderColorDefault = getComputedStyle(component).getPropertyValue(
-				"--_theme---accordion-border"
-			);
-			const borderColorHighlight = getComputedStyle(component).getPropertyValue(
-				"--_theme---accordion-highlight"
-			);
+			// const borderColorDefault = getComputedStyle(component).getPropertyValue(
+			// 	"--_theme---accordion-border"
+			// );
+			// const borderColorHighlight = getComputedStyle(component).getPropertyValue(
+			// 	"--_theme---accordion-highlight"
+			// );
 
 			items.forEach((item, index) => {
 				const header = item.querySelector(".accordion-item_header, .faq-item_header");
@@ -994,9 +994,9 @@ function main() {
 					height: "auto",
 					overflow: "hidden",
 				});
-				gsap.set(item, {
-					borderBottomColor: borderColorHighlight,
-				});
+				// gsap.set(item, {
+				// 	borderBottomColor: borderColorHighlight,
+				// });
 				if (image) {
 					gsap.set(image, {
 						autoAlpha: 1,
@@ -1009,14 +1009,14 @@ function main() {
 						paused: true,
 						defaults: { duration: 0.4, ease: "power1.inOut" },
 					})
-					.from(content, { height: 0 })
-					.from(
-						item,
-						{
-							borderBottomColor: borderColorDefault,
-						},
-						0
-					);
+					.from(content, { height: 0 });
+				// .from(
+				// 	item,
+				// 	{
+				// 		borderBottomColor: borderColorDefault,
+				// 	},
+				// 	0
+				// );
 
 				if (images.length > 1) {
 					tl.from(image, { autoAlpha: 0 }, 0);
@@ -3393,15 +3393,16 @@ function main() {
 
 			ensureHighlight();
 
-			// initial placement
 			const { item } = findInitialActive();
-			applyActive(item);
 
 			// only create passive highlight if we have an active item
 			// (otherwise it just sits there doing nothing)
 			if (item) {
 				ensurePassiveHighlight();
 			}
+
+			// initial placement
+			applyActive(item);
 
 			// default hidden when no active
 			if (!item) {
@@ -5172,6 +5173,48 @@ function main() {
 		});
 	}
 
+	function countriesDropdown() {
+		const select = document.querySelector('select[name="Country"]:not([fs-list-field="location"])');
+		if (!select) {
+			// console.error("Country <select> not found.");
+			return;
+		}
+
+		// Fetch country data
+		fetch("https://cdn.jsdelivr.net/gh/mledoze/countries@master/countries.json")
+			.then((res) => {
+				if (!res.ok) throw new Error(`Failed to fetch country data: ${res.status}`);
+				return res.json();
+			})
+			.then((data) => {
+				// Sort by country name
+				const sortedCountries = data.map((c) => c.name.common).sort((a, b) => a.localeCompare(b));
+
+				// Clear existing options
+				select.innerHTML = "";
+
+				// Add placeholder option
+				const placeholder = document.createElement("option");
+				placeholder.value = "";
+				placeholder.textContent = "Select a country";
+				placeholder.disabled = true;
+				placeholder.selected = true;
+				select.appendChild(placeholder);
+
+				// Populate options
+				for (const name of sortedCountries) {
+					const option = document.createElement("option");
+					option.value = name;
+					option.textContent = name;
+					select.appendChild(option);
+				}
+
+				// Trigger Finsweet Custom Select refresh
+				document.dispatchEvent(new Event("fsselectcustom:update"));
+			})
+			.catch((err) => console.error("Error loading countries:", err));
+	}
+
 	/* helper functions */
 
 	/* for a card with a video and an image, show the video and hide the image or vice versa */
@@ -6136,4 +6179,5 @@ Features:
 	setupFinsweetScrollTriggerRefresh();
 	largeButtonHover();
 	hideShowNav();
+	countriesDropdown();
 }
