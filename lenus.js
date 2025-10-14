@@ -5215,6 +5215,240 @@ function main() {
 			.catch((err) => console.error("Error loading countries:", err));
 	}
 
+	lenus.greenhouse = {
+		apiUrl: "https://boards-api.greenhouse.io/v1/boards/lenusehealth/jobs?content=true", // ✅ your actual board slug
+
+		init() {
+			const component = document.querySelector("#job-listings");
+			if (!component) return;
+
+			const group_list = component.querySelector(".events-list_list");
+			if (!group_list) return;
+
+			// find department group template
+			const departmentGroup = group_list.querySelector(".events-group");
+			if (!departmentGroup) {
+				console.warn("[Lenus.Greenhouse] No .events-group template found.");
+				return;
+			}
+
+			// clone department and job templates
+			this.departmentTemplate = departmentGroup.cloneNode(true);
+			this.jobTemplate = departmentGroup.querySelector(".events-group_list-item")?.cloneNode(true);
+
+			if (!this.jobTemplate) {
+				console.warn(
+					"[Lenus.Greenhouse] No .events-group_list-item found inside .events-group template."
+				);
+				return;
+			}
+
+			// remove the template from the DOM
+			departmentGroup.remove();
+
+			// fetch Greenhouse data
+			fetch(this.apiUrl)
+				.then((res) => res.json())
+				.then((data) => {
+					console.log("Greenhouse API response:", data); // Debug log
+
+					if (!data.jobs) {
+						console.warn("No jobs found in API response");
+						return;
+					}
+
+					const jobs = data.jobs;
+
+					// Process jobs to add normalized department names
+					jobs.forEach((job) => {
+						// Handle department - use first department or fallback to "General"
+						job.jobDepartment = job.departments?.[0]?.name || "";
+						job.jobLocation = job.location?.name || "";
+					});
+
+					this.renderJobs(jobs, group_list);
+
+					// filters
+					const locations = [...new Set(jobs.map((j) => j.jobLocation).filter(Boolean))];
+					const departments = [...new Set(jobs.map((j) => j.jobDepartment).filter(Boolean))];
+
+					console.log("Departments found:", departments); // Debug log
+					console.log("Locations found:", locations); // Debug log
+
+					this.populateFilters({ locations, departments });
+				})
+				.catch((err) => console.error("Greenhouse fetch error:", err));
+		},
+
+		renderJobs(jobs, container) {
+			container.innerHTML = ""; // clear previous
+
+			if (!jobs.length) {
+				container.innerHTML =
+					'<div class="body-m">No current openings. Please check back soon.</div>';
+				return;
+			}
+
+			// group jobs by department using the normalized department name
+			const grouped = {};
+			jobs.forEach((job) => {
+				const deptName = job.jobDepartment; // Use the normalized department name
+				if (!grouped[deptName]) grouped[deptName] = [];
+				grouped[deptName].push(job);
+			});
+
+			console.log("Grouped jobs by department:", grouped); // Debug log
+
+			// iterate departments
+			Object.entries(grouped).forEach(([departmentName, deptJobs]) => {
+				const deptClone = this.departmentTemplate.cloneNode(true);
+				const deptHeader = deptClone.querySelector("[data-template='department']");
+				const deptList = deptClone.querySelector(".events-group_list");
+
+				if (deptHeader) deptHeader.textContent = departmentName;
+				if (deptList) deptList.innerHTML = "";
+
+				deptJobs.forEach((job) => {
+					const { title, absolute_url, location, departments } = job;
+					const locationName = job.jobLocation;
+					const departmentName = job.jobDepartment;
+
+					const jobClone = this.jobTemplate.cloneNode(true);
+
+					const linkEl = jobClone.querySelector("[data-template='link']");
+					const nameEl = jobClone.querySelector("[data-template='name']");
+					const deptEl = jobClone.querySelector("[data-template='department']");
+					const locEl = jobClone.querySelector("[data-template='location']");
+
+					if (linkEl) {
+						linkEl.href = "/careers/opportunity-details/?gh_jid=" + job.id;
+						linkEl.target = "_blank";
+					}
+					if (nameEl) nameEl.textContent = title;
+					if (deptEl) deptEl.textContent = departmentName;
+					if (locEl) locEl.textContent = locationName;
+
+					deptList?.appendChild(jobClone);
+				});
+
+				container.appendChild(deptClone);
+			});
+
+			// refresh Finsweet filters
+			window.fsAttributes?.list?.init?.();
+		},
+
+		populateFilters({ locations = [], departments = [] }) {
+			const locSelect = document.querySelector('[data-greenhouse-filter="location"] select');
+			const depSelect = document.querySelector('[data-greenhouse-filter="department"] select');
+
+			if (locSelect) this.populateSelectCustom(locSelect, locations, "All locations");
+			if (depSelect) this.populateSelectCustom(depSelect, departments, "All departments");
+		},
+
+		// ✅ Reusable Finsweet select builder
+		populateSelectCustom(selectEl, items, defaultLabel = "All") {
+			if (!selectEl) return;
+
+			selectEl.innerHTML = `<option value="">${defaultLabel}</option>`;
+			items
+				.sort((a, b) => a.localeCompare(b))
+				.forEach((val) => {
+					const opt = document.createElement("option");
+					opt.value = val;
+					opt.textContent = val;
+					selectEl.appendChild(opt);
+				});
+
+			const selectWrap = selectEl.closest("[fs-selectcustom-element='dropdown']");
+			if (selectWrap && window.fsAttributes?.selectcustom?.init) {
+				window.fsAttributes.selectcustom.init(selectWrap);
+			}
+		},
+	};
+
+	function decodeHTML(html) {
+		const txt = document.createElement("textarea");
+		txt.innerHTML = html;
+		return txt.value;
+	}
+
+	lenus.greenhouseJob = {
+		apiBase: "https://boards-api.greenhouse.io/v1/boards/lenusehealth/jobs/",
+
+		init() {
+			const params = new URLSearchParams(window.location.search);
+			const id = params.get("gh_jid");
+
+			if (!id) {
+				console.warn("[Lenus.GreenhouseJob] Missing ?gh_jid parameter");
+				document.documentElement.setAttribute("data-job-status", "error");
+				return;
+			}
+
+			this.fetchJob(id);
+		},
+
+		async fetchJob(id) {
+			try {
+				const res = await fetch(`${this.apiBase}${id}?content=true`);
+				if (!res.ok) throw new Error(`HTTP ${res.status}`);
+				const job = await res.json();
+				this.render(job);
+			} catch (err) {
+				console.error("[Lenus.GreenhouseJob] Fetch error:", err);
+				document.documentElement.setAttribute("data-job-status", "error");
+			}
+		},
+
+		render(job) {
+			if (!job || !job.id) {
+				document.documentElement.setAttribute("data-job-status", "error");
+				return;
+			}
+
+			console.log(job.content);
+
+			document.documentElement.setAttribute("data-job-status", "loaded");
+
+			// Populate core fields
+			this.setText("[data-template='name']", job.title);
+			this.setText("[data-template='company-name']", job.company_name || "Lenus");
+
+			// Handle optional sidebar items
+			this.setTextOrHide("[data-template='location']", job.location?.name);
+			this.setTextOrHide("[data-template='department']", job.departments?.[0]?.name);
+
+			// Description comes as HTML
+			const descEl = document.querySelector("[data-template='description']");
+			if (descEl) descEl.innerHTML = decodeHTML(job.content || "");
+
+			console.log("[Lenus.GreenhouseJob] Job loaded:", job.title);
+
+			// refresh scroll triggers
+			setTimeout(() => {
+				ScrollTrigger.refresh();
+			}, 1000);
+		},
+
+		setText(selector, value) {
+			const el = document.querySelector(selector);
+			if (el && value) el.textContent = value;
+		},
+
+		setTextOrHide(selector, value) {
+			const el = document.querySelector(selector);
+			if (!el) return;
+			const parentSidebarItem = el.closest(".job_sidebar-item");
+			if (value) {
+				el.textContent = value;
+				if (parentSidebarItem) parentSidebarItem.style.display = "";
+			} else if (parentSidebarItem) {
+				parentSidebarItem.style.display = "none";
+			}
+		},
+	};
+
 	/* helper functions */
 
 	/* for a card with a video and an image, show the video and hide the image or vice versa */
@@ -6180,4 +6414,10 @@ Features:
 	largeButtonHover();
 	hideShowNav();
 	countriesDropdown();
+	if (document.querySelector("#job-listings")) {
+		lenus.greenhouse.init();
+	}
+	if (document.querySelector("#job-details.c-job")) {
+		lenus.greenhouseJob.init();
+	}
 }
