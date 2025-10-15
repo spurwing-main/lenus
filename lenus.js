@@ -654,6 +654,7 @@ function main() {
 	}
 
 	function registerVideoCard(card, overrides = {}) {
+		console.log("Registering video card:", card);
 		const config = getVideoConfig(card);
 		if (!config) return null;
 		const controller = lenus.helperFunctions.videoController;
@@ -2539,9 +2540,9 @@ function main() {
 			tl.eventCallback("onComplete", () => {
 				console.log("Animation in completed");
 				componentObj.inAnimationCompleted = true;
-				if (componentObj.outAnimationToRun) {
-					componentObj.tl_out.play(); // play out animation if it was triggered while in not yet completed
-				}
+				// if (componentObj.outAnimationToRun) {
+				// 	componentObj.tl_out.play(); // play out animation if it was triggered while in not yet completed
+				// }
 
 				// make draggable
 				setupDraggable(componentObj);
