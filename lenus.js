@@ -635,7 +635,7 @@ function main() {
 		});
 	}
 
-	const VIDEO_PLAY_SELECTOR = "btn[name='play'], [data-video-play]";
+	const VIDEO_PLAY_SELECTOR = "button[name='play'], [data-video-play]";
 	const VIDEO_CARD_CONFIGS = [
 		{
 			match: ".c-testim-card",
@@ -676,13 +676,17 @@ function main() {
 	}
 
 	function testimCardVideos() {
-		const standaloneCards = [
-			...document.querySelectorAll(".c-testim .c-testim-card"),
+		let standaloneCards = [
+			...document.querySelectorAll(".c-testim-card"),
 			...document.querySelectorAll(".c-wide-card"),
 		];
 
+		// filter out cards that are inside a carousel - these are handled by the carousel setup
+		standaloneCards = standaloneCards.filter((card) => !card.closest(".c-carousel"));
+
+		console.log("Found standalone video cards:", standaloneCards.length);
+
 		standaloneCards.forEach((card) => {
-			if (card.closest(".splide")) return; // handled by carousel setup
 			registerVideoCard(card);
 		});
 	}
@@ -5593,7 +5597,7 @@ function main() {
 		if (video) {
 			video.pause();
 			video.currentTime = 0;
-			video.controls = false;
+			// video.controls = true;
 		}
 	};
 
@@ -5659,7 +5663,7 @@ function main() {
 				card.classList.add("playing");
 			}
 
-			video.controls = false;
+			video.controls = true;
 			video.autoplay = false;
 			video.removeAttribute("autoplay");
 			video.pause();
@@ -5705,7 +5709,8 @@ function main() {
 			const { video, videoSelector, imgSelector } = entry;
 			if (entry.pauseOthers) pauseAll(card);
 			lenus.helperFunctions.showVideo(card, videoSelector, imgSelector, true);
-			video.controls = true;
+			// video.controls = true;
+			console.log("Attempting to play", video);
 			const playAttempt = video.play();
 			if (playAttempt && typeof playAttempt.catch === "function") {
 				playAttempt.catch((error) => {
