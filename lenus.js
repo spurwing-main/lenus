@@ -5220,6 +5220,118 @@ function main() {
 			.catch((err) => console.error("Error loading countries:", err));
 	}
 
+	function handleLocalTimes(scope = document) {
+		// Find all parent location elements first
+		const locationParents = scope.querySelectorAll(
+			"[data-location-element='parent']:not([data-location-processed])"
+		);
+		if (locationParents.length === 0) return;
+
+		console.log(`Processing ${locationParents.length} location elements in scope:`, scope);
+
+		for (const parent of locationParents) {
+			// Mark as processed to avoid duplicate processing
+			parent.setAttribute("data-location-processed", "true");
+
+			// Find all time elements within this parent
+			const timeElements = parent.querySelectorAll("[data-local-time]");
+
+			// Find day/night images within this parent
+			const dayImages = parent.querySelectorAll("[data-location-element='day']");
+			const nightImages = parent.querySelectorAll("[data-location-element='night']");
+
+			// If no time elements, skip time-based logic but leave day images visible
+			if (timeElements.length === 0) {
+				console.log("No time elements found in parent:", parent);
+				continue;
+			}
+
+			// Get timezone from first time element (assuming all times in same parent use same timezone)
+			const tz = timeElements[0].getAttribute("data-tz");
+			if (!tz) {
+				console.warn("Missing timezone (data-tz) for time elements in parent:", parent);
+				continue;
+			}
+
+			// Set initial state - night images hidden by default
+			if (nightImages.length > 0) {
+				gsap.set(nightImages, { autoAlpha: 0 });
+			}
+			if (dayImages.length > 0) {
+				gsap.set(dayImages, { autoAlpha: 1 });
+			}
+
+			// Helper to determine if it's night time (6pm-6am)
+			const isNightTime = () => {
+				try {
+					const now = new Date();
+					const hour = parseInt(
+						now.toLocaleTimeString([], {
+							timeZone: tz,
+							hour: "2-digit",
+							hour12: false,
+						})
+					);
+
+					// Night time is 18:00 (6pm) to 06:00 (6am)
+					return hour >= 18 || hour < 6;
+				} catch (e) {
+					console.warn("Could not determine time for timezone:", tz, e);
+					return false; // Default to day if we can't determine
+				}
+			};
+
+			// Helper to update both time displays and images
+			const updateTimeAndImages = () => {
+				try {
+					// Update all time displays in this parent
+					const time = new Date().toLocaleTimeString([], {
+						timeZone: tz,
+						hour: "2-digit",
+						minute: "2-digit",
+					});
+
+					timeElements.forEach((timeElement) => {
+						timeElement.textContent = time;
+					});
+
+					// Update images based on time of day (only if we have both day and night images)
+					if (dayImages.length > 0 && nightImages.length > 0) {
+						const isNight = isNightTime();
+
+						if (isNight) {
+							// Show night, hide day
+							gsap.to(dayImages, { autoAlpha: 0, duration: 1, ease: "power2.inOut" });
+							gsap.to(nightImages, { autoAlpha: 1, duration: 1, ease: "power2.inOut" });
+						} else {
+							// Show day, hide night
+							gsap.to(dayImages, { autoAlpha: 1, duration: 1, ease: "power2.inOut" });
+							gsap.to(nightImages, { autoAlpha: 0, duration: 1, ease: "power2.inOut" });
+						}
+					}
+
+					console.log(
+						`Updated location ${parent} - Time: ${time}, Night: ${isNightTime()}, Time elements: ${
+							timeElements.length
+						}, Day images: ${dayImages.length}, Night images: ${nightImages.length}`
+					);
+				} catch (e) {
+					console.warn("Could not update time and images for parent:", parent, e);
+				}
+			};
+
+			// Initial render
+			updateTimeAndImages();
+
+			// Update every minute, synchronized to the next minute mark
+			const msUntilNextMinute = 60000 - (Date.now() % 60000);
+			setTimeout(() => {
+				updateTimeAndImages();
+				setInterval(updateTimeAndImages, 60000);
+			}, msUntilNextMinute);
+		}
+	}
+
 	lenus.greenhouse = {
 		apiUrl: "https://boards-api.greenhouse.io/v1/boards/lenusehealth/jobs?content=true", // ✅ your actual board slug
 
@@ -5788,6 +5900,7 @@ function main() {
 			onReady = null,
 			onOverflow = null,
 			responsive = null,
+			watchLocalTimes = false, // watch for new local time elements to init
 		} = options;
 
 		// if responsive, handle with separate responsive function
@@ -5897,6 +6010,26 @@ function main() {
 			const splideSlides = instance.Components.Slides;
 			const cards = lenus.helperFunctions.getCards(component);
 			lenus.helperFunctions.setUpProgressBar(component, cards, instance, splideSlides);
+		}
+
+		// ⏰ Optional: Watch for [data-local-time] updates
+		if (watchLocalTimes) {
+			const updateTimes = () => handleLocalTimes(component);
+
+			// Run once initially after mount
+			instance.on("mounted", updateTimes);
+
+			// Re-run whenever Splide creates new clones or updates
+			instance.on("updated", updateTimes);
+			instance.on("refresh", updateTimes);
+
+			// Optional: handle destroy cleanup if needed
+			instance.on("destroy", () => {
+				// Clear any processed flags in case the component gets reused
+				component.querySelectorAll("[data-time-processed]").forEach((el) => {
+					el.removeAttribute("data-time-processed");
+				});
+			});
 		}
 
 		return instance;
@@ -6426,4 +6559,5 @@ Features:
 	if (document.querySelector("#job-details.c-job")) {
 		lenus.greenhouseJob.init();
 	}
+	handleLocalTimes();
 }
