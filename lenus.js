@@ -2898,6 +2898,7 @@ function main() {
 	}
 
 	function jobScroll() {
+		return;
 		/* add vertical infinite Splide slider to each c-job-scroll instance (assuming appropriate _track, _list, _item elements). Also run the shrinkWrap helper on each job-scroll_name item */
 
 		const bp_tab = 991;
