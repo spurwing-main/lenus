@@ -982,12 +982,6 @@ function main() {
 		document.querySelectorAll(".c-accordion, .c-faq").forEach((component) => {
 			const items = gsap.utils.toArray(".accordion-item, .faq-item", component);
 			const images = gsap.utils.toArray(".accordion-img", component);
-			// const borderColorDefault = getComputedStyle(component).getPropertyValue(
-			// 	"--_theme---accordion-border"
-			// );
-			// const borderColorHighlight = getComputedStyle(component).getPropertyValue(
-			// 	"--_theme---accordion-highlight"
-			// );
 
 			items.forEach((item, index) => {
 				const header = item.querySelector(".accordion-item_header, .faq-item_header");
@@ -999,9 +993,7 @@ function main() {
 					height: "auto",
 					overflow: "hidden",
 				});
-				// gsap.set(item, {
-				// 	borderBottomColor: borderColorHighlight,
-				// });
+
 				if (image) {
 					gsap.set(image, {
 						autoAlpha: 1,
@@ -1015,13 +1007,6 @@ function main() {
 						defaults: { duration: 0.4, ease: "power1.inOut" },
 					})
 					.from(content, { height: 0 });
-				// .from(
-				// 	item,
-				// 	{
-				// 		borderBottomColor: borderColorDefault,
-				// 	},
-				// 	0
-				// );
 
 				if (images.length > 1) {
 					tl.from(image, { autoAlpha: 0 }, 0);
@@ -1080,7 +1065,7 @@ function main() {
 		document.querySelectorAll(".c-card-train").forEach((component) => {
 			const cards = lenus.helperFunctions.getCards(component);
 			const bgs = gsap.utils.toArray(".card_media", component);
-			const contents = gsap.utils.toArray(".card_content", component);
+			const contents = gsap.utils.toArray(".card_content, .card_extra-content", component);
 			let ctx = gsap.context(() => {});
 			const handlers = new Map();
 
@@ -3536,6 +3521,7 @@ function main() {
 		const navBtnMbl = document.querySelector(".nav_expand-btn.is-mbl");
 		const megaNav = document.querySelector(".nav-mega");
 		const navLayout = document.querySelector(".nav_mega-layout");
+		const headerBg = document.querySelector(".header_bg");
 
 		// get the nav type
 		let navType;
@@ -3603,6 +3589,9 @@ function main() {
 		function resetAllStyles() {
 			// Clear all inline styles first
 			gsap.set([navBg, megaNavBg, megaNav, navLayout], { clearProps: "all" });
+			if (headerBg) {
+				gsap.set(headerBg, { display: "none" }); // Hide headerBg initially
+			}
 			if (icon) {
 				gsap.set(icon, { rotation: 0 });
 			}
@@ -3630,6 +3619,8 @@ function main() {
 			let tl = gsap.timeline({ paused: true });
 
 			tl.set(megaNav, { display: "block", autoAlpha: 1 }, 0);
+			tl.set(headerBg, { display: "block" }, 0); // Show headerBg when nav opens
+
 			tl.to(
 				navLayout,
 				{
@@ -3703,6 +3694,8 @@ function main() {
 		function setUpMobileTimeline() {
 			let tl = gsap.timeline({ paused: true });
 			tl.set(megaNav, { display: "block", autoAlpha: 1 }, 0);
+			tl.set(headerBg, { display: "block" }, 0); // Show headerBg when nav opens
+
 			tl.to(
 				megaNavBg,
 				{
@@ -3975,6 +3968,22 @@ function main() {
 				desktopTl = null;
 				// gsap.clearProps(navBg);
 			}
+		}
+
+		// Add click handler for headerBg to close nav
+		if (headerBg) {
+			headerBg.addEventListener("click", () => {
+				if (!navOpen) return; // Only handle clicks when nav is open
+
+				if (currentMode === "desktop" && desktopTl) {
+					desktopTl.reverse();
+					document.body.style.overflow = "";
+				} else if (currentMode === "mobile" && mobileTl) {
+					mobileTl.reverse();
+					document.body.style.overflow = "";
+				}
+				navOpen = false;
+			});
 		}
 
 		// Mode change handler
