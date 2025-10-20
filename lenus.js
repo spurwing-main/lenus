@@ -3160,19 +3160,29 @@ function main() {
 
 			const { width, left } = getRects(target);
 
+			let adjustedLeft = left;
+			let adjustedWidth = width;
+
+			// get border width and adjust accordingly
+			const borderWidth = parseFloat(
+				getComputedStyle(highlight).getPropertyValue("border-left-width")
+			);
+			adjustedLeft += borderWidth;
+			adjustedWidth -= borderWidth * 2;
+
 			if (state.moveTween) state.moveTween.kill();
 
 			const isHidden = gsap.getProperty(highlight, "autoAlpha") < 0.5;
 			if (!animate || isHidden) {
 				gsap.set(highlight, {
-					"--nav--menu-bg-w": `${width}px`,
-					"--nav--menu-bg-l": `${left}px`,
+					"--nav--menu-bg-w": `${adjustedWidth}px`,
+					"--nav--menu-bg-l": `${adjustedLeft}px`,
 				});
 				setHighlightOpacity(true);
 			} else {
 				state.moveTween = gsap.to(highlight, {
-					"--nav--menu-bg-w": `${width}px`,
-					"--nav--menu-bg-l": `${left}px`,
+					"--nav--menu-bg-w": `${adjustedWidth}px`,
+					"--nav--menu-bg-l": `${adjustedLeft}px`,
 					duration: 0.3,
 					ease: "power2.out",
 				});
@@ -3224,8 +3234,27 @@ function main() {
 			if (state.activeAnchor) setAnchorCurrent(state.activeAnchor, true);
 
 			if (state.activeItem) {
-				moveHighlightTo(state.highlight, state.activeItem, false); // place without animation
-				moveHighlightTo(state.passiveHighlight, state.activeItem, false); // place without animation
+				// Position both highlights only after fonts are ready
+
+				const positionHighlights = () => {
+					if (state.activeItem) {
+						// Position the active highlight
+						moveHighlightTo(state.highlight, state.activeItem, false);
+
+						// Position the passive highlight if it exists
+						if (state.passiveHighlight) {
+							moveHighlightTo(state.passiveHighlight, state.activeItem, false);
+							gsap.set(state.passiveHighlight, { autoAlpha: 1 });
+						}
+					}
+				};
+
+				if (document.fonts && document.fonts.ready) {
+					document.fonts.ready.then(positionHighlights);
+				} else {
+					// Fallback - wait a bit longer for fonts
+					setTimeout(positionHighlights, 200);
+				}
 			} else {
 				// no active
 				setHighlightOpacity(false);
@@ -3301,6 +3330,16 @@ function main() {
 						"--nav--menu-bg-w": `${width}px`,
 						"--nav--menu-bg-l": `${left}px`,
 					});
+
+					// Also update passive highlight if it exists
+					if (state.passiveHighlight) {
+						gsap.set(state.passiveHighlight, {
+							autoAlpha: 1,
+							"--nav--menu-bg-w": `${width}px`,
+							"--nav--menu-bg-l": `${left}px`,
+						});
+					}
+
 					colorAllInactive();
 					colorTargetActive(state.activeItem);
 				} else {
@@ -3309,6 +3348,16 @@ function main() {
 						"--nav--menu-bg-w": "0px",
 						"--nav--menu-bg-l": "0px",
 					});
+
+					// Hide passive highlight too when no active item
+					if (state.passiveHighlight) {
+						gsap.set(state.passiveHighlight, {
+							autoAlpha: 0,
+							"--nav--menu-bg-w": "0px",
+							"--nav--menu-bg-l": "0px",
+						});
+					}
+
 					colorAllInactive();
 				}
 
@@ -3370,6 +3419,11 @@ function main() {
 			// Prevent duplicate passive highlights on re-init
 			const existingPassiveHighlight = state.menu.querySelector(".nav_menu-highlight.is-passive");
 			state.passiveHighlight = existingPassiveHighlight || makeHighlight("is-passive");
+
+			// Initially hide passive highlight until properly positioned
+			if (state.passiveHighlight) {
+				gsap.set(state.passiveHighlight, { autoAlpha: 0 });
+			}
 		}
 
 		// PUBLIC API
