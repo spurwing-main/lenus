@@ -519,6 +519,7 @@ function main() {
 	}
 
 	function loadVideos() {
+		return;
 		// Grab all videos on the page
 		const videos = gsap.utils.toArray(".media video");
 		const mediaQuery = window.matchMedia("(max-width: 768px)");
