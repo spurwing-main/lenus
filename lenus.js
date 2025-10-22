@@ -3576,11 +3576,6 @@ function main() {
 
 		// expose
 		lenus.navHover = api;
-
-		//   // Backwards-compat wrapper
-		//   window.navHover = function () {
-		//     return api.init();
-		//   };
 	}
 
 	function navOpen() {
@@ -6637,8 +6632,11 @@ Features:
 	rangeSlider();
 	featBlogCard();
 	jobScroll();
-	// navHover();
-	// lenus.navHover.init();
+
+	/* create navHover instance and init */
+	navHover();
+	lenus.navHover.init();
+
 	toggleSlider();
 	// navOpen();
 	handleFiltering();
