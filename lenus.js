@@ -5191,66 +5191,85 @@ function main() {
 		const revealBuffer = 50; // Scroll-up distance before revealing
 
 		let lastScrollY = window.scrollY;
+		let currentScrollY = window.scrollY;
 		let revealDistance = 0;
+		let navHidden = false;
 		let logoHidden = false;
+		let ticking = false;
 
-		if (navLogoText) {
-			gsap.set(navLogoText, { x: 0, autoAlpha: 1 });
+		if (navLogoText) gsap.set(navLogoText, { x: 0, autoAlpha: 1 });
+
+		// Clean up any existing trigger
+		const oldTrigger = ScrollTrigger.getById("hideShowNav");
+		if (oldTrigger) oldTrigger.kill();
+
+		// rAF update loop
+		function updateNav() {
+			ticking = false;
+
+			const y = currentScrollY;
+			const delta = y - lastScrollY;
+
+			// --- NAV VISIBILITY ---
+			if (y <= showThreshold) {
+				if (navHidden) {
+					nav.classList.remove("is-hidden", "is-past-threshold");
+					navHidden = false;
+				}
+				revealDistance = 0;
+			} else if (delta > 0 && y > hideThreshold && !navHidden) {
+				nav.classList.add("is-hidden", "is-past-threshold");
+				navHidden = true;
+				revealDistance = 0;
+			} else if (delta < 0 && navHidden) {
+				revealDistance -= delta; // delta is negative
+				if (revealDistance >= revealBuffer) {
+					nav.classList.remove("is-hidden");
+					navHidden = false;
+					revealDistance = 0;
+				}
+			}
+
+			nav.classList.toggle("is-past-threshold", y > hideThreshold);
+
+			// --- LOGO ANIMATION ---
+			if (navLogoText) {
+				if (y > logoThreshold && !logoHidden) {
+					logoHidden = true;
+					gsap.to(navLogoText, {
+						x: "-1.25rem",
+						autoAlpha: 0,
+						duration: 0.35,
+						ease: "power2.out",
+						overwrite: true,
+					});
+				} else if (y <= logoThreshold && logoHidden) {
+					logoHidden = false;
+					gsap.to(navLogoText, {
+						x: "0rem",
+						autoAlpha: 1,
+						duration: 0.35,
+						ease: "power2.out",
+						overwrite: true,
+					});
+				}
+			}
+
+			lastScrollY = y;
 		}
 
+		// ScrollTrigger watches scroll and schedules an update
 		ScrollTrigger.create({
+			id: "hideShowNav",
 			trigger: document.body,
 			start: "top top",
 			end: "bottom bottom",
 			onUpdate() {
-				const y = window.scrollY;
-				const delta = y - lastScrollY;
-
-				if (y <= showThreshold) {
-					nav.classList.remove("is-hidden", "is-past-threshold");
-					revealDistance = 0;
-				} else if (delta > 0 && y > hideThreshold) {
-					// scrolling down
-					nav.classList.add("is-hidden", "is-past-threshold");
-					revealDistance = 0;
-				} else if (delta < 0) {
-					// scrolling up
-					revealDistance -= delta; // delta is negative
-					if (revealDistance >= revealBuffer) {
-						nav.classList.remove("is-hidden");
-						revealDistance = 0;
-					}
+				currentScrollY = window.scrollY;
+				if (!ticking) {
+					ticking = true;
+					requestAnimationFrame(updateNav);
 				}
-
-				if (y > hideThreshold) {
-					nav.classList.add("is-past-threshold");
-				} else {
-					nav.classList.remove("is-past-threshold");
-				}
-
-				if (navLogoText) {
-					if (y > logoThreshold && !logoHidden) {
-						logoHidden = true;
-						gsap.to(navLogoText, {
-							x: "-1.25rem",
-							autoAlpha: 0,
-							duration: 0.35,
-							ease: "power2.out",
-							overwrite: "auto",
-						});
-					} else if (y <= logoThreshold && logoHidden) {
-						logoHidden = false;
-						gsap.to(navLogoText, {
-							x: "0rem",
-							autoAlpha: 1,
-							duration: 0.35,
-							ease: "power2.out",
-							overwrite: "auto",
-						});
-					}
-				}
-
-				lastScrollY = y;
 			},
 		});
 	}
