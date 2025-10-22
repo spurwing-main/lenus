@@ -5189,6 +5189,7 @@ function main() {
 		const hideThreshold = 150; // Can hide only after passing this
 		const logoThreshold = 60; // Independent threshold for logo text animation
 		const revealBuffer = 50; // Scroll-up distance before revealing
+		const hideBuffer = 10; // Small buffer to prevent flicker
 
 		let lastScrollY = window.scrollY;
 		let currentScrollY = window.scrollY;
@@ -5217,7 +5218,8 @@ function main() {
 					navHidden = false;
 				}
 				revealDistance = 0;
-			} else if (delta > 0 && y > hideThreshold && !navHidden) {
+			} else if (delta > hideBuffer && y > hideThreshold && !navHidden) {
+				console.log("delta:", delta, "hiding nav");
 				nav.classList.add("is-hidden", "is-past-threshold");
 				navHidden = true;
 				revealDistance = 0;
