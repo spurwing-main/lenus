@@ -561,10 +561,12 @@ function main() {
 				end: `bottom top-=${videoLoadPadding}`, // 1 viewport above
 				onEnter(self) {
 					updateSources(video, isMobile() ? "mobile" : "desktop");
+					console.log("Preloading video:", video);
 					self.kill(); // don’t fire again until mode change
 				},
 				onEnterBack(self) {
 					updateSources(video, isMobile() ? "mobile" : "desktop");
+					console.log("Preloading video (back):", video);
 					self.kill();
 				},
 				// markers: true,
@@ -796,7 +798,6 @@ function main() {
 	}
 
 	function ctaImage() {
-		return;
 		// Store contexts globally to allow cleanup
 		if (!window._ctaImageContexts) {
 			window._ctaImageContexts = new Map();
@@ -939,6 +940,7 @@ function main() {
 
 			// Debounced resize handler
 			const debouncedResize = lenus.helperFunctions.debounce(() => {
+				console.log("CTA resize detected");
 				// Clean up and recreate context on resize
 				ctx.revert();
 				const newCtx = gsap.context(() => {
@@ -948,7 +950,7 @@ function main() {
 			}, 200);
 
 			// Add resize event listener
-			window.addEventListener("resize", debouncedResize);
+			// window.addEventListener("resize", debouncedResize);
 		});
 	}
 
