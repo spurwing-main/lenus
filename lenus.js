@@ -6642,7 +6642,7 @@ Features:
 	}
 
 	toggleSlider();
-	// navOpen();
+	navOpen();
 	handleFiltering();
 	handleSearch();
 	pricingOptions();
