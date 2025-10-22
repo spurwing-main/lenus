@@ -552,7 +552,6 @@ function main() {
 	}
 
 	function loadVideos() {
-		return;
 		// Grab all videos on the page
 		const videos = gsap.utils.toArray(".media video");
 		const mediaQuery = window.matchMedia("(max-width: 768px)");
@@ -712,7 +711,7 @@ function main() {
 		});
 	}
 
-	function testimCardVideos() {
+	function standaloneVideoCards() {
 		let standaloneCards = [
 			...document.querySelectorAll(".c-testim-card"),
 			...document.querySelectorAll(".c-wide-card"),
@@ -732,10 +731,10 @@ function main() {
 		const controller = lenus.helperFunctions.videoController;
 		if (!controller) return;
 
-		document.querySelectorAll(".c-carousel.is-testim").forEach((component) => {
-			gsap.set(component, { display: "none" });
-		});
-		return;
+		// document.querySelectorAll(".c-carousel.is-testim").forEach((component) => {
+		// 	gsap.set(component, { display: "none" });
+		// });
+		// return;
 
 		document.querySelectorAll(".c-carousel.is-testim").forEach((component) => {
 			const instance = lenus.helperFunctions.initSplideCarousel(component, {
@@ -801,35 +800,6 @@ function main() {
 				unregisterFns.forEach((fn) => fn());
 			});
 		}
-	}
-
-	function gradTest1() {
-		// grab the gradients by ID
-		const grad2 = document.querySelector("#paint1_linear_0_1");
-
-		// original gradient values in SVG from Figma
-		const orig0 = { x1: 719.5, y1: 1169, x2: 719.5, y2: 269 };
-
-		let tl = gsap.timeline({
-			scrollTrigger: {
-				trigger: ".bg-lines-wrap",
-				start: "top center",
-				end: "bottom center",
-				scrub: true,
-			},
-		});
-
-		tl.fromTo(
-			grad2,
-			{
-				attr: { x1: 719.5, y1: 0, x2: 719.5, y2: 0 },
-				duration: 1,
-				ease: "none",
-			},
-			{
-				attr: orig0,
-			}
-		);
 	}
 
 	function ctaImage() {
@@ -6792,10 +6762,10 @@ Features:
 	}
 
 	parallax();
-	// loadVideos();
-	gradTest1();
+	loadVideos();
+	// gradTest1();
 	logoSwap();
-	// videoCarousel();
+	videoCarousel();
 	ctaImage();
 	randomTestimonial();
 	accordion();
@@ -6810,7 +6780,7 @@ Features:
 	featureColumns();
 	mapbox();
 	cardGrid();
-	// testimCardVideos();
+	// standaloneVideoCards();
 	scatterHero();
 	pastEvents();
 	customSubmitButtons();
