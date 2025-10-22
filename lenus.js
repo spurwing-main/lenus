@@ -339,8 +339,10 @@ function main() {
 			// --- integrate with ResizeManager media query helpers ---
 			const cleanupDesktopListener = ResizeManager.onDesktop(({ matches }) => {
 				if (matches) {
+					console.log("logoSwap: desktop mode - adding hover listeners");
 					addHoverListeners();
 				} else {
+					console.log("logoSwap: mobile mode - removing hover listeners");
 					removeHoverListeners();
 				}
 			});
@@ -899,9 +901,10 @@ function main() {
 					scrollTrigger: {
 						trigger: component,
 						start: "top top",
-						end: "+=100%",
+						end: "+=50%",
 						scrub: 0.5,
 						pin: pinned,
+						markers: true,
 						onUpdate(self) {
 							if (images.length < 2) return; // no need to adjust nav if no image fades
 							const p = self.progress;
@@ -975,19 +978,29 @@ function main() {
 			// Store the context for later cleanup
 			window._ctaImageContexts.set(component, ctx);
 
-			// Debounced resize handler
-			const debouncedResize = lenus.helperFunctions.debounce(() => {
-				console.log("CTA resize detected");
-				// Clean up and recreate context on resize
-				ctx.revert();
-				const newCtx = gsap.context(() => {
-					createTimeline();
-				}, component);
-				window._ctaImageContexts.set(component, newCtx);
-			}, 200);
+			// --- Resize handling via ResizeManager ---
+			const handleResize = ({ widthChanged, heightChanged }) => {
+				// Skip Safari address bar show/hide or minimal changes
+				if (!widthChanged && !heightChanged) return;
+				if (isMobile() && !widthChanged) return; // ignore mobile toolbar flickers
 
-			// Add resize event listener
-			// window.addEventListener("resize", debouncedResize);
+				console.log("CTA resize detected");
+
+				// // Fully revert and rebuild context cleanly
+				// ctx.revert();
+
+				// const newCtx = gsap.context(() => {
+				// 	createTimeline();
+				// }, component);
+
+				// window._ctaImageContexts.set(component, newCtx);
+
+				// Refresh ScrollTrigger safely after rebuild
+				ScrollTrigger.refresh(true);
+			};
+
+			// Register via ResizeManager (debounced globally)
+			ResizeManager.add(handleResize);
 		});
 	}
 
@@ -6812,7 +6825,7 @@ Features:
 	featureColumns();
 	mapbox();
 	cardGrid();
-	// standaloneVideoCards();
+	standaloneVideoCards();
 	scatterHero();
 	pastEvents();
 	customSubmitButtons();
