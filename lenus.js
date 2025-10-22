@@ -285,6 +285,19 @@ function main() {
 				logosArray.push(logoObj);
 			});
 
+			// Resize callback (defined early so we can reference it later)
+			const handleResize = ({ widthChanged }) => {
+				if (!widthChanged) return; // skip iOS toolbar resizes etc.
+
+				clearTimeout(timerId);
+				clearTimeline();
+				logoCount = getLogoCount(component);
+				createLogoSlots();
+				clearAllLogos();
+				updateLogos();
+				animateLogos();
+			};
+
 			function getLogoCount(component) {
 				const logoCount = parseInt(
 					getComputedStyle(component).getPropertyValue("--logo-swap--count"),
@@ -444,16 +457,8 @@ function main() {
 				});
 			}
 
-			const onResize = lenus.helperFunctions.debounce(() => {
-				clearTimeout(timerId);
-				clearTimeline();
-				logoCount = getLogoCount(component);
-				createLogoSlots();
-				clearAllLogos();
-				updateLogos();
-				animateLogos();
-			}, 200);
-			window.addEventListener("resize", onResize);
+			// Register resize handler
+			ResizeManager.add(handleResize);
 
 			// pause/resume when user tabs away
 			document.addEventListener("visibilitychange", () => {
@@ -473,17 +478,6 @@ function main() {
 			clearAllLogos();
 			updateLogos();
 			animateLogos();
-
-			// DEV: Stop after first animation and keep logos visible
-			// if (tl) {
-			// 	tl.eventCallback("onComplete", function () {
-			// 		// Clear the onComplete callback to prevent scheduling next animation
-			// 		tl.eventCallback("onComplete", null);
-			// 		// Clear any pending timeouts
-			// 		clearTimeout(timerId);
-			// 		console.log("Logo swap animation stopped for dev");
-			// 	});
-			// }
 		});
 	}
 
