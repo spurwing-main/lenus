@@ -6647,7 +6647,7 @@ Features:
 	handleSearch();
 	pricingOptions();
 	pricingFeatures();
-	// headerThemeScrollTrigger();
+	headerThemeScrollTrigger();
 	setupFinsweetScrollTriggerRefresh();
 	largeButtonHover();
 	// hideShowNav();
