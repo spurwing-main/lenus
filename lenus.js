@@ -259,6 +259,7 @@ function main() {
 	}
 
 	function logoSwap() {
+		return;
 		document.querySelectorAll(".c-logo-swap").forEach((component) => {
 			// we need to decide if we need to include the invert(1) part in the filters for logos - this depends on whether the current theme is dark or light - and we can find this out by checking the value of the var(--_theme---invert) variable on the component - if it is 0 then we don't need invert, if it is 1 then we do
 			const invertFilter =
