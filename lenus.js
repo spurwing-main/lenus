@@ -6610,51 +6610,51 @@ Features:
 		]);
 	}
 
-	parallax();
-	loadVideos();
-	gradTest1();
-	logoSwap();
-	videoCarousel();
-	ctaImage();
-	randomTestimonial();
-	accordion();
-	cardTrain();
-	animateTitles();
-	tabbedHero();
-	wideCarousel();
-	multiQuote();
-	bentoHero();
-	locations();
-	miniCarousel();
-	featureColumns();
-	mapbox();
-	cardGrid();
-	testimCardVideos();
-	scatterHero();
-	pastEvents();
-	customSubmitButtons();
-	hiddenFormFields();
-	rangeSlider();
-	featBlogCard();
-	jobScroll();
-	navHover();
-	lenus.navHover.init();
-	toggleSlider();
-	navOpen();
-	handleFiltering();
-	handleSearch();
-	pricingOptions();
-	pricingFeatures();
-	headerThemeScrollTrigger();
-	setupFinsweetScrollTriggerRefresh();
-	largeButtonHover();
-	hideShowNav();
-	countriesDropdown();
-	if (document.querySelector("#job-listings")) {
-		lenus.greenhouse.init();
-	}
-	if (document.querySelector("#job-details.c-job")) {
-		lenus.greenhouseJob.init();
-	}
-	handleLocalTimes();
+	// parallax();
+	// loadVideos();
+	// gradTest1();
+	// logoSwap();
+	// videoCarousel();
+	// ctaImage();
+	// randomTestimonial();
+	// accordion();
+	// cardTrain();
+	// animateTitles();
+	// tabbedHero();
+	// wideCarousel();
+	// multiQuote();
+	// bentoHero();
+	// locations();
+	// miniCarousel();
+	// featureColumns();
+	// mapbox();
+	// cardGrid();
+	// testimCardVideos();
+	// scatterHero();
+	// pastEvents();
+	// customSubmitButtons();
+	// hiddenFormFields();
+	// rangeSlider();
+	// featBlogCard();
+	// jobScroll();
+	// navHover();
+	// lenus.navHover.init();
+	// toggleSlider();
+	// navOpen();
+	// handleFiltering();
+	// handleSearch();
+	// pricingOptions();
+	// pricingFeatures();
+	// headerThemeScrollTrigger();
+	// setupFinsweetScrollTriggerRefresh();
+	// largeButtonHover();
+	// hideShowNav();
+	// countriesDropdown();
+	// if (document.querySelector("#job-listings")) {
+	// 	lenus.greenhouse.init();
+	// }
+	// if (document.querySelector("#job-details.c-job")) {
+	// 	lenus.greenhouseJob.init();
+	// }
+	// handleLocalTimes();
 }
