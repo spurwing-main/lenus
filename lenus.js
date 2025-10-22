@@ -6635,7 +6635,11 @@ Features:
 
 	/* create navHover instance and init */
 	navHover();
-	lenus.navHover.init();
+	// Only initialize navHover on non-mobile devices
+	if (!window.matchMedia("(hover: none)").matches) {
+		console.log("Initializing navHover for non-mobile device");
+		lenus.navHover.init();
+	}
 
 	toggleSlider();
 	// navOpen();
