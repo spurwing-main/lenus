@@ -696,6 +696,11 @@ function main() {
 		if (!controller) return;
 
 		document.querySelectorAll(".c-carousel.is-testim").forEach((component) => {
+			gsap.set(component, { display: "none" });
+		});
+		return;
+
+		document.querySelectorAll(".c-carousel.is-testim").forEach((component) => {
 			const instance = lenus.helperFunctions.initSplideCarousel(component, {
 				config: {
 					type: "loop",
@@ -2124,6 +2129,9 @@ function main() {
 					autoAlpha: 1,
 					y: 0,
 				});
+				gsap.set(bg, {
+					scale: 1,
+				});
 				gsap.set([bottomContent, controls], {
 					autoAlpha: 0,
 					y: 20,
@@ -2138,13 +2146,13 @@ function main() {
 							toggleActions: "play none reverse  reverse",
 
 							// scrub: true,
-							pin: true,
-							pinSpacing: true,
+							// pin: true,
+							// pinSpacing: true,
 							// markers: true,
 						},
 					});
 					tl.to(
-						primaryBg,
+						bg,
 						{
 							autoAlpha: 0,
 							duration: 0.5,
@@ -2162,15 +2170,15 @@ function main() {
 							},
 							0.1
 						)
-						.to(
-							cardBgs[0],
-							{
-								autoAlpha: 1,
-								duration: 0.5,
-								ease: "power2.out",
-							},
-							0.1
-						)
+						// .to(
+						// 	cardBgs[0],
+						// 	{
+						// 		autoAlpha: 1,
+						// 		duration: 0.5,
+						// 		ease: "power2.out",
+						// 	},
+						// 	0.1
+						// )
 						.to(
 							[bottomContent, controls],
 							{
