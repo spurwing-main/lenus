@@ -261,15 +261,6 @@ function main() {
 			ScrollTrigger.refresh();
 			setInitialHeaderTheme();
 		});
-
-		// // Resize handling
-		// const onResize = lenus.helperFunctions.debounce(() => {
-		// 	setupHeaderThemeTimeline();
-		// 	createHeaderThemeScrollTriggers();
-		// 	ScrollTrigger.refresh();
-		// 	setInitialHeaderTheme();
-		// }, 200);
-		// window.addEventListener("resize", onResize);
 	}
 
 	function logoSwap() {
@@ -5189,7 +5180,6 @@ function main() {
 	}
 
 	function hideShowNav() {
-		return; // Disabled for now
 		const nav = document.querySelector(".nav");
 		if (!nav) return;
 
@@ -6816,7 +6806,7 @@ Features:
 	headerThemeScrollTrigger();
 	setupFinsweetScrollTriggerRefresh();
 	largeButtonHover();
-	// hideShowNav();
+	hideShowNav();
 	countriesDropdown();
 	if (document.querySelector("#job-listings")) {
 		lenus.greenhouse.init();
