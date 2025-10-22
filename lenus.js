@@ -307,19 +307,42 @@ function main() {
 			);
 			observer.observe(component);
 
-			// --- Hover pause + UI transition ---
-			component.addEventListener("mouseenter", () => {
+			function hoverHandler() {
 				paused = true;
 				gsap.to(logoList, { filter: "blur(6px)", autoAlpha: 0.5, duration: 0.3 });
 				// if (buttonWrap) gsap.to(buttonWrap, { autoAlpha: 1, duration: 0.3 });
 				handlePauseState();
-			});
-
-			component.addEventListener("mouseleave", () => {
+			}
+			function hoverOutHandler() {
 				paused = false;
 				gsap.to(logoList, { filter: "blur(0px)", autoAlpha: 1, duration: 0.3 });
 				// if (buttonWrap) gsap.to(buttonWrap, { autoAlpha: 0, duration: 0.3 });
 				handlePauseState();
+			}
+
+			let hoverCleanup = null; // will store cleanup fn
+
+			function addHoverListeners() {
+				component.addEventListener("mouseenter", hoverHandler);
+				component.addEventListener("mouseleave", hoverOutHandler);
+				hoverCleanup = () => {
+					component.removeEventListener("mouseenter", hoverHandler);
+					component.removeEventListener("mouseleave", hoverOutHandler);
+					hoverCleanup = null;
+				};
+			}
+
+			function removeHoverListeners() {
+				if (hoverCleanup) hoverCleanup();
+			}
+
+			// --- integrate with ResizeManager media query helpers ---
+			const cleanupDesktopListener = ResizeManager.onDesktop(({ matches }) => {
+				if (matches) {
+					addHoverListeners();
+				} else {
+					removeHoverListeners();
+				}
 			});
 
 			// --- helper functions ---
@@ -513,6 +536,15 @@ function main() {
 				// Wait until back in view or unpaused
 				handlePauseState();
 			}
+
+			// --- Cleanup when component is removed ---
+			component._cleanupLogoSwap = () => {
+				observer.disconnect();
+				removeHoverListeners();
+				cleanupDesktopListener?.();
+				ResizeManager.remove(handleResize);
+				stopCycle();
+			};
 		});
 	}
 
