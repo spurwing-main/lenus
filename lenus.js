@@ -6605,7 +6605,7 @@ Features:
 		]);
 	}
 
-	// parallax();
+	parallax();
 	// loadVideos();
 	gradTest1();
 	// logoSwap();
@@ -6614,7 +6614,7 @@ Features:
 	randomTestimonial();
 	accordion();
 	cardTrain();
-	// animateTitles();
+	animateTitles();
 	tabbedHero();
 	wideCarousel();
 	multiQuote();
