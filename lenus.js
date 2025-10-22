@@ -5180,6 +5180,7 @@ function main() {
 	}
 
 	function hideShowNav() {
+		return; // Disabled for now
 		const nav = document.querySelector(".nav");
 		if (!nav) return;
 
