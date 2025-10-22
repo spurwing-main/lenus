@@ -159,12 +159,14 @@ function main() {
 
 		function createHeaderThemeScrollTriggers() {
 			killHeaderThemeScrollTriggers();
+			console.log("Creating header theme ScrollTriggers...");
 			sectionGroups.forEach((group, idx) => {
 				const variant = group.getAttribute(attributeName);
 				const theme = getTheme(variant);
-				// console.log(`Section idx=${idx}, variant=${variant}, theme=${theme}`);
+				console.log(`Section idx=${idx}, variant=${variant}, theme=${theme}`);
 
 				if (DARK_THEMES.includes(variant)) {
+					console.log(`  -> Creating ScrollTrigger for dark section at idx=${idx}`);
 					const trigger = ScrollTrigger.create({
 						trigger: group,
 						start: () => `top ${getNavHeight()}px`,
