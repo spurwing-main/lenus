@@ -265,32 +265,28 @@ function main() {
 
 	function logoSwap() {
 		document.querySelectorAll(".c-logo-swap").forEach((component) => {
-			// we need to decide if we need to include the invert(1) part in the filters for logos - this depends on whether the current theme is dark or light - and we can find this out by checking the value of the var(--_theme---invert) variable on the component - if it is 0 then we don't need invert, if it is 1 then we do
 			const invertFilter =
 				getComputedStyle(component).getPropertyValue("--_theme---invert") === "1"
 					? "invert(1) "
 					: "";
+
 			const logoList = component.querySelector(".logo-swap_list");
+			// const buttonWrap = component.querySelector(".logo-swap_btn-wrap");
 			let logoSlots = Array.from(logoList.querySelectorAll(".logo-swap_slot"));
 			const logoEls = Array.from(component.querySelectorAll(".logo-swap_logo"));
 			let logoCount = getLogoCount(component);
-			let timerId;
-			let tl;
+			let timerId = null;
+			let tl = null;
+			let paused = false;
+			let inView = true;
 
-			let logosArray = [];
-			logoEls.forEach((logoEl) => {
-				const logoObj = {};
-				logoObj.el = logoEl;
-				logoObj.visibleNow = false;
-				logosArray.push(logoObj);
-			});
+			// --- logo pool setup ---
+			let logosArray = logoEls.map((el) => ({ el, visibleNow: false }));
 
-			// Resize callback (defined early so we can reference it later)
+			// --- resize handler (via ResizeManager) ---
 			const handleResize = ({ widthChanged }) => {
-				if (!widthChanged) return; // skip iOS toolbar resizes etc.
-
-				clearTimeout(timerId);
-				clearTimeline();
+				if (!widthChanged) return;
+				stopCycle();
 				logoCount = getLogoCount(component);
 				createLogoSlots();
 				clearAllLogos();
@@ -298,6 +294,34 @@ function main() {
 				animateLogos();
 			};
 
+			ResizeManager.add(handleResize);
+
+			// --- IntersectionObserver: pause when offscreen ---
+			const observer = new IntersectionObserver(
+				([entry]) => {
+					inView = entry.isIntersecting;
+					handlePauseState();
+				},
+				{ threshold: 0.1 }
+			);
+			observer.observe(component);
+
+			// --- Hover pause + UI transition ---
+			component.addEventListener("mouseenter", () => {
+				paused = true;
+				gsap.to(logoList, { filter: "blur(6px)", autoAlpha: 0.5, duration: 0.3 });
+				// if (buttonWrap) gsap.to(buttonWrap, { autoAlpha: 1, duration: 0.3 });
+				handlePauseState();
+			});
+
+			component.addEventListener("mouseleave", () => {
+				paused = false;
+				gsap.to(logoList, { filter: "blur(0px)", autoAlpha: 1, duration: 0.3 });
+				// if (buttonWrap) gsap.to(buttonWrap, { autoAlpha: 0, duration: 0.3 });
+				handlePauseState();
+			});
+
+			// --- helper functions ---
 			function getLogoCount(component) {
 				const logoCount = parseInt(
 					getComputedStyle(component).getPropertyValue("--logo-swap--count"),
@@ -307,83 +331,53 @@ function main() {
 			}
 
 			function shuffleArray(array) {
-				//https://bost.ocks.org/mike/shuffle/
-				var m = array.length,
+				let m = array.length,
 					t,
 					i;
-
-				// While there remain elements to shuffle…
 				while (m) {
-					// Pick a remaining element…
 					i = Math.floor(Math.random() * m--);
-
-					// And swap it with the current element.
 					t = array[m];
 					array[m] = array[i];
 					array[i] = t;
 				}
-
 				return array;
 			}
 
 			function getNewLogos() {
-				// first shuffle the logos array
 				logosArray = shuffleArray(logosArray);
-
-				// get the first X logos from the shuffled array that are not currently visible
-				const newLogos = logosArray.filter((logo) => !logo.visibleNow).slice(0, logoCount);
-
-				// clear visibility status of all logos
-				logosArray.forEach((logo) => {
-					logo.visibleNow = false;
-				});
-
-				// mark the new logos as visible
-				newLogos.forEach((logo) => {
-					logo.visibleNow = true;
-				});
+				const newLogos = logosArray.filter((l) => !l.visibleNow).slice(0, logoCount);
+				logosArray.forEach((l) => (l.visibleNow = false));
+				newLogos.forEach((l) => (l.visibleNow = true));
 
 				if (newLogos.length < logoCount) {
-					// If not enough unique logos are available, add some more from logosArray
-					// console.log("Not enough unique logos, adding some from last time.");
-					const additionalLogos = logosArray
-						.filter((logo) => !logo.visibleNow)
+					const extras = logosArray
+						.filter((l) => !l.visibleNow)
 						.slice(0, logoCount - newLogos.length);
-					// and mark as visible
-					additionalLogos.forEach((logo) => {
-						logo.visibleNow = true;
-					});
-					// and add to newLogos
-					newLogos.push(...additionalLogos);
+					extras.forEach((l) => (l.visibleNow = true));
+					newLogos.push(...extras);
 				}
 
-				return newLogos.map((logo) => logo.el);
+				return newLogos.map((l) => l.el);
 			}
 
 			function updateLogos() {
 				const newLogos = getNewLogos();
-				if (newLogos.length === 0) {
-					// console.warn("No logos available to display.");
-					return;
-				}
+				if (!newLogos.length) return;
 
-				// for each slot, clone the new logo and add it to the slot in a hidden state
-				logoSlots.forEach((slot, index) => {
-					const currentLogo = slot.querySelector(".logo-swap_logo");
-					if (currentLogo) {
-						currentLogo.setAttribute("data-logo-swap", "outgoing");
-					}
-					const newLogo = newLogos[index];
-					if (newLogo) {
-						const clonedLogo = newLogo.cloneNode(true);
-						clonedLogo.setAttribute("data-logo-swap", "incoming");
-						gsap.set(clonedLogo, {
+				logoSlots.forEach((slot, i) => {
+					const current = slot.querySelector(".logo-swap_logo");
+					if (current) current.setAttribute("data-logo-swap", "outgoing");
+					const next = newLogos[i];
+					if (next) {
+						const clone = next.cloneNode(true);
+						clone.setAttribute("data-logo-swap", "incoming");
+						gsap.set(clone, {
 							autoAlpha: 0,
 							filter: `${invertFilter}blur(5px) grayscale()`,
 							scale: 0.8,
 							transformOrigin: "50% 50%",
-						}); // start hidden
-						slot.appendChild(clonedLogo);
+						});
+						slot.appendChild(clone);
 					}
 				});
 			}
@@ -395,9 +389,7 @@ function main() {
 					slot.classList.add("logo-swap_slot");
 					logoList.appendChild(slot);
 				}
-				// update the logoSlots variable
 				logoSlots = Array.from(logoList.querySelectorAll(".logo-swap_slot"));
-				// console.log("Logo slots created:", logoSlots.length);
 			}
 
 			function cleanUp() {
@@ -406,8 +398,57 @@ function main() {
 				});
 			}
 
+			function clearAllLogos() {
+				logoSlots.forEach((slot) => {
+					slot.querySelectorAll(".logo-swap_logo").forEach((el) => el.remove());
+				});
+			}
+
+			function clearTimeline() {
+				if (tl) {
+					tl.kill();
+					tl = null;
+				}
+			}
+
+			function stopCycle() {
+				if (timerId) {
+					clearTimeout(timerId);
+					timerId = null;
+				}
+				if (tl) {
+					tl.kill();
+					tl = null;
+				}
+			}
+
+			function handlePauseState() {
+				if (paused || !inView) {
+					stopCycle();
+					return;
+				}
+
+				// Resume only if nothing is already active
+				if (!timerId && !tl) {
+					scheduleNext();
+				}
+			}
+
 			function scheduleNext() {
+				// Always clear any existing timer before setting a new one
+				if (timerId) {
+					clearTimeout(timerId);
+					timerId = null;
+				}
+
 				timerId = setTimeout(() => {
+					// Bail if paused/offscreen
+					if (paused || !inView) {
+						stopCycle();
+						return;
+					}
+
+					// Start new cycle
 					updateLogos();
 					animateLogos();
 				}, 4000);
@@ -437,43 +478,22 @@ function main() {
 						stagger: 0.05,
 						ease: "power2.inOut",
 					},
-					"<+0.1" // start at the same time as the fade out
+					"<+0.1"
 				);
 			}
 
-			function clearTimeline() {
-				if (tl) {
-					tl.kill();
-					tl = null;
-				}
-			}
-
-			function clearAllLogos() {
-				logoSlots.forEach((slot) => {
-					const logo = slot.querySelector(".logo-swap_logo");
-					if (logo) {
-						logo.remove();
-					}
-				});
-			}
-
-			// Register resize handler
-			ResizeManager.add(handleResize);
-
-			// pause/resume when user tabs away
+			// --- Pause when tab inactive ---
 			document.addEventListener("visibilitychange", () => {
 				if (document.hidden) {
-					clearTimeout(timerId);
-					clearTimeline();
-					// Ensure cleanup is performed when pausing
-					cleanUp();
+					paused = true;
+					handlePauseState();
 				} else {
-					// Resume animations and schedule the next update
-					scheduleNext();
+					paused = false;
+					handlePauseState();
 				}
 			});
 
-			// Initial setup
+			// --- Initial setup ---
 			createLogoSlots();
 			clearAllLogos();
 			updateLogos();
