@@ -6612,7 +6612,7 @@ Features:
 
 	// parallax();
 	// loadVideos();
-	// gradTest1();
+	gradTest1();
 	// logoSwap();
 	// videoCarousel();
 	// ctaImage();
@@ -6646,15 +6646,15 @@ Features:
 	pricingOptions();
 	pricingFeatures();
 	// headerThemeScrollTrigger();
-	// setupFinsweetScrollTriggerRefresh();
+	setupFinsweetScrollTriggerRefresh();
 	largeButtonHover();
 	// hideShowNav();
 	countriesDropdown();
-	// if (document.querySelector("#job-listings")) {
-	// 	lenus.greenhouse.init();
-	// }
-	// if (document.querySelector("#job-details.c-job")) {
-	// 	lenus.greenhouseJob.init();
-	// }
+	if (document.querySelector("#job-listings")) {
+		lenus.greenhouse.init();
+	}
+	if (document.querySelector("#job-details.c-job")) {
+		lenus.greenhouseJob.init();
+	}
 	handleLocalTimes();
 }
