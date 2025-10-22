@@ -279,6 +279,7 @@ function main() {
 			let tl = null;
 			let paused = false;
 			let inView = true;
+			const timeBetweenCycles = 4000;
 
 			// --- logo pool setup ---
 			let logosArray = logoEls.map((el) => ({ el, visibleNow: false }));
@@ -451,7 +452,7 @@ function main() {
 					// Start new cycle
 					updateLogos();
 					animateLogos();
-				}, 4000);
+				}, timeBetweenCycles);
 			}
 
 			function animateLogos() {
@@ -497,7 +498,21 @@ function main() {
 			createLogoSlots();
 			clearAllLogos();
 			updateLogos();
-			animateLogos();
+
+			// Force initial visible logos
+			gsap.set(".logo-swap_logo", {
+				autoAlpha: 1,
+				scale: 1,
+				filter: `${invertFilter}blur(0px) grayscale(0)`,
+			});
+
+			// Only start animation if visible
+			if (inView && !paused) {
+				animateLogos(); // start immediately
+			} else {
+				// Wait until back in view or unpaused
+				handlePauseState();
+			}
 		});
 	}
 
