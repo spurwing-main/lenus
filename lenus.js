@@ -250,14 +250,26 @@ function main() {
 		}
 		setInitialHeaderTheme();
 
-		// Resize handling
-		const onResize = lenus.helperFunctions.debounce(() => {
+		ResizeManager.add(({ widthChanged, heightChanged, width, height }) => {
+			// Only rebuild if width changed or large layout change
+			if (!widthChanged) return;
+
+			console.log(`[headerThemeScrollTrigger] resize: ${width}x${height}`);
+
 			setupHeaderThemeTimeline();
 			createHeaderThemeScrollTriggers();
 			ScrollTrigger.refresh();
 			setInitialHeaderTheme();
-		}, 200);
-		window.addEventListener("resize", onResize);
+		});
+
+		// // Resize handling
+		// const onResize = lenus.helperFunctions.debounce(() => {
+		// 	setupHeaderThemeTimeline();
+		// 	createHeaderThemeScrollTriggers();
+		// 	ScrollTrigger.refresh();
+		// 	setInitialHeaderTheme();
+		// }, 200);
+		// window.addEventListener("resize", onResize);
 	}
 
 	function logoSwap() {
@@ -5661,6 +5673,158 @@ function main() {
 	};
 
 	/* helper functions */
+
+	// resizeManager
+	const ResizeManager = (() => {
+		const callbacks = new Map(); // resize callbacks with config
+		const mediaQueries = new Map(); // { query: { mq, handler } }
+
+		let lastW = window.innerWidth;
+		let lastH = window.innerHeight;
+		const isIOS = /iP(ad|hone|od)/.test(navigator.userAgent);
+
+		// --- Internal debounce utility (no external dependency) ---
+		const debounce = (fn, delay = 200) => {
+			let t;
+			return (...args) => {
+				clearTimeout(t);
+				t = setTimeout(() => fn.apply(this, args), delay);
+			};
+		};
+
+		// --- Register a resize callback ---
+		function add(fn, options = {}) {
+			const config = {
+				debounce: 200,
+				immediate: false,
+				breakpoint: null,
+				...options,
+			};
+			callbacks.set(fn, config);
+
+			if (config.immediate) {
+				fn({
+					width: lastW,
+					height: lastH,
+					isInitial: true,
+				});
+			}
+		}
+
+		// --- Remove a specific callback ---
+		function remove(fn) {
+			callbacks.delete(fn);
+		}
+
+		// --- Clear everything (resize + media queries) ---
+		function clear() {
+			callbacks.clear();
+			mediaQueries.forEach(({ mq, handler }) => {
+				mq.removeEventListener("change", handler);
+			});
+			mediaQueries.clear();
+		}
+
+		// --- Extract numeric breakpoint value from query ---
+		function extractBreakpoint(query) {
+			const match = query.match(/(\d+)px/);
+			return match ? parseInt(match[1]) : null;
+		}
+
+		// --- Media query registration ---
+		function addMediaQuery(query, callback, options = {}) {
+			const { immediate = true } = options;
+			const mq = window.matchMedia(query);
+
+			const handler = (e) => {
+				callback({
+					matches: e.matches,
+					query: e.media || query,
+					breakpoint: extractBreakpoint(query),
+				});
+			};
+
+			mq.addEventListener("change", handler);
+			mediaQueries.set(query, { mq, handler });
+
+			if (immediate) handler(mq);
+
+			// Return cleanup function
+			return () => {
+				const entry = mediaQueries.get(query);
+				if (entry) {
+					entry.mq.removeEventListener("change", entry.handler);
+					mediaQueries.delete(query);
+				}
+			};
+		}
+
+		// --- Common breakpoint queries ---
+		const breakpoints = {
+			mobile: "(max-width: 767px)",
+			tablet: "(max-width: 1024px)",
+			desktop: "(min-width: 1025px)",
+			hover: "(hover: hover)",
+			touch: "(hover: none)",
+			reducedMotion: "(prefers-reduced-motion: reduce)",
+		};
+
+		// --- Convenience helpers for common breakpoints ---
+		const onMobile = (cb, options) => addMediaQuery(breakpoints.mobile, cb, options);
+		const onTablet = (cb, options) => addMediaQuery(breakpoints.tablet, cb, options);
+		const onDesktop = (cb, options) => addMediaQuery(breakpoints.desktop, cb, options);
+
+		// --- Main resize handler ---
+		const run = () => {
+			const w = window.innerWidth;
+			const h = window.innerHeight;
+
+			const widthChanged = w !== lastW;
+			const heightChanged = Math.abs(h - lastH) > 60; // Ignore Safari toolbar bounce
+
+			// Ignore Safari address bar show/hide resizes
+			if (isIOS && !widthChanged && heightChanged) return;
+
+			const prevW = lastW;
+			const prevH = lastH;
+			lastW = w;
+			lastH = h;
+
+			const resizeData = {
+				width: w,
+				height: h,
+				prevWidth: prevW,
+				prevHeight: prevH,
+				widthChanged,
+				heightChanged,
+			};
+
+			callbacks.forEach((config, fn) => {
+				try {
+					fn(resizeData);
+				} catch (err) {
+					console.error("ResizeManager callback error:", err);
+				}
+			});
+		};
+
+		// --- Attach global listener once ---
+		window.addEventListener("resize", debounce(run, 300));
+
+		// --- Public API ---
+		return {
+			add,
+			remove,
+			clear,
+			addMediaQuery,
+			onMobile,
+			onTablet,
+			onDesktop,
+			breakpoints,
+			run, // manual trigger
+		};
+	})();
+	lenus.resizeManager = ResizeManager;
 
 	/* for a card with a video and an image, show the video and hide the image or vice versa */
 	lenus.helperFunctions.showVideo = function (
