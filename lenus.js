@@ -796,6 +796,7 @@ function main() {
 	}
 
 	function ctaImage() {
+		return;
 		// Store contexts globally to allow cleanup
 		if (!window._ctaImageContexts) {
 			window._ctaImageContexts = new Map();
