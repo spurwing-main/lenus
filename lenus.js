@@ -1039,7 +1039,24 @@ function main() {
 	function accordion() {
 		document.querySelectorAll(".c-accordion, .c-faq").forEach((component) => {
 			const items = gsap.utils.toArray(".accordion-item, .faq-item", component);
-			const images = gsap.utils.toArray(".accordion-img", component);
+			const fallbackImage = component.querySelector(".accordion_media.is-fallback .accordion-img");
+			const images = gsap.utils.toArray(
+				".accordion_media.is-not-fallback .accordion-img",
+				component
+			);
+
+			// Function to check if any item is open and update fallback image visibility
+			function updateFallbackImage() {
+				const hasOpenItem = items.some((item) => !item._tl.reversed());
+
+				if (fallbackImage) {
+					gsap.to(fallbackImage, {
+						autoAlpha: hasOpenItem ? 0 : 1,
+						duration: 0.4,
+						ease: "power1.inOut",
+					});
+				}
+			}
 
 			items.forEach((item, index) => {
 				const header = item.querySelector(".accordion-item_header, .faq-item_header");
@@ -1058,11 +1075,13 @@ function main() {
 					});
 				}
 
-				// create a timeline that starts “open” and then reverse() so panels start closed
+				// create a timeline that starts "open" and then reverse() so panels start closed
 				const tl = gsap
 					.timeline({
 						paused: true,
 						defaults: { duration: 0.4, ease: "power1.inOut" },
+						onComplete: updateFallbackImage,
+						onReverseComplete: updateFallbackImage,
 					})
 					.from(content, { height: 0 });
 
@@ -1075,7 +1094,6 @@ function main() {
 				item._tl = tl;
 
 				// accessibility setup
-
 				header.setAttribute("role", "button");
 				header.setAttribute("tabindex", "0");
 				header.setAttribute("aria-expanded", "false");
@@ -1098,13 +1116,21 @@ function main() {
 				});
 			});
 
-			// on load have first item open
+			// on load have first item open and hide fallback
 			if (items.length > 0) {
 				const firstItem = items[0];
 				firstItem._tl.reversed(false);
 				firstItem
 					.querySelector(".accordion-item_header, .faq-item_header")
 					.setAttribute("aria-expanded", "true");
+
+				// Update fallback image visibility after first item opens
+				updateFallbackImage();
+			} else {
+				// No items, ensure fallback is visible
+				if (fallbackImage) {
+					gsap.set(fallbackImage, { autoAlpha: 1 });
+				}
 			}
 		});
 	}
