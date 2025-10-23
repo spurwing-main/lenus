@@ -2331,18 +2331,16 @@ function main() {
 	}
 
 	function locations() {
-		// enable splide for all instances of c-locations
-		// enable hover events using GSAP for all .location-card elements:
-		//  - scale up the .location-card_media > img item
-		//  - capture the current card width and apply it as a fixed width to the card while we do the animation
-		//  - scale down the location-card_title
-		//  - increase the height of the _details element and increase its opacity from 0 to 1
-
 		const isMobile = window.matchMedia("(max-width: 768px)").matches;
+		const components = document.querySelectorAll(".c-locations.splide");
 
-		document.querySelectorAll(".c-locations.splide").forEach((component, index) => {
+		// Store all Splide instances for cross-component pause control
+		const allInstances = [];
+
+		components.forEach((component, index) => {
 			// alternate components go in opposite directions
-			const speed = index % 2 === 0 ? 0.5 : -0.5;
+			const speed = index % 2 === 0 ? 0.75 : -0.75;
+
 			// initalise Splide
 			var splideInstance = new Splide(component, {
 				type: "loop",
@@ -2350,13 +2348,12 @@ function main() {
 				arrows: false,
 				pagination: false,
 				snap: false,
-				//focus: "center",
 				gap: "0",
 				autoplay: false,
 				drag: "free",
 				autoScroll: {
 					speed: speed,
-					pauseOnHover: true,
+					pauseOnHover: false, // Disable built-in pauseOnHover
 				},
 				intersection: {
 					inView: {
@@ -2369,16 +2366,46 @@ function main() {
 			});
 			splideInstance.mount(window.splide.Extensions);
 
+			// Store instance reference
+			allInstances.push(splideInstance);
+
 			if (isMobile) return; // Skip hover interactions on mobile
 
 			const cards = lenus.helperFunctions.getCards(component);
+			console.log("Setting up location card hover animations for", cards.length, "cards.");
+
+			// Component-level hover handlers for autoscroll pause
+			const handleComponentMouseEnter = () => {
+				// Pause autoscroll on ALL instances
+				allInstances.forEach((instance) => {
+					if (instance.Components.AutoScroll) {
+						instance.Components.AutoScroll.pause();
+					}
+				});
+			};
+
+			const handleComponentMouseLeave = () => {
+				// Resume autoscroll on ALL instances
+				allInstances.forEach((instance) => {
+					if (instance.Components.AutoScroll) {
+						instance.Components.AutoScroll.play();
+					}
+				});
+			};
+
+			// Add hover listeners to the component
+			component.addEventListener("mouseenter", handleComponentMouseEnter);
+			component.addEventListener("mouseleave", handleComponentMouseLeave);
+
+			// Individual card hover animations
 			cards.forEach((card) => {
 				const media = card.querySelector(".location-card_media-inner");
 				const details = card.querySelector(".location-card_details");
 				const title = card.querySelector(".location-card_title");
-				const mediaText = card.querySelector(".location-card_media-text");
+				const ctaText = card.querySelector(".location-card_cta");
+				gsap.set(title, { transformOrigin: "bottom left", whiteSpace: "nowrap" });
 
-				if (!media || !details || !title) return;
+				if (!media || !details || !title || !ctaText) return;
 
 				const tl = gsap.timeline({
 					defaults: {
@@ -2403,36 +2430,33 @@ function main() {
 				});
 
 				tl.to(media, {
-					scale: 1.25,
+					scale: 1.05,
+					ease: "power2.out",
+					duration: 0.3,
 				})
 					.to(
 						title,
 						{
-							fontSize: "2.25rem",
+							scale: "0.95",
+							ease: "power2.out",
+							duration: 0.3,
 						},
 						"<"
 					)
 					.fromTo(
-						details,
+						ctaText,
 						{
-							height: 0,
 							opacity: 0,
+							ease: "power2.out",
+							duration: 0.2,
 						},
-						{
-							height: "auto",
-							opacity: 1,
-						},
-						"<"
-					)
-					.to(
-						mediaText,
 						{
 							opacity: 1,
 						},
 						"<"
 					);
 
-				// add hover events to the card
+				// add hover events to the card (these don't affect autoscroll)
 				card.addEventListener("mouseenter", () => {
 					tl.play();
 				});
@@ -5434,6 +5458,13 @@ function main() {
 
 					timeElements.forEach((timeElement) => {
 						timeElement.textContent = time;
+						if (
+							timeElement.dataset.localTimeProcessed === "false" ||
+							!timeElement.dataset.localTimeProcessed
+						) {
+							gsap.set(timeElement, { autoAlpha: 1 });
+							timeElement.dataset.localTimeProcessed = "true";
+						}
 					});
 
 					// Update images based on time of day (only if we have both day and night images)
