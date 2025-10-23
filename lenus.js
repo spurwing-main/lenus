@@ -528,7 +528,7 @@ function main() {
 			gsap.set(".logo-swap_logo", {
 				autoAlpha: 1,
 				scale: 1,
-				filter: `${invertFilter}blur(0px) grayscale(0)`,
+				filter: `${invertFilter}blur(0px) grayscale()`,
 			});
 
 			// Only start animation if visible
@@ -6811,7 +6811,7 @@ Features:
 	// gradTest1();
 	logoSwap();
 	videoCarousel();
-	ctaImage();
+	// ctaImage();
 	randomTestimonial();
 	accordion();
 	cardTrain();
