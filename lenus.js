@@ -3255,6 +3255,10 @@ function main() {
 			adjustedLeft += borderWidth;
 			adjustedWidth -= borderWidth * 2;
 
+			// minus a pixel from width each side to keep space between highlights
+			adjustedLeft += 1;
+			adjustedWidth -= 2;
+
 			if (state.moveTween) state.moveTween.kill();
 
 			const isHidden = gsap.getProperty(highlight, "autoAlpha") < 0.5;
