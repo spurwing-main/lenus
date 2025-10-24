@@ -2079,10 +2079,13 @@ function main() {
 				config: {
 					// focus: "center",
 					speed: 400,
+					perMove: 3,
+					clones: 3,
 					breakpoints: {
 						767: {
+							perMove: 1,
 							gap: "1rem",
-							autoWidth: false,
+							// autoWidth: false,
 						},
 					},
 				},
