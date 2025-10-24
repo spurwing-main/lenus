@@ -2074,10 +2074,11 @@ function main() {
 	}
 	function miniCarousel() {
 		document.querySelectorAll(".c-carousel.is-mini").forEach((component) => {
+			gsap.set(component, { autoAlpha: 0 });
 			console.log("Initializing mini carousel:", component);
 			const instance = lenus.helperFunctions.initSplideCarousel(component, {
 				config: {
-					// focus: "center",
+					// focus: "center", // focus is left for mini carousels
 					speed: 400,
 					perMove: 3,
 					clones: 3,
@@ -2085,7 +2086,6 @@ function main() {
 						767: {
 							perMove: 1,
 							gap: "1rem",
-							// autoWidth: false,
 						},
 					},
 				},
@@ -2093,6 +2093,7 @@ function main() {
 					// Find slide with .w--current link - use original slides only
 					const slides = instance.Components.Slides.get();
 					let targetIndex = null;
+					let hasActiveSlide = false;
 
 					// Filter out clones and only check original slides
 					const originalSlides = slides.filter((slideObj) => !slideObj.isClone);
@@ -2101,15 +2102,63 @@ function main() {
 						const currentLink = slideObj.slide.querySelector("a.w--current");
 						if (currentLink) {
 							targetIndex = slideObj.index; // Use the slideObj's actual index
+							hasActiveSlide = true;
 						}
 					});
 
-					// If we found a slide with .w--current, go to it
-					if (targetIndex !== null) {
-						console.log(
-							`Setting mini carousel active slide to index ${targetIndex} (contains .w--current)`
-						);
-						instance.go(targetIndex);
+					// Set up reveal function
+					const revealCarousel = () => {
+						gsap.to(component, { autoAlpha: 1, duration: 0.3 });
+					};
+
+					// Function to handle the final reveal logic
+					const handleReveal = () => {
+						if (hasActiveSlide && targetIndex !== null) {
+							console.log(
+								`Setting mini carousel active slide to index ${targetIndex} (contains .w--current)`
+							);
+
+							// Listen for the move completion, then reveal
+							const handleMoved = () => {
+								revealCarousel();
+								instance.off("moved", handleMoved); // Remove listener after first use
+							};
+
+							instance.on("moved", handleMoved);
+							instance.go(targetIndex);
+						} else {
+							// Fallback: No active slide found, reveal immediately
+							console.log("No active slide found in mini carousel, revealing immediately");
+							revealCarousel();
+						}
+					};
+
+					// Use imagesLoaded with fallback timer
+					if (typeof imagesLoaded !== "undefined") {
+						// Use imagesLoaded on the carousel component
+						const imgLoad = imagesLoaded(component);
+
+						// Create fallback timer (5 seconds)
+						const fallbackTimer = setTimeout(() => {
+							console.log("Mini carousel: fallback timer triggered after 5 seconds");
+							handleReveal();
+						}, 5000);
+
+						imgLoad.on("done", () => {
+							clearTimeout(fallbackTimer);
+							console.log("Mini carousel: all images loaded via imagesLoaded");
+							handleReveal();
+						});
+
+						imgLoad.on("fail", () => {
+							clearTimeout(fallbackTimer);
+							console.log("Mini carousel: some images failed to load, revealing anyway");
+							handleReveal();
+						});
+					} else {
+						// Fallback if imagesLoaded is not available
+						console.warn("imagesLoaded not available, revealing mini carousel immediately");
+						handleReveal();
 					}
 				},
 			});
