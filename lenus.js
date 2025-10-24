@@ -2108,6 +2108,7 @@ function main() {
 
 					// Set up reveal function
 					const revealCarousel = () => {
+						component.setAttribute("data-loaded", "true");
 						gsap.to(component, { autoAlpha: 1, duration: 0.3 });
 					};
 
