@@ -2521,7 +2521,7 @@ function main() {
 
 			const map = new mapboxgl.Map({
 				container: mapContainer,
-				style: "mapbox://styles/spurwing-sp/cm0pfyq2r00je01pb5lf74zb3",
+				// style: "mapbox://styles/spurwing-sp/cm0pfyq2r00je01pb5lf74zb3",
 				center: [lng, lat],
 				zoom: 15,
 			});
