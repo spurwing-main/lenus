@@ -2114,18 +2114,26 @@ function main() {
 					// Function to handle the final reveal logic
 					const handleReveal = () => {
 						if (hasActiveSlide && targetIndex !== null) {
-							console.log(
-								`Setting mini carousel active slide to index ${targetIndex} (contains .w--current)`
-							);
-
-							// Listen for the move completion, then reveal
-							const handleMoved = () => {
+							// Check if we're already at the target index (no movement needed)
+							if (instance.index === targetIndex) {
+								console.log(
+									`Mini carousel already at active slide index ${targetIndex}, revealing immediately`
+								);
 								revealCarousel();
-								instance.off("moved", handleMoved); // Remove listener after first use
-							};
+							} else {
+								console.log(
+									`Setting mini carousel active slide to index ${targetIndex} (contains .w--current)`
+								);
 
-							instance.on("moved", handleMoved);
-							instance.go(targetIndex);
+								// Listen for the move completion, then reveal
+								const handleMoved = () => {
+									revealCarousel();
+									instance.off("moved", handleMoved); // Remove listener after first use
+								};
+
+								instance.on("moved", handleMoved);
+								instance.go(targetIndex);
+							}
 						} else {
 							// Fallback: No active slide found, reveal immediately
 							console.log("No active slide found in mini carousel, revealing immediately");
