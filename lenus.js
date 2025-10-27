@@ -558,6 +558,17 @@ function main() {
 				const xSpeed = parseFloat(el.getAttribute("data-parallax-x")) || 0;
 				let startX = 50 * xSpeed;
 				let endX = -50 * xSpeed;
+
+				// Check if mobile (768px and below)
+				const isMobile = window.matchMedia("(max-width: 768px)").matches;
+
+				// Mobile-specific adjustments
+				if (isMobile) {
+					// On mobile, animate from startX to natural position (0)
+					endX = 0;
+					endY = 0;
+				}
+
 				gsap.fromTo(
 					el,
 					{ yPercent: startY, xPercent: startX },
@@ -568,7 +579,9 @@ function main() {
 						scrollTrigger: {
 							trigger: trigger,
 							start: "top bottom",
-							end: "bottom top",
+							// On mobile, end when trigger is 20% from top of viewport
+							// This means element reaches natural position at 20% from top
+							end: isMobile ? "top 20%" : "bottom top",
 							scrub: true,
 						},
 					}
