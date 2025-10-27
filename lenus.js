@@ -72,8 +72,10 @@ function main() {
 		const LIGHT_THEMES = ["base", "chalk", "slate", "light-grey"];
 		const header = document.querySelector(".header");
 		if (!header) return;
-		let state = "light"; // current theme state
+
 		const attributeName = "data-wf--section-group--theme";
+		const headerTheme = header.getAttribute("data-wf--header--theme") || "light"; // get initial theme from header
+		let state = headerTheme === "dark" ? "dark" : "light"; // track current state
 
 		const sectionGroups = gsap.utils.toArray(`[${attributeName}]`);
 
@@ -89,6 +91,8 @@ function main() {
 		// Single timeline for header theme animation
 		let headerThemeTl = null;
 		function setupHeaderThemeTimeline() {
+			const targets = [header, document.querySelector(".nav-mega_bg")].filter(Boolean);
+
 			const darkThemer = document.querySelector(".nav-dark-themer");
 			const lightThemer = document.querySelector(".nav-light-themer");
 
@@ -117,6 +121,7 @@ function main() {
 				"--_theme---nav--bg",
 				"--_theme---nav--col-header",
 				"--_theme---nav--search-border",
+				"--_theme---nav--bg-mbl",
 			];
 
 			// Helper function to extract values from computed styles
@@ -132,21 +137,10 @@ function main() {
 			const lightVars = getThemeValues(lightThemer);
 
 			// Animate to dark theme values
-			headerThemeTl.to(
-				header,
-				{
-					...darkVars,
-					duration: 0.3,
-				},
-				0
-			);
+			headerThemeTl.fromTo(targets, { ...lightVars }, { ...darkVars, duration: 0.3 }, 0);
 
-			// Set initial light theme values
-			gsap.set(header, lightVars);
+			headerThemeTl.progress(state === "dark" ? 1 : 0);
 		}
-
-		// Setup header theme timeline once
-		setupHeaderThemeTimeline();
 
 		// Only create ScrollTriggers for dark section groups
 		// Store header theme ScrollTriggers for clean management
@@ -171,7 +165,6 @@ function main() {
 						trigger: group,
 						start: () => `top ${getNavHeight()}px`,
 						end: () => `bottom top`,
-						scrub: true,
 						onEnter: () => {
 							console.log(
 								`[headerTheme] onEnter: idx=${idx}, variant=${variant}, theme=${theme} (DARK)`
@@ -221,7 +214,6 @@ function main() {
 				}
 			});
 		}
-		createHeaderThemeScrollTriggers();
 
 		// Initial setup: timeline, triggers, and theme
 		setupHeaderThemeTimeline();
@@ -236,8 +228,8 @@ function main() {
 				}
 			});
 			const variant = found
-				? found.getAttribute("data-wf--section-group--variant")
-				: sectionGroups[0]?.getAttribute("data-wf--section-group--variant");
+				? found.getAttribute(attributeName)
+				: sectionGroups[0]?.getAttribute(attributeName);
 			if (DARK_THEMES.includes(variant)) {
 				// if state is already dark, do nothing
 				if (state === "dark") return;
@@ -2231,7 +2223,7 @@ function main() {
 					gsap.set(bg, {
 						width: "100%",
 						height: "100%",
-						scale: 1.05,
+						// scale: 1.05,
 					});
 					const tl = gsap.timeline({
 						onComplete: () => {},
@@ -5171,7 +5163,7 @@ function main() {
 					},
 				});
 
-				tl.timeScale(1.35);
+				tl.timeScale(1.6);
 
 				const staggerAmount = 0.07;
 				const duration = 0.5;
