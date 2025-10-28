@@ -5649,6 +5649,9 @@ function main() {
 						// Handle department - use first department or fallback to "General"
 						job.jobDepartment = job.departments?.[0]?.name || "";
 						job.jobLocation = job.location?.name || "";
+						if (job.jobLocation) {
+							job.jobLocation = simplifyLocation(job.jobLocation);
+						}
 					});
 
 					this.renderJobs(jobs, group_list);
@@ -5663,6 +5666,23 @@ function main() {
 					this.populateFilters({ locations, departments });
 				})
 				.catch((err) => console.error("Greenhouse fetch error:", err));
+
+			function simplifyLocation(name) {
+				// for names like "London, England, United Kingdom", just return "London, United Kingdom" - EXCEPT for US/Canada states, in which case keep state name but remove country
+				if (!name) return "";
+
+				const parts = name.split(",").map((p) => p.trim());
+				if (parts.length >= 3) {
+					const country = parts[parts.length - 1];
+					const stateOrProvince = parts[parts.length - 2];
+					const city = parts.slice(0, parts.length - 2).join(", ");
+					if (country === "United States" || country === "Canada") {
+						return `${city}, ${stateOrProvince}`;
+					}
+					return `${city}, ${country}`;
+				}
+				return name;
+			}
 		},
 
 		renderJobs(jobs, container) {
