@@ -6347,7 +6347,8 @@ function main() {
 			drag: true,
 			snap: true,
 			clones: 2, // default, will be disabled on overflow check
-			easing: "cubic-bezier(0.5, 0, 0.75, 0)",
+			// easing: "cubic-bezier(0.5, 0, 0.75, 0)", // ease in
+			easing: "cubic-bezier(0.25, 1, 0.5, 1)", // ease out
 		};
 
 		const mergedConfig = { ...defaultConfig, ...config };
