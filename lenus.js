@@ -5336,10 +5336,11 @@ function main() {
 					pauseOnHover: true,
 					pagination: false,
 					speed: 600,
+					arrows: false,
 					// Mobile breakpoint
 					breakpoints: {
 						767: {
-							arrows: true,
+							arrows: false,
 							gap: "0rem",
 						},
 					},
