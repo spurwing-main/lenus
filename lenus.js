@@ -2431,7 +2431,8 @@ function main() {
 
 		components.forEach((component, index) => {
 			// alternate components go in opposite directions
-			const speed = index % 2 === 0 ? 0.75 : -0.75;
+			const baseSpeed = index % 2 === 0 ? 0.75 : -0.75;
+			const speed = isMobile ? baseSpeed * 0.3 : baseSpeed; // reduce speed on mobile
 
 			// initalise Splide
 			var splideInstance = new Splide(component, {
