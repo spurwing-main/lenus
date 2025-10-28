@@ -77,7 +77,9 @@ function main() {
 		const headerTheme = header.getAttribute("data-wf--header--theme") || "light"; // get initial theme from header
 		let state = headerTheme === "dark" ? "dark" : "light"; // track current state
 
-		const sectionGroups = gsap.utils.toArray(`[${attributeName}]`);
+		console.log(`Initial header theme state: ${state}`);
+
+		const sectionGroups = gsap.utils.toArray(`.section-group`);
 
 		const getNavHeight = () =>
 			parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav--height")) || 0;
@@ -156,6 +158,10 @@ function main() {
 			console.log("Creating header theme ScrollTriggers...");
 			sectionGroups.forEach((group, idx) => {
 				const variant = group.getAttribute(attributeName);
+				// if no variant, assume light
+				if (!variant) {
+					variant = "light";
+				}
 				const theme = getTheme(variant);
 				console.log(`Section idx=${idx}, variant=${variant}, theme=${theme}`);
 
