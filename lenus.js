@@ -608,9 +608,21 @@ function main() {
 		// update sources once per mode
 		function updateSources(video, mode) {
 			if (video.dataset.videoLoaded) return; // skip if already done
-			// console.log(`Loading video sources for`, video, `mode=${mode}`);
+			console.group(`🎥 Loading video: ${video.id || "unnamed"} (${mode} mode)`);
 
-			video.querySelectorAll("source").forEach((srcEl) => {
+			const sources = video.querySelectorAll("source");
+			console.log(`Found ${sources.length} source elements`);
+
+			video.querySelectorAll("source").forEach((srcEl, index) => {
+				console.group(`Source ${index + 1}:`);
+
+				const data = srcEl.dataset;
+				console.log("Raw dataset:", {
+					srcDesktop: data.srcDesktop,
+					srcMobile: data.srcMobile,
+					typeDesktop: data.typeDesktop,
+					typeMobile: data.typeMobile,
+				});
 				const { srcMobile, srcDesktop, typeMobile, typeDesktop, codecsMobile, codecsDesktop } =
 					srcEl.dataset;
 				srcEl.src = ""; // reset src to avoid stale data
@@ -626,7 +638,11 @@ function main() {
 				let typeAttr = mime || "";
 				if (codecs) typeAttr += `; codecs="${codecs}"`;
 				if (typeAttr) srcEl.setAttribute("type", typeAttr);
+
+				console.groupEnd();
 			});
+
+			console.groupEnd();
 
 			video.load();
 			video.dataset.videoLoaded = "true";
@@ -1766,7 +1782,7 @@ function main() {
 							try {
 								vid.currentTime = prevTime || 0;
 							} catch (e) {}
-							if (!prevEnded) vid.play();
+							if (!prevEnded) primeAndPlay(vid);
 						}
 					}
 				});
@@ -1879,6 +1895,102 @@ function main() {
 
 			const debouncedUpdate = lenus.helperFunctions.debounce(updateMode);
 			window.addEventListener("resize", debouncedUpdate);
+
+			// Initial activation and mode setup
+			selectTab(0);
+			// scrollTabIntoView(tabs[0]);
+			updateMode();
+
+			// --- Prebuffered autoplay (no halfway logic) -------------------------------
+			const PREBUFFER = { seconds: 1.5, fraction: 0.25 }; // tweak to taste
+
+			function waitForMetadata(video) {
+				return new Promise((resolve) => {
+					if (Number.isFinite(video.duration) && video.duration > 0) return resolve();
+					const on = () => {
+						video.removeEventListener("loadedmetadata", on);
+						resolve();
+					};
+					video.addEventListener("loadedmetadata", on, { once: true });
+					video.load(); // kick off request
+				});
+			}
+
+			function waitForBufferedTo(video, targetTime, timeout = 2500) {
+				return new Promise(async (resolve) => {
+					await waitForMetadata(video);
+					const done = () => {
+						cleanup();
+						resolve();
+					};
+					const cleanup = () => {
+						video.removeEventListener("progress", check);
+						video.removeEventListener("canplaythrough", done);
+					};
+					const check = () => {
+						const b = video.buffered;
+						for (let i = 0; i < b.length; i++) {
+							if (b.start(i) <= 0 && b.end(i) >= targetTime) return done();
+						}
+						if (video.readyState >= 4) return done(); // HAVE_ENOUGH_DATA
+					};
+					video.addEventListener("progress", check);
+					video.addEventListener("canplaythrough", done);
+					check();
+					setTimeout(done, timeout);
+				});
+			}
+
+			async function primeAndPlay(video) {
+				if (!video) return;
+				video.preload = "auto";
+				video.playsInline = true;
+				if (!video.hasAttribute("muted")) video.muted = true; // keep autoplay reliable
+				video.pause();
+
+				await waitForMetadata(video);
+				const target = Math.min(
+					PREBUFFER.seconds,
+					(PREBUFFER.fraction || 0) * (video.duration || Infinity)
+				);
+				await waitForBufferedTo(video, target);
+				try {
+					await video.play();
+				} catch {}
+			}
+			// ---------------------------------------------------------------------------
+
+			// --- Pin only ---------------------------------------------------------------
+			const mediaWrap = component.querySelector(".tabbed-hero_media");
+			const END_OFFSET_PX = 10;
+			const mq = window.matchMedia("(max-width: 768px)");
+			let st;
+
+			function buildHeroST() {
+				st && st.kill();
+				st = null;
+				if (!mediaWrap) return; // add `|| mq.matches` to skip pin on mobile
+				st = ScrollTrigger.create({
+					trigger: component,
+					start: "top top",
+					end: `bottom top-=${END_OFFSET_PX}`,
+					pin: mediaWrap,
+					pinSpacing: true,
+					invalidateOnRefresh: true,
+					// If your layout benefits:
+					// pinType: "fixed",
+					// pinReparent: true,
+					onEnter: () => {
+						const vid = panels[activeIndex]?.querySelector("video");
+						if (vid) primeAndPlay(vid);
+					},
+				});
+			}
+			mq.addEventListener("change", () => {
+				buildHeroST();
+				ScrollTrigger.refresh();
+			});
+			buildHeroST();
 
 			// Initial activation and mode setup
 			selectTab(0);
