@@ -1504,675 +1504,508 @@ function main() {
 		});
 	}
 
-	function tabbedHero_v1() {
-		const CSS_VARS = { width: "--tab-controls--w", left: "--tab-controls--l" };
-		const CONTROL_CLASS = "tab-controls_item";
-		const controlPadding = 8; // padding for the control container
+	// -----------------------------------------------------------------------------
+	// SHARED TRACK CONTROLLER
+	// Drives highlight (via CSS vars), drag bounds, snapping, and resize updates.
+	// -----------------------------------------------------------------------------
 
-		document.querySelectorAll(".c-tabbed-hero").forEach(initHero);
+	function createToggleTrack({
+		host, // component element (where CSS vars can live)
+		track, // viewport element
+		list, // the scrolling flex list
+		items, // array of button/item elements
+		varsHost = host, // element to receive CSS vars
+		onSelect = () => {}, // callback(index, meta)
+		selectOnDrag = false, // if true: drag release selects nearest
+		fadeLeft = null,
+		fadeRight = null,
+	}) {
+		const CSS_VARS = { width: "--toggle-slider--w", left: "--toggle-slider--l" };
 
-		function initHero(component) {
-			// get all necessary elements
-			const container = component.querySelector(".container");
-			if (!container) return;
-			const panelWrapper = component.querySelector(".tabbed-hero_media-items");
-			if (!panelWrapper) return;
-			const panels = gsap.utils.toArray(".media", panelWrapper);
-			if (!panels.length) return;
-			const control = component.querySelector(".c-tab-controls");
-			if (!control) return;
-			const track = control.querySelector(".tab-controls_track");
-			const list = control.querySelector(".tab-controls_list");
-			if (!track || !list) return;
+		let active = 0;
+		let draggable = null;
+		let bounds = { minX: 0, maxX: 0 };
 
-			// set up variables
-			let currentIndex = 0;
-			let mode = "desktop"; // default mode
-			let bounds = {};
-			let snapPoints = [];
-			let draggableInstance = null;
-			let totalWidth = 0;
-			let gap = parseFloat(getComputedStyle(list).gap) || 0;
-			let paddingLeft = parseFloat(getComputedStyle(control).paddingLeft) || 0;
-			let paddingRight = parseFloat(getComputedStyle(control).paddingRight) || 0;
-			let listWidth = 0;
-
-			// build tabs and calculate snap points
-			const tabs = buildControls(list, panels);
-
-			if (checkDraggable()) {
-				initDraggable();
+		// ---- measurements (left-aligned model) -------------------
+		function measure() {
+			const style = getComputedStyle(list);
+			const gap = parseFloat(style.gap) || 0;
+			const listWidth =
+				items.reduce((w, el) => w + el.offsetWidth, 0) + gap * Math.max(items.length - 1, 0);
+			const trackWidth = track.clientWidth;
+			const overflowing = listWidth > trackWidth + 0.5;
+			bounds = { minX: Math.min(0, trackWidth - listWidth), maxX: 0 };
+			// fade vis
+			if (fadeLeft && fadeRight) {
+				const show = overflowing ? "block" : "none";
+				fadeLeft.style.display = show;
+				fadeRight.style.display = show;
 			}
+			return {
+				listWidth,
+				trackWidth,
+				overflowing,
+				avgItem: items.length ? listWidth / items.length : 0,
+			};
+		}
 
-			// click support
-			tabs.forEach((tab, idx) => {
-				tab.addEventListener("click", () => {
-					scrollToIndex(list, idx, tabs);
-					activate(idx);
-				});
+		// ---- highlight -------------------------------------------------------------
+		function setHighlight(i, immediate = false) {
+			const el = items[i];
+			if (!el) return;
+			const left = el.offsetLeft;
+			const width = el.offsetWidth;
+			const vars = { [CSS_VARS.left]: `${left}px`, [CSS_VARS.width]: `${width}px` };
+			immediate
+				? gsap.set(varsHost, vars)
+				: gsap.to(varsHost, { ...vars, duration: 0.28, ease: "power2.out" });
+		}
+
+		const clampX = (x) => gsap.utils.clamp(bounds.minX, bounds.maxX, x);
+
+		function centerIndex(i, immediate = false) {
+			const el = items[i];
+			if (!el || !track) return;
+			const trackCenter = track.clientWidth / 2;
+			const itemCenter = el.offsetLeft + el.offsetWidth / 2;
+			const x = clampX(trackCenter - itemCenter);
+			immediate ? gsap.set(list, { x }) : gsap.to(list, { x, duration: 0.35, ease: "power2.out" });
+		}
+
+		function closestIndexToCenter() {
+			const rect = track.getBoundingClientRect();
+			const center = rect.left + rect.width / 2;
+			let best = 0,
+				min = Infinity;
+			items.forEach((el, i) => {
+				const r = el.getBoundingClientRect();
+				const c = r.left + r.width / 2;
+				const d = Math.abs(c - center);
+				if (d < min) {
+					min = d;
+					best = i;
+				}
 			});
-
-			function activate(i) {
-				activateTab(component, tabs, panels, i);
-				moveHighlight(tabs[i]);
-			}
-
-			function updateValues() {
-				function updateGap() {
-					gap = parseFloat(getComputedStyle(list).gap) || 0;
-					console.log("Gap updated:", gap);
-				}
-
-				function updateTotalWidth() {
-					let width = 0;
-					tabs.forEach((tab) => {
-						width += tab.offsetWidth;
-					});
-					width = width + gap * (tabs.length - 1);
-					totalWidth = width;
-					console.log("Total width updated:", totalWidth);
-				}
-
-				function updatePadding() {
-					paddingLeft = parseFloat(getComputedStyle(control).paddingLeft) || 0;
-					paddingRight = parseFloat(getComputedStyle(control).paddingRight) || 0;
-				}
-				updateGap();
-				updateTotalWidth();
-				updatePadding();
-				listWidth = control.clientWidth - paddingLeft - paddingRight;
-			}
-
-			// initial activation
-			activate(0);
-
-			// decide if draggable is needed
-			function checkDraggable() {
-				updateValues();
-
-				console.log(
-					"Total item width:",
-					totalItemWidth,
-					"List width:",
-					listWidth,
-					"Draggable needed:",
-					totalItemWidth > listWidth
-				);
-				return totalItemWidth > listWidth;
-			}
-
-			function initDraggable() {
-				if (draggableInstance) return;
-				// set list flex to start
-				gsap.set(list, {
-					justifyContent: "flex-start",
-				});
-				snapPoints = calculateSnapPoints(list, tabs, control);
-				draggableInstance = Draggable.create(list, {
-					type: "x",
-					bounds: {
-						minX: Math.min(...snapPoints),
-						maxX: 0,
-					},
-					inertia: true,
-					cursor: "grab",
-					activeCursor: "grabbing",
-					snap: (endValue) =>
-						snapPoints.reduce(
-							(prev, curr) => (Math.abs(curr - endValue) < Math.abs(prev - endValue) ? curr : prev),
-							snapPoints[0]
-						),
-					onDragEnd: function () {
-						const idx = snapPoints.indexOf(this.endX);
-						activate(idx);
-					},
-					onThrowComplete: function () {
-						const idx = snapPoints.indexOf(this.x);
-						activate(idx);
-					},
-				})[0];
-			}
-
-			function destroyDraggable() {
-				if (draggableInstance) {
-					draggableInstance.kill();
-					draggableInstance = null;
-					gsap.set(list, { x: 0 });
-				}
-			}
-
-			function updateMode() {
-				if (checkDraggable()) {
-					initDraggable();
-				} else {
-					destroyDraggable();
-				}
-			}
-
-			window.addEventListener("resize", lenus.helperFunctions.debounce(updateMode, 200));
-			updateMode();
+			return best;
 		}
 
-		function buildControls(container, panels) {
-			container.innerHTML = "";
-			return panels.map((panel, i) => {
-				const btn = document.createElement("div");
-				btn.className = CONTROL_CLASS;
-				btn.textContent = panel.dataset.title;
-				btn.dataset.tabIndex = i;
-				container.appendChild(btn);
-				return btn;
-			});
+		// ---- selection -------------------------------------------------------------
+		function select(i, { immediate = false, center = true, source = "program" } = {}) {
+			if (i < 0 || i >= items.length) return;
+			active = i;
+			items.forEach((el, idx) => el.classList.toggle("is-active", idx === i));
+			setHighlight(i, immediate);
+			if (center) centerIndex(i, immediate);
+			onSelect(i, { source });
 		}
 
-		function calculateSnapPoints(list, tabs, parent) {
-			const gap = parseFloat(getComputedStyle(list).gap) || 0;
-			const parentWidth = parent.offsetWidth;
-			const points = tabs.map((tab) => -tab.offsetLeft);
-			const maxShift = list.offsetWidth - parentWidth;
-			if (maxShift > 0) points[points.length - 1] = -maxShift;
-			console.log("Calculated snap points:", points);
-			return points;
+		// ---- draggable -------------------------------------------------------------
+		function ensureDraggable() {
+			if (draggable) return;
+			draggable = Draggable.create(list, {
+				type: "x",
+				bounds,
+				inertia: true,
+				edgeResistance: 0.85,
+				allowNativeTouchScrolling: false,
+				cursor: "grab",
+				activeCursor: "grabbing",
+				onDrag: function () {
+					const clamped = clampX(this.x);
+					if (clamped !== this.x) gsap.set(list, { x: clamped });
+				},
+				onDragEnd: () => {
+					if (selectOnDrag) select(closestIndexToCenter(), { source: "drag" });
+				},
+			})[0];
 		}
 
-		function updateTotalWidth(list, tabs) {
-			const gap = parseFloat(getComputedStyle(list).gap) || 0;
-
-			function generateBounds(list, tabs) {
-				const controlWidth = control.offsetWidth;
-				bounds = { minX: Math.min(controlWidth - totalWidth, 0), maxX: 0 };
-			}
-
-			function scrollToIndex(list, idx, tabs) {
-				gsap.to(list, { x: snapPoints[idx], duration: 0.4, ease: "power2.out" });
-				// update current index
-				currentIndex = idx;
-				console.log(`Scrolled to index ${idx}:`, tabs[idx].textContent);
-			}
-
-			function moveHighlight(tab) {
-				const comp = tab.closest(".c-tabbed-hero");
-				const left = tab.offsetLeft;
-				const width = tab.offsetWidth;
-				gsap.to(comp, {
-					[CSS_VARS.left]: `${left + controlPadding}px`,
-					[CSS_VARS.width]: `${width}px`,
-					duration: 0.3,
-					ease: "power2.out",
-				});
-			}
-
-			function activateTab(component, tabs, panels, idx) {
-				const oldPanel = component.querySelector(".media.is-active");
-				const lastTime = preserveVideoTime(oldPanel);
-				tabs.forEach((t, i) => t.classList.toggle("is-active", i === idx));
-				panels.forEach((p, i) => p.classList.toggle("is-active", i === idx));
-				panels.forEach((p, i) => gsap.set(p, { autoAlpha: i === idx ? 1 : 0 }));
-				const newVid = panels[idx].querySelector("video");
-				if (newVid) {
-					newVid.currentTime = lastTime;
-					newVid.play();
-				}
-			}
-
-			function preserveVideoTime(panel) {
-				if (!panel) return 0;
-				const vid = panel.querySelector("video");
-				if (vid) {
-					const t = vid.currentTime;
-					vid.pause();
-					return t;
-				}
-				return 0;
-			}
+		function killDraggable() {
+			if (!draggable) return;
+			draggable.kill();
+			draggable = null;
+			gsap.set(list, { x: 0, cursor: "" });
 		}
+
+		function update() {
+			const { overflowing } = measure();
+			list.style.justifyContent = overflowing ? "flex-start" : ""; // stabilize offsets
+			if (overflowing) {
+				ensureDraggable();
+				draggable.applyBounds(bounds);
+				const cur = gsap.getProperty(list, "x") || 0;
+				gsap.set(list, { x: clampX(cur) });
+			} else {
+				killDraggable();
+			}
+			setHighlight(active, true);
+		}
+
+		// --- init + observers -------------------------------------------------------
+		measure();
+		setHighlight(active, true);
+		update();
+
+		const onWinResize = lenus?.helperFunctions?.debounce
+			? lenus.helperFunctions.debounce(update, 150)
+			: update;
+		window.addEventListener("resize", onWinResize);
+		const ro = new ResizeObserver(() => onWinResize());
+		ro.observe(track);
+
+		return {
+			select,
+			update,
+			getActive: () => active,
+			getAvgItem: () => measure().avgItem,
+			isOverflow: () => measure().overflowing,
+			setSelectOnDrag(val) {
+				if (!draggable) selectOnDrag = val;
+				else
+					draggable.vars.onDragEnd = () => {
+						if (val) select(closestIndexToCenter(), { source: "drag" });
+					};
+			},
+			destroy() {
+				window.removeEventListener("resize", onWinResize);
+				ro.disconnect();
+				killDraggable();
+			},
+		};
 	}
 
-	function tabbedHero() {
-		const CSS_VARS = { width: "--toggle-slider--w", left: "--toggle-slider--l" };
-		const CONTROL_ITEM = "tab-controls_item";
+	function tabsWithToggleSlider() {
+		document.querySelectorAll("[data-tabs-element='component']").forEach((component) => {
+			const controls = component.querySelector("[data-tabs-element='controls']");
+			const track = component.querySelector("[data-tabs-element='controls-track']");
+			const list = component.querySelector("[data-tabs-element='controls-list']");
+			const panelsList = component.querySelector("[data-tabs-element='panel-list']");
+			if (!controls || !track || !list || !panelsList) return;
 
-		document.querySelectorAll(".c-tabbed-hero").forEach(setupHero);
+			//  find panels
+			let panels = Array.from(panelsList.querySelectorAll("[data-tabs-element='panel']"));
+			console.log(panels);
 
-		function setupHero(component) {
-			const control = component.querySelector(".c-tab-controls");
-			const list = component.querySelector(".tab-controls_list");
-			const track = component.querySelector(".tab-controls_track");
-			const panels = Array.from(component.querySelectorAll(".tabbed-hero_media-items .media"));
-			let bounds = {};
-			if (!control || !list || panels.length === 0) return;
+			// If no panels found, abort quietly
+			if (!panels.length) return;
 
-			let draggable = null;
+			// --- build or reuse buttons ----------------------------------------------
+			let tabs = Array.from(list.querySelectorAll("[data-tabs-element='controls-item']"));
+			const hasPrebuiltButtons = tabs.length > 0;
 
-			// Build controls
-			list.innerHTML = "";
-			panels.forEach((panel, idx) => {
-				const btn = document.createElement("button");
-				btn.className = CONTROL_ITEM;
-				btn.textContent = panel.dataset.title;
-				btn.dataset.index = idx;
-				btn.addEventListener("click", () => selectTab(idx));
-				list.appendChild(btn);
+			if (!hasPrebuiltButtons) {
+				list.innerHTML = "";
+				panels.forEach((panel, i) => {
+					const btn = document.createElement("button");
+					btn.className = "tab-controls_item";
+					// get label from panel data attribute or default
+					const label = panel.getAttribute("data-tabs-title") || `Tab ${i + 1}`;
+					btn.textContent = label;
+					btn.dataset.index = i;
+					list.appendChild(btn);
+				});
+				tabs = Array.from(list.querySelectorAll(".tab-controls_item"));
+			} else {
+				// If buttons are prebuilt, map them to panels:
+				//  - If a button has data-tab-target it may be a selector or #id to find its panel.
+				//  - Otherwise we map by index order.
+				tabs.forEach((btn, i) => {
+					const tgt = btn.getAttribute("data-tab-target");
+					let panel = null;
+					if (tgt) panel = component.querySelector(tgt);
+					btn._panel = panel || panels[i] || null;
+				});
+				// Reorder panels to match prebuilt mapping if most buttons specify a target.
+				const mapped = tabs.map((b, i) => b._panel || panels[i]).filter(Boolean);
+				if (mapped.length === tabs.length) panels = mapped;
+			}
+
+			// --- accessibility (basic) -----------------------------------------------
+			tabs.forEach((btn, i) => {
+				btn.setAttribute("role", "tab");
+				btn.setAttribute("aria-controls", panels[i]?.id || "");
+				btn.setAttribute("aria-selected", "false");
 			});
+			panels.forEach((p) => p.setAttribute("role", "tabpanel"));
 
-			const tabs = Array.from(list.children);
-			let activeIndex = 0;
-
-			function selectTab(i) {
-				// preserve previous video time
-				let prevTime = 0,
-					prevEnded = false;
-				const prevPanel = panels[activeIndex];
-				if (prevPanel && prevPanel.classList.contains("is-active")) {
-					const prevVid = prevPanel.querySelector("video");
-					if (prevVid && !isNaN(prevVid.currentTime)) {
-						prevTime = prevVid.currentTime;
-						prevEnded = prevVid.ended;
-					}
+			// --- video state persistence ---------------------------------------------
+			// We remember currentTime and whether it was playing when the tab was left.
+			const videoState = new WeakMap(); // key: video Element => { time, wasPlaying }
+			function saveVideoState(panel) {
+				const v = panel?.querySelector?.("video");
+				if (!v) return;
+				videoState.set(v, { time: v.currentTime || 0, wasPlaying: !v.paused && !v.ended });
+				v.pause();
+			}
+			async function restoreVideoState(panel, { autoplay = true } = {}) {
+				const v = panel?.querySelector?.("video");
+				if (!v) return;
+				const state = videoState.get(v);
+				await ensureMetadata(v);
+				if (state && Number.isFinite(state.time)) {
+					try {
+						v.currentTime = state.time;
+					} catch {}
 				}
-
-				tabs.forEach((tab, idx) => tab.classList.toggle("is-active", idx === i));
-				panels.forEach((panel, idx) => {
-					const active = idx === i;
-					panel.classList.toggle("is-active", active);
-					gsap.to(panel, { autoAlpha: active ? 1 : 0 });
-					if (active) {
-						const vid = panel.querySelector("video");
-						if (vid) {
-							try {
-								vid.currentTime = prevTime || 0;
-							} catch (e) {}
-							if (!prevEnded) primeAndPlay(vid);
-						}
-					}
-				});
-
-				moveHighlight(tabs[i]);
-				scrollTabIntoView(tabs[i]); // <-- keep active tab visible when draggable
-				activeIndex = i;
-			}
-
-			function moveHighlight(tab) {
-				const left = tab.offsetLeft;
-				const width = tab.offsetWidth;
-				gsap.to(component, {
-					[CSS_VARS.left]: `${left}px`,
-					[CSS_VARS.width]: `${width}px`,
-					duration: 0.3,
-					ease: "power2.out",
-				});
-			}
-
-			// Calculate correct draggable bounds based on overflow
-			function updateBounds() {
-				const { tabsWidth, trackWidth } = getWidths();
-				const startOffset = (tabsWidth - trackWidth) / 2; // assuming centered
-
-				// if tabsWidth is LESS than trackWidth
-				if (tabsWidth < trackWidth) {
-					return { minX: 0, maxX: 0 };
-				}
-
-				bounds = { minX: -tabsWidth + trackWidth + startOffset, maxX: startOffset };
-			}
-
-			function getWidths() {
-				let tabsWidth = 0;
-				tabs.forEach((tab) => {
-					tabsWidth += tab.offsetWidth;
-				});
-				const trackWidth = track.offsetWidth;
-				return { tabsWidth, trackWidth };
-			}
-
-			// Ensure a tab is inside the visible viewport of the control
-			function scrollTabIntoView(tab) {
-				// we want the active tab to be as close to center as possible
-
-				if (!draggable) return;
-
-				const currentX = gsap.getProperty(list, "x") || 0;
-
-				const tabRect = tab.getBoundingClientRect();
-				const wrapRect = track.getBoundingClientRect();
-
-				let targetX = currentX;
-
-				// Center the active tab in the viewport
-				const tabCenter = tabRect.left + tabRect.width / 2;
-				const wrapCenter = wrapRect.left + wrapRect.width / 2;
-				targetX += wrapCenter - tabCenter;
-
-				// Clamp within bounds and animate
-				targetX = gsap.utils.clamp(bounds.minX, bounds.maxX, targetX);
-				gsap.to(list, { x: targetX, duration: 0.3, ease: "power2.out" });
-			}
-
-			function updateMode() {
-				// check if overflowing
-				const { tabsWidth, trackWidth } = getWidths();
-				const overflowing = tabsWidth > trackWidth;
-
-				if (overflowing && !draggable) {
-					gsap.set(list, { x: 0, cursor: "grab" });
-
-					draggable = Draggable.create(list, {
-						type: "x",
-						bounds: bounds,
-						inertia: true,
-						edgeResistance: 0.85,
-						allowContextMenu: true,
-						allowNativeTouchScrolling: false,
-						cursor: "grab",
-						activeCursor: "grabbing",
-						onDrag: function () {
-							// protect against overscroll on very fast flicks if inertia disabled
-							const clamped = gsap.utils.clamp(bounds.minX, bounds.maxX, this.x);
-							if (clamped !== this.x) gsap.set(list, { x: clamped });
-						},
-					})[0];
-				} else if (!overflowing && draggable) {
-					draggable.kill();
-					draggable = null;
-					gsap.set(list, { x: 0, cursor: "" });
-				}
-				// when first set up, scroll the controls to the first item
-				// scrollTabIntoView(tabs[0]);
-
-				// If we have a draggable already, refresh its bounds (e.g., on resize)
-				if (draggable) {
-					updateBounds();
-					draggable.applyBounds(bounds);
-					// snap current x into the new bounds so it never gets stuck out of range
-					const currentX = gsap.getProperty(list, "x") || 0;
-					const clamped = gsap.utils.clamp(bounds.minX, bounds.maxX, currentX);
-					if (clamped !== currentX) gsap.set(list, { x: clamped });
-					// update highlight
-					moveHighlight(tabs[activeIndex]);
-					// scrollTabIntoView(tabs[activeIndex]);
+				if (autoplay) {
+					try {
+						await primeAndPlay(v);
+					} catch {}
 				}
 			}
 
-			const debouncedUpdate = lenus.helperFunctions.debounce(updateMode);
-			window.addEventListener("resize", debouncedUpdate);
-
-			// Initial activation and mode setup
-			selectTab(0);
-			// scrollTabIntoView(tabs[0]);
-			updateMode();
-
-			// --- Prebuffered autoplay (no halfway logic) -------------------------------
-			const PREBUFFER = { seconds: 1.5, fraction: 0.25 }; // tweak to taste
-
-			function waitForMetadata(video) {
+			function ensureMetadata(video) {
+				if (Number.isFinite(video.duration) && video.duration > 0) return Promise.resolve();
 				return new Promise((resolve) => {
-					if (Number.isFinite(video.duration) && video.duration > 0) return resolve();
 					const on = () => {
 						video.removeEventListener("loadedmetadata", on);
 						resolve();
 					};
 					video.addEventListener("loadedmetadata", on, { once: true });
-					video.load(); // kick off request
+					video.load();
 				});
 			}
-
-			function waitForBufferedTo(video, targetTime, timeout = 2500) {
-				return new Promise(async (resolve) => {
-					await waitForMetadata(video);
-					const done = () => {
-						cleanup();
-						resolve();
-					};
-					const cleanup = () => {
-						video.removeEventListener("progress", check);
-						video.removeEventListener("canplaythrough", done);
-					};
-					const check = () => {
-						const b = video.buffered;
-						for (let i = 0; i < b.length; i++) {
-							if (b.start(i) <= 0 && b.end(i) >= targetTime) return done();
-						}
-						if (video.readyState >= 4) return done(); // HAVE_ENOUGH_DATA
-					};
-					video.addEventListener("progress", check);
-					video.addEventListener("canplaythrough", done);
-					check();
-					setTimeout(done, timeout);
-				});
-			}
-
 			async function primeAndPlay(video) {
-				if (!video) return;
+				// light-weight "prebuffer tiny slice then play" for quick start
 				video.preload = "auto";
 				video.playsInline = true;
-				if (!video.hasAttribute("muted")) video.muted = true; // keep autoplay reliable
-				video.pause();
-
-				await waitForMetadata(video);
-				const target = Math.min(
-					PREBUFFER.seconds,
-					(PREBUFFER.fraction || 0) * (video.duration || Infinity)
-				);
-				await waitForBufferedTo(video, target);
+				if (!video.hasAttribute("muted")) video.muted = true; // improve autoplay reliability
+				await ensureMetadata(video);
 				try {
 					await video.play();
 				} catch {}
 			}
-			// ---------------------------------------------------------------------------
 
-			// --- Pin only ---------------------------------------------------------------
-			const mediaWrap = component.querySelector(".tabbed-hero_media");
-			const END_OFFSET_PX = 10;
-			const mq = window.matchMedia("(max-width: 768px)");
-			let st;
+			// --- show/hide panels + play logic ---------------------------------------
+			function showPanel(i, { immediate = false } = {}) {
+				panels.forEach((p, idx) => {
+					const active = idx === i;
+					p.classList.toggle("is-active", active);
+					if (active) {
+						gsap.to(p, { autoAlpha: 1, duration: immediate ? 0 : 0.28, ease: "power2.out" });
+						// Refresh Splide carousels in the active panel
+						refreshSplideInPanel(p, immediate);
+					} else {
+						gsap.to(p, { autoAlpha: 0, duration: immediate ? 0 : 0.28, ease: "power2.out" });
+					}
+				});
 
-			function buildHeroST() {
-				st && st.kill();
-				st = null;
-				if (!mediaWrap) return; // add `|| mq.matches` to skip pin on mobile
-				st = ScrollTrigger.create({
-					trigger: component,
-					start: "top top",
-					end: `bottom top-=${END_OFFSET_PX}`,
-					pin: mediaWrap,
-					pinSpacing: true,
-					invalidateOnRefresh: true,
-					// If your layout benefits:
-					// pinType: "fixed",
-					// pinReparent: true,
-					onEnter: () => {
-						const vid = panels[activeIndex]?.querySelector("video");
-						if (vid) primeAndPlay(vid);
-					},
+				// video: restore on the new panel (if any)
+				restoreVideoState(panels[i], { autoplay: true });
+			}
+
+			// refresh Splide instances in a panel by recreating them
+			function refreshSplideInPanel(panel, immediate = false) {
+				
+					// Get the stored config
+					const storedConfig = panel._splideConfig;
+					console.log("Refreshing Splide in panel with stored config:", storedConfig);
+					if (!storedConfig) {
+						console.warn("No stored Splide config found on pricing panel");
+						return;
+					}
+
+					// Small delay to ensure panel is fully visible
+					const delay = immediate ? 0 : 1000;
+
+					setTimeout(() => {
+						// Destroy existing instance if it exists
+						if (panel.splide) {
+							console.log("Destroying existing Splide in panel before refresh");
+							lenus.helperFunctions.destroySplide(panel.splide);
+							panel.splide = null;
+						}
+
+						// Recreate the carousel using stored config
+						const instance = lenus.helperFunctions.initSplideCarousel(panel, {
+							...storedConfig,
+							onMounted: (splideInstance) => {
+								panel.splide = splideInstance;
+								console.log("Recreated Splide in panel:", splideInstance);
+							},
+						
+					}, delay);
 				});
 			}
-			mq.addEventListener("change", () => {
-				buildHeroST();
-				ScrollTrigger.refresh();
-			});
-			buildHeroST();
 
-			// Initial activation and mode setup
-			selectTab(0);
-			// scrollTabIntoView(tabs[0]);
-			updateMode();
-		}
+			// --- controller (drag-to-scroll only; click selects) ----------------------
+			const controller = createToggleTrack({
+				host: component,
+				track,
+				list,
+				items: tabs,
+				varsHost: component,
+				onSelect: () => {},
+				selectOnDrag: false, // hero tabs: drag scrolls only
+			});
+
+			// --- interactions ---------------------------------------------------------
+			let activeIndex =
+				Math.max(
+					0,
+					tabs.findIndex((b) => b.classList.contains("is-active"))
+				) ||
+				Math.max(
+					0,
+					panels.findIndex((p) => p.classList.contains("is-active"))
+				) ||
+				0;
+
+			function activate(i, { immediate = false, source = "program" } = {}) {
+				if (i === activeIndex) return;
+				// save video state on outgoing
+				saveVideoState(panels[activeIndex]);
+
+				// UI + aria
+				tabs.forEach((t, n) => {
+					const isActive = n === i;
+					t.classList.toggle("is-active", isActive);
+					t.setAttribute("aria-selected", isActive ? "true" : "false");
+				});
+
+				// switch content
+				showPanel(i, { immediate });
+
+				// center slider + move highlight
+				controller.select(i, { immediate, center: true, source });
+
+				activeIndex = i;
+			}
+
+			tabs.forEach((tab, idx) =>
+				tab.addEventListener("click", () => activate(idx, { source: "click" }))
+			);
+
+			// Initial state
+			// Ensure correct active classes, highlight and content without flicker.
+			tabs.forEach((t, n) => {
+				const isActive = n === activeIndex;
+				t.classList.toggle("is-active", isActive);
+				t.setAttribute("aria-selected", isActive ? "true" : "false");
+			});
+			panels.forEach((p, n) => gsap.set(p, { autoAlpha: n === activeIndex ? 1 : 0 }));
+			controller.select(activeIndex, { immediate: true, center: true });
+			showPanel(activeIndex, { immediate: true });
+
+			// --- Optional: pin the media column if it exists (hero variant) ----------
+			const mediaWrap = component.querySelector(".tabbed-hero_media");
+			if (mediaWrap) {
+				let st;
+				const END_OFFSET_PX = 10;
+				const buildHeroST = () => {
+					st && st.kill();
+					st = null;
+					st = ScrollTrigger.create({
+						trigger: component,
+						start: "top top",
+						end: `bottom top-=${END_OFFSET_PX}`,
+						pin: mediaWrap,
+						pinSpacing: true,
+						invalidateOnRefresh: true,
+						onEnter: () => {
+							// ensure current panel's video starts when section becomes in-view
+							const vid = panels[activeIndex]?.querySelector("video");
+							if (vid) primeAndPlay(vid);
+						},
+					});
+				};
+				buildHeroST();
+				// keep ScrollTrigger correct on layout changes
+				const onResize = lenus?.helperFunctions?.debounce
+					? lenus.helperFunctions.debounce(() => {
+							controller.update();
+							ScrollTrigger.refresh();
+					  }, 150)
+					: () => {
+							controller.update();
+							ScrollTrigger.refresh();
+					  };
+				window.addEventListener("resize", onResize);
+			}
+		});
 	}
 
 	function toggleSlider() {
-		const CSS_VARS = { width: "--toggle-slider--w", left: "--toggle-slider--l" };
-
-		document.querySelectorAll(".c-toggle-slider").forEach(setupSlider);
-
-		function setupSlider(component) {
+		document.querySelectorAll(".c-toggle-slider").forEach((component) => {
 			const list = component.querySelector(".toggle-slider_list");
-			const track = component.querySelector(".toggle-slider_track");
+			const track = component.querySelector(".toggle-slider_track") || list?.parentElement;
 			const items = Array.from(component.querySelectorAll(".c-toggle-slider-item"));
-			const radios = Array.from(component.querySelectorAll("input[type=radio]"));
-			const labels = Array.from(component.querySelectorAll(".toggle-slider_label"));
-			let activeItem;
-			let draggable = null;
-			let pickerMode = false;
-			let fadeLeft, fadeRight;
+			const radios = Array.from(component.querySelectorAll('input[type="radio"]'));
+			if (!list || !track || !items.length || !radios.length) return;
 
-			if (!list || radios.length === 0) return;
-
-			// Add gradient fade overlays if not present
-			if (!component.querySelector(".toggle-slider_fade-left")) {
+			// Ensure gradient fades exist
+			let fadeLeft = component.querySelector(".toggle-slider_fade-left");
+			let fadeRight = component.querySelector(".toggle-slider_fade-right");
+			if (!fadeLeft) {
 				fadeLeft = document.createElement("div");
 				fadeLeft.className = "toggle-slider_fade-left";
 				component.appendChild(fadeLeft);
 			}
-			if (!component.querySelector(".toggle-slider_fade-right")) {
+			if (!fadeRight) {
 				fadeRight = document.createElement("div");
 				fadeRight.className = "toggle-slider_fade-right";
 				component.appendChild(fadeRight);
 			}
 
-			// Initial highlight
-			const initial = radios.find((r) => r.checked) || radios[0];
-			const initialLabel = component.querySelector(`label[for="${initial.id}"]`);
-			activeItem = items.find((it) => it.contains(initialLabel));
-			moveHighlight(initialLabel, true);
+			const controller = createToggleTrack({
+				host: component,
+				track,
+				list,
+				items,
+				varsHost: component,
+				onSelect: (i) => {
+					radios.forEach((r, idx) => (r.checked = idx === i));
+				},
+				selectOnDrag: false, // we enable/disable below based on layout
+				fadeLeft,
+				fadeRight,
+			});
 
-			// Change handler
-			radios.forEach((radio) => {
+			function updatePickerMode() {
+				// enable drag-to-select when ≲ 2.5 items fit
+				const avg = controller.getAvgItem();
+				const overflow = controller.isOverflow();
+				controller.setSelectOnDrag(overflow && track.clientWidth < avg * 2.5);
+			}
+
+			// Radio → select & center
+			radios.forEach((radio, idx) => {
 				radio.addEventListener("change", () => {
-					if (radio.checked) {
-						const label = component.querySelector(`label[for="${radio.id}"]`);
-						items.forEach((it) => it.classList.toggle("is-active", it.contains(label)));
-						moveHighlight(label);
-						activeItem = items.find((it) => it.contains(label));
-						// Snap to selected in picker mode
-						if (pickerMode && draggable) {
-							snapToItem(items.indexOf(activeItem));
-						}
-					}
+					if (radio.checked) controller.select(idx);
 				});
 			});
 
-			// On resize, re-calc position for checked item
-			window.addEventListener(
-				"resize",
-				lenus.helperFunctions.debounce(() => {
-					moveHighlight(activeItem);
-					updateMode();
-				})
+			// Initial selection
+			const initial = Math.max(
+				0,
+				radios.findIndex((r) => r.checked)
 			);
+			controller.select(initial, { immediate: true });
 
-			function moveHighlight(target, isInitial = false) {
-				if (!target) return;
-				const targetRect = target.getBoundingClientRect();
-				const listRect = list.getBoundingClientRect();
-				const left = targetRect.left - listRect.left;
-				const width = targetRect.width;
+			// Keep everything sane on resize
+			const onResize = lenus?.helperFunctions?.debounce
+				? lenus.helperFunctions.debounce(() => {
+						controller.update();
+						updatePickerMode();
+						const current = Math.max(
+							0,
+							radios.findIndex((r) => r.checked)
+						);
+						controller.select(current, { immediate: true });
+				  }, 150)
+				: () => {
+						controller.update();
+						updatePickerMode();
+						const current = Math.max(
+							0,
+							radios.findIndex((r) => r.checked)
+						);
+						controller.select(current, { immediate: true });
+				  };
 
-				if (isInitial) {
-					gsap.set(component, {
-						[CSS_VARS.left]: `${left}px`,
-						[CSS_VARS.width]: `${width}px`,
-					});
-					items.forEach((it) =>
-						it.classList.toggle("is-active", it.contains(target) || it === target)
-					);
-				} else {
-					gsap.to(component, {
-						[CSS_VARS.left]: `${left}px`,
-						[CSS_VARS.width]: `${width}px`,
-						duration: 0.3,
-						ease: "power2.out",
-					});
-				}
-			}
-
-			function updateMode() {
-				let containerWidth = component.offsetWidth;
-				let listWidth = 0;
-				for (let i = 0; i < items.length; i++) {
-					listWidth += items[i].offsetWidth;
-				}
-				let itemWidth = listWidth / items.length; // average
-
-				console.log("itemWidth: " + itemWidth);
-				console.log("containerWidth: " + containerWidth);
-				console.log("listWidth: " + listWidth);
-
-				// Picker mode: less than 2.5 items fit
-				pickerMode = listWidth > containerWidth && containerWidth < itemWidth * 2.5;
-
-				// Show/hide fade overlays
-				if (listWidth > containerWidth) {
-					fadeLeft.style.display = "block";
-					fadeRight.style.display = "block";
-				} else {
-					fadeLeft.style.display = "none";
-					fadeRight.style.display = "none";
-				}
-
-				if (listWidth > containerWidth) {
-					// need to account for flex centering when setting bounds
-					const centerOffset = (containerWidth - listWidth) / 2;
-					bounds = { minX: -centerOffset, maxX: centerOffset };
-
-					if (!draggable) {
-						draggable = Draggable.create(list, {
-							type: "x",
-							bounds: bounds,
-							inertia: true,
-							cursor: "grab",
-							activeCursor: "grabbing",
-							onDragEnd: function () {
-								if (pickerMode) {
-									const idx = getClosestToCenter();
-									snapToItem(idx);
-									radios[idx].checked = true;
-									items.forEach((it, i) => it.classList.toggle("is-active", i === idx));
-									moveHighlight(labels[idx]);
-									activeItem = items[idx];
-								}
-							},
-						})[0];
-					}
-					// set initial draggable position
-
-					gsap.set(list, { x: -centerOffset });
-				} else if (draggable) {
-					draggable.kill();
-					draggable = null;
-					gsap.set(list, { x: 0 });
-				}
-			}
-
-			function getClosestToCenter() {
-				const containerRect = component.getBoundingClientRect();
-				const center = containerRect.left + containerRect.width / 2;
-				let closestIdx = 0,
-					minDist = Infinity;
-				items.forEach((item, idx) => {
-					const rect = item.getBoundingClientRect();
-					const itemCenter = rect.left + rect.width / 2;
-					const dist = Math.abs(center - itemCenter);
-					if (dist < minDist) {
-						minDist = dist;
-						closestIdx = idx;
-					}
-				});
-				return closestIdx;
-			}
-
-			function snapToItem(idx) {
-				const item = items[idx];
-				const containerRect = component.getBoundingClientRect();
-				const offset = item.offsetLeft + item.offsetWidth / 2 - containerRect.width / 2;
-				const minX = component.offsetWidth - list.scrollWidth;
-				const maxX = 0;
-				const x = gsap.utils.clamp(minX, maxX, -offset);
-				gsap.to(list, { x, duration: 0.3, ease: "power2.out" });
-			}
-
-			// Initial mode setup
-			updateMode();
-		}
+			window.addEventListener("resize", onResize);
+			updatePickerMode();
+		});
 	}
 
 	function wideCarousel() {
@@ -5087,8 +4920,9 @@ function main() {
 	}
 
 	function pricingOptions() {
-		document.querySelectorAll(".pricing-options").forEach((component) => {
-			lenus.helperFunctions.initSplideCarousel(component, {
+		document.querySelectorAll(".pricing-panel").forEach((component) => {
+			// Store the config for reuse
+			const splideConfig = {
 				config: {
 					type: "slide",
 					autoWidth: true,
@@ -5100,6 +4934,17 @@ function main() {
 				responsive: {
 					breakpoint: 767,
 					desktopOnly: true, // Only create carousel on desktop
+				},
+			};
+
+			// Store config on the element for later access
+			component._splideConfig = splideConfig;
+
+			const instance = lenus.helperFunctions.initSplideCarousel(component, {
+				...splideConfig,
+				onMounted: (splideInstance) => {
+					// Store instance reference on the element for later access
+					component.splide = splideInstance;
 				},
 			});
 		});
@@ -7084,7 +6929,7 @@ Features:
 	accordion();
 	cardTrain();
 	animateTitles();
-	tabbedHero();
+	tabsWithToggleSlider();
 	wideCarousel();
 	multiQuote();
 	bentoHero();
