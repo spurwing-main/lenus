@@ -808,7 +808,7 @@ function main() {
 					arrows: true,
 					pagination: false,
 					trimSpace: "move",
-					snap: false,
+					snap: true,
 					drag: "free",
 					focus: "center",
 					breakpoints: {
@@ -1796,35 +1796,37 @@ function main() {
 
 			// refresh Splide instances in a panel by recreating them
 			function refreshSplideInPanel(panel, immediate = false) {
-				
-					// Get the stored config
-					const storedConfig = panel._splideConfig;
-					console.log("Refreshing Splide in panel with stored config:", storedConfig);
-					if (!storedConfig) {
-						console.warn("No stored Splide config found on pricing panel");
-						return;
+				// Get the stored config
+				const storedConfig = panel._splideConfig;
+				console.log("Refreshing Splide in panel with stored config:", storedConfig);
+				if (!storedConfig) {
+					console.warn("No stored Splide config found on pricing panel");
+					return;
+				}
+
+				// Small delay to ensure panel is fully visible
+				const delay = immediate ? 0 : 1000;
+
+				setTimeout(() => {
+					// Destroy existing instance if it exists
+					if (panel.splide) {
+						console.log("Destroying existing Splide in panel before refresh");
+						lenus.helperFunctions.destroySplide(panel.splide);
+						panel.splide = null;
 					}
 
-					// Small delay to ensure panel is fully visible
-					const delay = immediate ? 0 : 1000;
-
-					setTimeout(() => {
-						// Destroy existing instance if it exists
-						if (panel.splide) {
-							console.log("Destroying existing Splide in panel before refresh");
-							lenus.helperFunctions.destroySplide(panel.splide);
-							panel.splide = null;
-						}
-
-						// Recreate the carousel using stored config
-						const instance = lenus.helperFunctions.initSplideCarousel(panel, {
+					// Recreate the carousel using stored config
+					const instance = lenus.helperFunctions.initSplideCarousel(
+						panel,
+						{
 							...storedConfig,
 							onMounted: (splideInstance) => {
 								panel.splide = splideInstance;
 								console.log("Recreated Splide in panel:", splideInstance);
 							},
-						
-					}, delay);
+						},
+						delay
+					);
 				});
 			}
 
