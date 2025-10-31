@@ -21,6 +21,15 @@ function main() {
 		ignoreMobileResize: true,
 		autoRefreshEvents: "visibilitychange,DOMContentLoaded,load",
 	});
+	ScrollTrigger.addEventListener("refreshInit", function () {
+		// this code will run BEFORE the refresh
+		console.log("ScrollTrigger refreshInit");
+	});
+
+	ScrollTrigger.addEventListener("refresh", function () {
+		// this code will run AFTER all ScrollTriggers refreshed.
+		console.log("ScrollTrigger refresh");
+	});
 
 	// GSDevTools setup for development
 	let gsDevToolsEnabled = false;
@@ -169,7 +178,7 @@ function main() {
 
 		function createHeaderThemeScrollTriggers() {
 			killHeaderThemeScrollTriggers();
-			console.log("Creating header theme ScrollTriggers...");
+			// console.log("Creating header theme ScrollTriggers...");
 			sectionGroups.forEach((group, idx) => {
 				const variant = group.getAttribute(attributeName);
 				// if no variant, assume light
@@ -177,24 +186,24 @@ function main() {
 					variant = "light";
 				}
 				const theme = getTheme(variant);
-				console.log(`Section idx=${idx}, variant=${variant}, theme=${theme}`);
+				// console.log(`Section idx=${idx}, variant=${variant}, theme=${theme}`);
 
 				if (DARK_THEMES.includes(variant)) {
-					console.log(`  -> Creating ScrollTrigger for dark section at idx=${idx}`);
+					// console.log(`  -> Creating ScrollTrigger for dark section at idx=${idx}`);
 					const trigger = ScrollTrigger.create({
 						trigger: group,
 						start: () => `top ${getNavHeight()}px`,
 						end: () => `bottom top`,
 						onEnter: () => {
-							console.log(
-								`[headerTheme] onEnter: idx=${idx}, variant=${variant}, theme=${theme} (DARK)`
-							);
+							// console.log(
+							// 	`[headerTheme] onEnter: idx=${idx}, variant=${variant}, theme=${theme} (DARK)`
+							// );
 							headerThemeTl.play();
 						},
 						onEnterBack: () => {
-							console.log(
-								`[headerTheme] onEnterBack: idx=${idx}, variant=${variant}, theme=${theme} (LIGHT)`
-							);
+							// console.log(
+							// 	`[headerTheme] onEnterBack: idx=${idx}, variant=${variant}, theme=${theme} (LIGHT)`
+							// );
 							headerThemeTl.play();
 						},
 
@@ -207,9 +216,9 @@ function main() {
 								if (DARK_THEMES.includes(nextVariant)) {
 									// Do nothing
 								} else {
-									console.log(
-										`[headerTheme] onLeave: idx=${idx}, variant=${variant}, theme=${theme} (LIGHT)`
-									);
+									// console.log(
+									// 	`[headerTheme] onLeave: idx=${idx}, variant=${variant}, theme=${theme} (LIGHT)`
+									// );
 									headerThemeTl.reverse();
 								}
 							}
@@ -222,9 +231,9 @@ function main() {
 								if (DARK_THEMES.includes(prevVariant)) {
 									// Do nothing
 								} else {
-									console.log(
-										`[headerTheme] onLeaveBack: idx=${idx}, variant=${variant}, theme=${theme} (LIGHT)`
-									);
+									// console.log(
+									// 	`[headerTheme] onLeaveBack: idx=${idx}, variant=${variant}, theme=${theme} (LIGHT)`
+									// );
 									headerThemeTl.reverse();
 								}
 							}
@@ -351,10 +360,10 @@ function main() {
 			// --- integrate with ResizeManager media query helpers ---
 			const cleanupDesktopListener = ResizeManager.onDesktop(({ matches }) => {
 				if (matches) {
-					console.log("logoSwap: desktop mode - adding hover listeners");
+					// console.log("logoSwap: desktop mode - adding hover listeners");
 					addHoverListeners();
 				} else {
-					console.log("logoSwap: mobile mode - removing hover listeners");
+					// console.log("logoSwap: mobile mode - removing hover listeners");
 					removeHoverListeners();
 				}
 			});
@@ -622,21 +631,21 @@ function main() {
 		// update sources once per mode
 		function updateSources(video, mode) {
 			if (video.dataset.videoLoaded) return; // skip if already done
-			console.group(`🎥 Loading video: ${video.id || "unnamed"} (${mode} mode)`);
+			// console.group(`🎥 Loading video: ${video.id || "unnamed"} (${mode} mode)`);
 
 			const sources = video.querySelectorAll("source");
-			console.log(`Found ${sources.length} source elements`);
+			// console.log(`Found ${sources.length} source elements`);
 
 			video.querySelectorAll("source").forEach((srcEl, index) => {
-				console.group(`Source ${index + 1}:`);
+				// console.group(`Source ${index + 1}:`);
 
 				const data = srcEl.dataset;
-				console.log("Raw dataset:", {
-					srcDesktop: data.srcDesktop,
-					srcMobile: data.srcMobile,
-					typeDesktop: data.typeDesktop,
-					typeMobile: data.typeMobile,
-				});
+				//  console.log("Raw dataset:", {
+				// 	srcDesktop: data.srcDesktop,
+				// 	srcMobile: data.srcMobile,
+				// 	typeDesktop: data.typeDesktop,
+				// 	typeMobile: data.typeMobile,
+				// });
 				const { srcMobile, srcDesktop, typeMobile, typeDesktop, codecsMobile, codecsDesktop } =
 					srcEl.dataset;
 				srcEl.src = ""; // reset src to avoid stale data
@@ -653,10 +662,10 @@ function main() {
 				if (codecs) typeAttr += `; codecs="${codecs}"`;
 				if (typeAttr) srcEl.setAttribute("type", typeAttr);
 
-				console.groupEnd();
+				// console.groupEnd();
 			});
 
-			console.groupEnd();
+			// console.groupEnd();
 
 			video.load();
 			video.dataset.videoLoaded = "true";
@@ -765,7 +774,7 @@ function main() {
 	}
 
 	function registerVideoCard(card, overrides = {}) {
-		console.log("Registering video card:", card);
+		// console.log("Registering video card:", card);
 		const config = getVideoConfig(card);
 		if (!config) return null;
 		const controller = lenus.helperFunctions.videoController;
@@ -795,7 +804,7 @@ function main() {
 		// filter out cards that are inside a carousel - these are handled by the carousel setup
 		standaloneCards = standaloneCards.filter((card) => !card.closest(".c-carousel"));
 
-		console.log("Found standalone video cards:", standaloneCards.length);
+		// console.log("Found standalone video cards:", standaloneCards.length);
 
 		standaloneCards.forEach((card) => {
 			registerVideoCard(card);
@@ -945,7 +954,7 @@ function main() {
 						end: "+=50%",
 						scrub: 0.5,
 						pin: pinned,
-						// markers: true,
+						markers: true,
 						onUpdate(self) {
 							if (images.length < 2) return; // no need to adjust nav if no image fades
 							const p = self.progress;
@@ -977,7 +986,7 @@ function main() {
 				});
 
 				if (isSplit) {
-					console.log(titleSpans, spanWidth);
+					// console.log(titleSpans, spanWidth);
 					// ensure title doesn't reflow as we adjust the gap - first fix the size of each .cta_title > span to (container width - gap)/2
 					gsap.set(titleSpans, {
 						width: spanWidth,
@@ -1039,7 +1048,7 @@ function main() {
 				window._ctaImageContexts.set(component, ctx);
 
 				// Refresh ScrollTrigger safely after rebuild
-				ScrollTrigger.refresh(true);
+				// ScrollTrigger.refresh(true);
 			};
 
 			// Register via ResizeManager (debounced globally)
@@ -1213,7 +1222,7 @@ function main() {
 
 					initDsk(cards, bgs, contents);
 				} else {
-					console.log("Mobile mode detected, switching to carousel.");
+					// console.log("Mobile mode detected, switching to carousel.");
 					cardTrain_resetCards(cards, true, false);
 					initSplide(cards, component);
 				}
