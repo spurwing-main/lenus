@@ -17,6 +17,10 @@ function main() {
 	ScrollTrigger.defaults({
 		anticipatePin: 1, // pre-offsets before the pin engages -> no “snap” at start
 	});
+	ScrollTrigger.config({
+		ignoreMobileResize: true,
+		autoRefreshEvents: "visibilitychange,DOMContentLoaded,load",
+	});
 
 	// GSDevTools setup for development
 	let gsDevToolsEnabled = false;
@@ -941,7 +945,7 @@ function main() {
 						end: "+=50%",
 						scrub: 0.5,
 						pin: pinned,
-						markers: true,
+						// markers: true,
 						onUpdate(self) {
 							if (images.length < 2) return; // no need to adjust nav if no image fades
 							const p = self.progress;
