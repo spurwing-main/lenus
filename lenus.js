@@ -6942,7 +6942,7 @@ Features:
 	// gradTest1();
 	logoSwap();
 	videoCarousel();
-	ctaImage();
+
 	randomTestimonial();
 	accordion();
 	cardTrain();
@@ -6991,4 +6991,5 @@ Features:
 		lenus.greenhouseJob.init();
 	}
 	handleLocalTimes();
+	ctaImage();
 }
