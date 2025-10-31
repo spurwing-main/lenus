@@ -8,6 +8,16 @@ function main() {
 		duration: 0.5,
 	});
 
+	// Global ScrollTrigger defaults to mitigate pin jumps across the site
+	ScrollTrigger.defaults({
+		anticipatePin: 1, // pre-offsets before the pin engages -> no “snap” at start
+	});
+
+	// Global ScrollTrigger defaults to mitigate pin jumps across the site
+	ScrollTrigger.defaults({
+		anticipatePin: 1, // pre-offsets before the pin engages -> no “snap” at start
+	});
+
 	// GSDevTools setup for development
 	let gsDevToolsEnabled = false;
 	function loadGSDevTools() {
@@ -931,7 +941,7 @@ function main() {
 						end: "+=50%",
 						scrub: 0.5,
 						pin: pinned,
-						// markers: true,
+						markers: true,
 						onUpdate(self) {
 							if (images.length < 2) return; // no need to adjust nav if no image fades
 							const p = self.progress;
@@ -998,7 +1008,7 @@ function main() {
 			};
 
 			// Create a new context for this component
-			const ctx = gsap.context(() => {
+			let ctx = gsap.context(() => {
 				createTimeline();
 			}, component);
 
@@ -1013,14 +1023,16 @@ function main() {
 
 				console.log("CTA resize detected");
 
-				// // Fully revert and rebuild context cleanly
-				// ctx.revert();
+				// Fully revert and rebuild context cleanly
+				if (ctx) {
+					ctx.revert();
+				}
 
-				// const newCtx = gsap.context(() => {
-				// 	createTimeline();
-				// }, component);
+				ctx = gsap.context(() => {
+					createTimeline();
+				}, component);
 
-				// window._ctaImageContexts.set(component, newCtx);
+				window._ctaImageContexts.set(component, ctx);
 
 				// Refresh ScrollTrigger safely after rebuild
 				ScrollTrigger.refresh(true);
@@ -6926,7 +6938,7 @@ Features:
 	// gradTest1();
 	logoSwap();
 	videoCarousel();
-	// ctaImage();
+	ctaImage();
 	randomTestimonial();
 	accordion();
 	cardTrain();
