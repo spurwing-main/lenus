@@ -2220,7 +2220,7 @@ function main() {
 						onComplete: () => {},
 						scrollTrigger: {
 							trigger: component,
-							start: 20,
+							start: 0,
 							end: "+=300",
 							toggleActions: "play none reverse  reverse",
 							scrub: 1,
