@@ -1318,7 +1318,7 @@ function main() {
 
 			items.forEach((item, index) => {
 				const header = item.querySelector(".accordion-item_header, .faq-item_header");
-				const content = item.querySelector(".accordion-item_content, .faq-item_body-wrap");
+				const content = item.querySelector(".accordion-item_content, .faq-item_content");
 				const image = images[index] || null; // if no image, set to null
 
 				// prepare content for auto-height animation
@@ -2270,12 +2270,34 @@ function main() {
 		});
 	}
 
+	function standardCarousel() {
+		// set up splide instance for each .c-carousel component
+		document
+			.querySelectorAll(".c-carousel:not(.is-wide):not(.is-mini):not(.is-testim)")
+			.forEach((component) => {
+				console.log("Initializing standard carousel:", component);
+				const instance = lenus.helperFunctions.initSplideCarousel(component, {
+					config: {
+						gap: "1rem",
+						breakpoints: {
+							767: {
+								gap: "1.5rem",
+								// autoWidth: false,
+							},
+						},
+						clones: 2,
+					},
+				});
+
+				console.log("Standard carousel initialized.");
+			});
+	}
+
 	function wideCarousel() {
 		document.querySelectorAll(".c-carousel.is-wide").forEach((component) => {
 			console.log("Initializing wide carousel:", component);
 			const instance = lenus.helperFunctions.initSplideCarousel(component, {
 				config: {
-					// focus: "center",
 					gap: "3rem",
 					breakpoints: {
 						767: {
@@ -2296,7 +2318,6 @@ function main() {
 			console.log("Initializing mini carousel:", component);
 			const instance = lenus.helperFunctions.initSplideCarousel(component, {
 				config: {
-					// focus: "center", // focus is left for mini carousels
 					speed: 400,
 					perMove: 3,
 					clones: 3,
@@ -7193,6 +7214,7 @@ Features:
 	animateTitles();
 	tabsWithToggleSlider();
 	wideCarousel();
+	standardCarousel();
 	multiQuote();
 	bentoHero();
 	locations();
