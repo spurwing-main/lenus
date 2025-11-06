@@ -284,6 +284,212 @@ function main() {
 		});
 	}
 
+	function cardHover() {
+		const CARDS_SELECTOR = ".c-card:not([data-wf--card--variant='content-inside'])";
+		let initialized = false;
+
+		function setup() {
+			const cards = gsap.utils.toArray(CARDS_SELECTOR);
+			if (cards.length === 0) return;
+			initialized = true;
+
+			cards.forEach((card) => {
+				card.setAttribute("data-card-hover", "enabled");
+				const tl = initCard(card);
+				if (!tl) return;
+				card._tl = tl;
+
+				const onEnter = () => {
+					if (card._tl) card._tl.play();
+				};
+				const onLeave = () => {
+					if (card._tl) card._tl.reverse();
+				};
+
+				card._hoverEnter = onEnter;
+				card._hoverLeave = onLeave;
+
+				card.addEventListener("mouseenter", onEnter);
+				card.addEventListener("mouseleave", onLeave);
+			});
+		}
+
+		function cleanup() {
+			const cards = gsap.utils.toArray(CARDS_SELECTOR);
+			if (cards.length === 0) return;
+
+			cards.forEach((card) => {
+				// remove event listeners
+				if (card._hoverEnter) {
+					card.removeEventListener("mouseenter", card._hoverEnter);
+					delete card._hoverEnter;
+				}
+				if (card._hoverLeave) {
+					card.removeEventListener("mouseleave", card._hoverLeave);
+					delete card._hoverLeave;
+				}
+
+				// timelines: reset to start to avoid leaving mid-FLIP transforms, then kill
+				if (card._tl) {
+					try {
+						card._tl.progress(0).kill();
+					} catch (e) {}
+					card._tl = null;
+				}
+
+				// hard-kill any FLIPs associated with this card (clears inline styles)
+				try {
+					Flip.killFlipsOf(card, true);
+				} catch (e) {}
+
+				// unlock any locked cover pixels
+				if (card._mediaCoverEls) {
+					try {
+						unlockCoverPixels(card._mediaCoverEls);
+					} catch (e) {}
+					delete card._mediaCoverEls;
+				}
+
+				const media = card.querySelector(".card_media");
+				const content = card.querySelector(".card_content");
+				const extraContent = card.querySelector(".card_body");
+
+				gsap.set(card, { clearProps: "height" });
+				gsap.set(media, { clearProps: "height,minHeight,overflow" });
+				gsap.set(content, { clearProps: "transform" }); // safeguard
+				gsap.set(extraContent, { clearProps: "height,opacity,autoAlpha" });
+
+				card.setAttribute("data-card-hover", "disabled");
+			});
+
+			initialized = false;
+		}
+
+		// Only initialize on desktop (and devices that support hover)
+		if (
+			!window.matchMedia("(max-width: 768px)").matches &&
+			!window.matchMedia("(hover: none)").matches
+		) {
+			setup();
+		}
+
+		// Rebuild/teardown on relevant resizes (width changes)
+		ResizeManager.add(({ widthChanged }) => {
+			if (!widthChanged) return;
+
+			const isDesktop =
+				!window.matchMedia("(max-width: 768px)").matches &&
+				!window.matchMedia("(hover: none)").matches;
+
+			// If we were initialized but now left desktop, teardown
+			if (initialized && !isDesktop) {
+				cleanup();
+				return;
+			}
+
+			// If we were not initialized but now entered desktop, build
+			if (!initialized && isDesktop) {
+				// teardown just in case, then setup after a short delay to let layout settle
+				cleanup();
+				setTimeout(() => {
+					setup();
+					ScrollTrigger.refresh();
+				}, 60);
+				return;
+			}
+
+			// If still desktop and width changed, fully rebuild to pick up new measurements
+			if (initialized && isDesktop) {
+				cleanup();
+				setTimeout(() => {
+					setup();
+					ScrollTrigger.refresh();
+				}, 60);
+			}
+		});
+
+		function initCard(card) {
+			const media = card.querySelector(".card_media");
+			const content = card.querySelector(".card_content");
+			// const title = card.querySelector("h3");
+			const extraContent = card.querySelector(".card_body");
+			const mediaCoverEls = gsap.utils.toArray(".u-cover", media);
+			if (!media || !content || !extraContent) return;
+
+			// store for cleanup
+			card._mediaCoverEls = mediaCoverEls;
+
+			// get current state of card
+			// then expand extraContent to auto height, and reduce height of media accordingly so the overall card height stays the same
+			// then use a GSAP timeline with Flip to animate between the two states
+
+			const originalCardHeight = card.offsetHeight;
+			const originalMediaHeight = media.offsetHeight;
+
+			lockCoverPixels(media, mediaCoverEls);
+
+			const state = Flip.getState([card, media, content, extraContent, mediaCoverEls], {
+				// props: "object-position",
+			});
+			// expand extraContent to auto height
+			gsap.set(extraContent, { height: "auto", autoAlpha: 0 });
+			const extraContentHeight = extraContent.offsetHeight;
+			const expandedHeight = card.offsetHeight;
+
+			gsap.set(media, {
+				height: originalMediaHeight - extraContentHeight,
+				minHeight: 0,
+			});
+			gsap.set(card, { height: originalCardHeight });
+			// gsap.set(mediaCoverEls, { objectPosition: "50% 0%" });
+
+			const tl = gsap.timeline({ paused: true });
+			tl.add(
+				Flip.from(state, {
+					targets: [card, media, content, extraContent, mediaCoverEls],
+					absolute: mediaCoverEls,
+					duration: 0.35,
+					ease: "ease.inOut",
+					onReverseComplete: () => {
+						unlockCoverPixels(mediaCoverEls);
+					},
+				})
+			);
+			tl.to(extraContent, { autoAlpha: 1, duration: 0.3, ease: "power2.inOut" }, "0.1");
+			return tl;
+		}
+
+		function lockCoverPixels(media, mediaCoverEls) {
+			const mediaRect = media.getBoundingClientRect();
+
+			mediaCoverEls.forEach((img) => {
+				const r = img.getBoundingClientRect();
+				const left = r.left - mediaRect.left;
+				const top = r.top - mediaRect.top;
+
+				// Lock the rendered box in pixels so object-fit won’t re-calc on height changes
+				gsap.set(img, {
+					position: "absolute",
+					left,
+					top,
+					width: r.width,
+					height: r.height,
+					objectFit: "cover",
+					willChange: "transform",
+				});
+			});
+
+			// Ensure the viewport crops the image instead of the image resizing
+			gsap.set(media, { overflow: "hidden" });
+		}
+
+		function unlockCoverPixels(mediaCoverEls) {
+			mediaCoverEls.forEach((img) => {
+				gsap.set(img, { clearProps: "position,left,top,width,height,willChange" });
+			});
+		}
+	}
+
 	function logoSwap() {
 		document.querySelectorAll(".c-logo-swap").forEach((component) => {
 			const invertFilter =
@@ -1187,7 +1393,7 @@ function main() {
 		});
 	}
 
-	function cardTrain() {
+	function expandingCards() {
 		const videoSelector = "video";
 		const imgSelector = "img";
 		const mediaQuery = window.matchMedia("(max-width: 768px)");
@@ -1198,17 +1404,17 @@ function main() {
 		let currentMode = isMobile() ? "mobile" : "desktop"; // Track the current mode
 		let splideInstance;
 
-		document.querySelectorAll(".c-card-train").forEach((component) => {
+		document.querySelectorAll(".c-expanding-cards").forEach((component) => {
 			const cards = lenus.helperFunctions.getCards(component);
 			const bgs = gsap.utils.toArray(".card_media", component);
-			const contents = gsap.utils.toArray(".card_content, .card_extra-content", component);
+			const contents = gsap.utils.toArray(".card_content, .card_content-inner", component);
 			let ctx = gsap.context(() => {});
 			const handlers = new Map();
 
 			// initialise
 			if (cards.length > 0) {
 				if (currentMode === "desktop") {
-					console.log("Desktop mode detected, setting up card train.");
+					console.log("Desktop mode detected, setting up expanding-cards.");
 					// add event listeners to cards
 
 					cards.forEach((card) => {
@@ -1223,7 +1429,7 @@ function main() {
 					initDsk(cards, bgs, contents);
 				} else {
 					// console.log("Mobile mode detected, switching to carousel.");
-					cardTrain_resetCards(cards, true, false);
+					expandingCards_resetCards(cards, true, false);
 					initSplide(cards, component);
 				}
 			}
@@ -1241,7 +1447,7 @@ function main() {
 
 				if (newMode === "mobile") {
 					console.log("Mobile mode detected, switching to carousel.");
-					cardTrain_resetCards(cards, true, false);
+					expandingCards_resetCards(cards, true, false);
 					updateBgs(bgs, cards, contents, true);
 					cards.forEach((c) => {
 						c.removeEventListener("mouseenter", handlers.get(c));
@@ -1249,7 +1455,7 @@ function main() {
 					ctx.revert();
 					initSplide(cards, component);
 				} else {
-					console.log("Desktop mode detected, switching to card train.");
+					console.log("Desktop mode detected, switching to expanding-cards.");
 					if (splideInstance) {
 						lenus.helperFunctions.destroySplide(splideInstance);
 					}
@@ -1321,7 +1527,7 @@ function main() {
 			console.log("Splide carousel initialized.");
 		}
 
-		function cardTrain_resetCards(cards, resetVideos = false, lowerOpacity = true) {
+		function expandingCards_resetCards(cards, resetVideos = false, lowerOpacity = true) {
 			cards.forEach((c) => {
 				c.classList.remove("is-expanded");
 				gsap.set(c, {
@@ -1358,7 +1564,7 @@ function main() {
 
 			gsap.set(component, { minHeight: () => cards[0].offsetHeight + "px" });
 
-			cardTrain_resetCards(cards, false); // need to do this within flip so we update state correctly
+			expandingCards_resetCards(cards, false); // need to do this within flip so we update state correctly
 
 			activateCard(card, false); // activate the hovered card, but handle video separately
 
@@ -1425,6 +1631,9 @@ function main() {
 				let card = cards.find((c) => c.classList.contains("is-expanded")) || cards[0];
 
 				if (!card) return; // no active card found
+
+				// we don't want to scope, we want to apply to all cards
+
 				gsap.set(bgs, {
 					width: () => card.offsetWidth + "px",
 				});
@@ -1436,6 +1645,24 @@ function main() {
 				}
 			}
 		}
+	}
+
+	function cardCleanupInlineStyles(card) {
+		console.log("[cardCleanup] Cleaning up inline styles for card:", card);
+		const media = card.querySelector(".card_media");
+		const content = card.querySelector(".card_content");
+		const extraContent = card.querySelector(".card_extra-content");
+
+		// clear height, width, minHeight, minWidth, maxHeight, maxWidth on all items
+		gsap.set(card, { clearProps: "height,width,minHeight,minWidth,maxHeight,maxWidth" });
+		gsap.set(media, {
+			clearProps: "height,width,minHeight,minWidth,maxHeight,maxWidth,overflow",
+		});
+		gsap.set(content, { clearProps: "transform,width" });
+		gsap.set(extraContent, {
+			clearProps: "height,opacity,autoAlpha,width, visibility",
+		});
+		extraContent.style.removeProperty("visibility");
 	}
 
 	function cardGrid() {
@@ -1454,6 +1681,14 @@ function main() {
 					trimSpace: "move",
 					snap: true,
 					drag: true,
+				},
+				// run when Splide has been mounted
+				onMounted: (splideInstance) => {
+					const cards = gsap.utils.toArray(".c-card", component);
+					// ensure all inline styles are cleared from the cardHover function
+					cards.forEach((card) => {
+						cardCleanupInlineStyles(card);
+					});
 				},
 				responsive: {
 					breakpoint: 768,
@@ -5570,11 +5805,11 @@ function main() {
 						}
 					}
 
-					console.log(
-						`Updated location ${parent} - Time: ${time}, Night: ${isNightTime()}, Time elements: ${
-							timeElements.length
-						}, Day images: ${dayImages.length}, Night images: ${nightImages.length}`
-					);
+					// console.log(
+					// 	`Updated location ${parent} - Time: ${time}, Night: ${isNightTime()}, Time elements: ${
+					// 		timeElements.length
+					// 	}, Day images: ${dayImages.length}, Night images: ${nightImages.length}`
+					// );
 				} catch (e) {
 					console.warn("Could not update time and images for parent:", parent, e);
 				}
@@ -6954,7 +7189,7 @@ Features:
 
 	randomTestimonial();
 	accordion();
-	cardTrain();
+	expandingCards();
 	animateTitles();
 	tabsWithToggleSlider();
 	wideCarousel();
@@ -7001,4 +7236,5 @@ Features:
 	}
 	handleLocalTimes();
 	ctaImage();
+	cardHover();
 }
