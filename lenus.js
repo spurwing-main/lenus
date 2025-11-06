@@ -3124,7 +3124,7 @@ function main() {
 					arrows: true,
 					pagination: false,
 					snap: true,
-					gap: "0",
+					gap: "1.5rem",
 					autoplay: false,
 					drag: "free",
 				},
