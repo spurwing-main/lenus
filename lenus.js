@@ -800,8 +800,7 @@ function main() {
 				// Mobile-specific adjustments
 				if (isMobile) {
 					// On mobile, animate from startX to natural position (0)
-					endX = 0;
-					endY = 0;
+					startX = startY = endX = endY = 0;
 				}
 
 				gsap.fromTo(
