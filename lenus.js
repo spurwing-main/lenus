@@ -5848,6 +5848,7 @@ function main() {
 		}
 	}
 
+	// ...existing code...
 	lenus.greenhouse = {
 		apiUrl: "https://boards-api.greenhouse.io/v1/boards/lenusehealth/jobs?content=true", // ✅ your actual board slug
 
@@ -5855,19 +5856,18 @@ function main() {
 			const component = document.querySelector("#job-listings");
 			if (!component) return;
 
-			const group_list = component.querySelector(".events-list_list");
+			const group_list = component.querySelector(".events-group_list");
 			if (!group_list) return;
 
-			// find department group template
-			const departmentGroup = group_list.querySelector(".events-group");
-			if (!departmentGroup) {
-				console.warn("[Lenus.Greenhouse] No .events-group template found.");
+			this._listContainer = group_list; // store for Finsweet integration
+
+			// Clone the job template and delete original
+			const originalJobItem = group_list.querySelector(".events-group_list-item");
+			if (!originalJobItem) {
 				return;
 			}
-
-			// clone department and job templates
-			this.departmentTemplate = departmentGroup.cloneNode(true);
-			this.jobTemplate = departmentGroup.querySelector(".events-group_list-item")?.cloneNode(true);
+			this.jobTemplate = originalJobItem.cloneNode(true);
+			originalJobItem.remove();
 
 			if (!this.jobTemplate) {
 				console.warn(
@@ -5876,14 +5876,10 @@ function main() {
 				return;
 			}
 
-			// remove the template from the DOM
-			departmentGroup.remove();
-
-			// fetch Greenhouse data
 			fetch(this.apiUrl)
 				.then((res) => res.json())
 				.then((data) => {
-					console.log("Greenhouse API response:", data); // Debug log
+					console.log("Greenhouse API response:", data);
 
 					if (!data.jobs) {
 						console.warn("No jobs found in API response");
@@ -5892,9 +5888,7 @@ function main() {
 
 					const jobs = data.jobs;
 
-					// Process jobs to add normalized department names
 					jobs.forEach((job) => {
-						// Handle department - use first department or fallback to "General"
 						job.jobDepartment = job.departments?.[0]?.name || "";
 						job.jobLocation = job.location?.name || "";
 						if (job.jobLocation) {
@@ -5904,21 +5898,19 @@ function main() {
 
 					this.renderJobs(jobs, group_list);
 
-					// filters
 					const locations = [...new Set(jobs.map((j) => j.jobLocation).filter(Boolean))];
 					const departments = [...new Set(jobs.map((j) => j.jobDepartment).filter(Boolean))];
 
-					console.log("Departments found:", departments); // Debug log
-					console.log("Locations found:", locations); // Debug log
-
 					this.populateFilters({ locations, departments });
+
+					setTimeout(() => {
+						this.reinitFinsweet();
+					}, 50);
 				})
 				.catch((err) => console.error("Greenhouse fetch error:", err));
 
 			function simplifyLocation(name) {
-				// for names like "London, England, United Kingdom", just return "London, United Kingdom" - EXCEPT for US/Canada states, in which case keep state name but remove country
 				if (!name) return "";
-
 				const parts = name.split(",").map((p) => p.trim());
 				if (parts.length >= 3) {
 					const country = parts[parts.length - 1];
@@ -5934,7 +5926,7 @@ function main() {
 		},
 
 		renderJobs(jobs, container) {
-			container.innerHTML = ""; // clear previous
+			// container.innerHTML = "";
 
 			if (!jobs.length) {
 				container.innerHTML =
@@ -5942,53 +5934,74 @@ function main() {
 				return;
 			}
 
-			// group jobs by department using the normalized department name
-			const grouped = {};
+			const orderedDepartments = [];
+			const seen = new Set();
 			jobs.forEach((job) => {
-				const deptName = job.jobDepartment; // Use the normalized department name
-				if (!grouped[deptName]) grouped[deptName] = [];
-				grouped[deptName].push(job);
+				const deptName = job.jobDepartment;
+				if (!seen.has(deptName)) {
+					seen.add(deptName);
+					orderedDepartments.push(deptName);
+				}
 			});
 
-			console.log("Grouped jobs by department:", grouped); // Debug log
+			orderedDepartments.forEach((deptName) => {
+				jobs
+					.filter((job) => job.jobDepartment === deptName)
+					.forEach((job) => {
+						const jobClone = this.jobTemplate.cloneNode(true);
 
-			// iterate departments
-			Object.entries(grouped).forEach(([departmentName, deptJobs]) => {
-				const deptClone = this.departmentTemplate.cloneNode(true);
-				const deptHeader = deptClone.querySelector("[data-template='department']");
-				const deptList = deptClone.querySelector(".events-group_list");
+						// Mark as a Finsweet List item
+						jobClone.setAttribute("fs-list-element", "item");
 
-				if (deptHeader) deptHeader.textContent = departmentName;
-				if (deptList) deptList.innerHTML = "";
+						const linkEl = jobClone.querySelector("[data-template='link']");
+						const nameEl = jobClone.querySelector("[data-template='name']");
+						const deptEl = jobClone.querySelector("[data-template='department']");
+						const locEl = jobClone.querySelector("[data-template='location']");
 
-				deptJobs.forEach((job) => {
-					const { title, absolute_url, location, departments } = job;
-					const locationName = job.jobLocation;
-					const departmentName = job.jobDepartment;
+						if (linkEl) {
+							linkEl.href = "/careers/opportunity-details/?gh_jid=" + job.id;
+							linkEl.target = "_blank";
+						}
+						if (nameEl) nameEl.textContent = job.title;
+						if (deptEl) deptEl.textContent = job.jobDepartment || "";
+						if (deptEl) jobClone.setAttribute("data-department", job.jobDepartment || "");
+						if (locEl) locEl.textContent = job.jobLocation || "";
 
-					const jobClone = this.jobTemplate.cloneNode(true);
+						container.appendChild(jobClone);
+					});
+			});
+		},
 
-					const linkEl = jobClone.querySelector("[data-template='link']");
-					const nameEl = jobClone.querySelector("[data-template='name']");
-					const deptEl = jobClone.querySelector("[data-template='department']");
-					const locEl = jobClone.querySelector("[data-template='location']");
+		reinitFinsweet() {
+			const container = this._listContainer;
+			if (!container) return;
 
-					if (linkEl) {
-						linkEl.href = "/careers/opportunity-details/?gh_jid=" + job.id;
-						linkEl.target = "_blank";
+			// Prevent duplicate hook registration
+			if (this._fsHookAdded) return;
+			this._fsHookAdded = true;
+
+			window.FinsweetAttributes ||= [];
+			window.FinsweetAttributes.push([
+				"list",
+				(listInstances) => {
+					const listInstance = listInstances.find((inst) => inst.listElement === container);
+					if (!listInstance) return;
+
+					// Add any new DOM items not yet tracked
+					const existing = new Set(listInstance.items.value.map((i) => i.element));
+					const newEls = Array.from(container.querySelectorAll('[fs-list-element="item"]')).filter(
+						(el) => !existing.has(el)
+					);
+
+					if (newEls.length) {
+						const created = newEls.map((el) => listInstance.createItem(el));
+						listInstance.items.value = [...listInstance.items.value, ...created];
+						listInstance.triggerHook("filter");
 					}
-					if (nameEl) nameEl.textContent = title;
-					if (deptEl) deptEl.textContent = departmentName;
-					if (locEl) locEl.textContent = locationName;
 
-					deptList?.appendChild(jobClone);
-				});
-
-				container.appendChild(deptClone);
-			});
-
-			// refresh Finsweet filters
-			window.fsAttributes?.list?.init?.();
+					// Optional: department headers via data attributes could be handled here later
+				},
+			]);
 		},
 
 		populateFilters({ locations = [], departments = [] }) {
@@ -5999,7 +6012,6 @@ function main() {
 			if (depSelect) this.populateSelectCustom(depSelect, departments, "All departments");
 		},
 
-		// ✅ Reusable Finsweet select builder
 		populateSelectCustom(selectEl, items, defaultLabel = "All") {
 			if (!selectEl) return;
 
@@ -6014,11 +6026,12 @@ function main() {
 				});
 
 			const selectWrap = selectEl.closest("[fs-selectcustom-element='dropdown']");
-			if (selectWrap && window.fsAttributes?.selectcustom?.init) {
-				window.fsAttributes.selectcustom.init(selectWrap);
+			if (selectWrap && window.FinsweetAttributes?.selectcustom?.init) {
+				window.FinsweetAttributes.selectcustom.init(selectWrap);
 			}
 		},
 	};
+	// ...existing code...
 
 	function decodeHTML(html) {
 		const txt = document.createElement("textarea");
