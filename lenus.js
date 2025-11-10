@@ -2843,159 +2843,446 @@ function main() {
 		});
 	}
 
+	// function scatterHero() {
+	// 	// ====== Configurable Randomization Bounds ======
+	// 	const config = {
+	// 		maxRotation: 10, // degrees
+	// 		minScale: 0.8, // scale
+	// 		maxScale: 1.0,
+	// 		posYOffset: 300, // how far down to animate from
+	// 		fadeDuration: 0.5, // seconds
+	// 		transformDuration: 1, // seconds
+	// 		stagger: 0.05, // stagger between each image
+	// 		scale: [0.8, 1], // scale options for randomization
+
+	// 		// positioning bounds for random X/Y (in % relative to parent)
+	// 		bounds: {
+	// 			desktop: {
+	// 				xMin: -25,
+	// 				xMax: 25,
+	// 				yMin: -100,
+	// 				yMax: 100,
+	// 			},
+	// 			mobile: {
+	// 				xMin: -15,
+	// 				xMax: 15,
+	// 				yMin: -50,
+	// 				yMax: 50,
+	// 			},
+	// 		},
+
+	// 		centerBounds: {
+	// 			desktop: {
+	// 				yMin: -20,
+	// 				yMax: 20,
+	// 			},
+	// 			mobile: {
+	// 				yMin: -10,
+	// 				yMax: 10,
+	// 			},
+	// 		},
+	// 	};
+
+	// 	// Helper function to detect if we're on mobile
+	// 	const isMobile = () => window.innerWidth <= 768;
+
+	// 	// Helper function to get current bounds based on screen size
+	// 	const getCurrentBounds = () => (isMobile() ? config.bounds.mobile : config.bounds.desktop);
+	// 	const getCurrentCenterBounds = () =>
+	// 		isMobile() ? config.centerBounds.mobile : config.centerBounds.desktop;
+
+	// 	// Function to animate images to their scattered positions
+	// 	const animateInTl = (componentObj) => {
+	// 		let component = componentObj.component;
+	// 		const bounds = getCurrentBounds();
+	// 		const centerBounds = getCurrentCenterBounds();
+
+	// 		let tl = gsap.timeline({ paused: true });
+
+	// 		if (isMobile()) {
+	// 			// MOBILE: only animate images with data-scatter-image="mbl"
+	// 			const allImgs = Array.from(component.querySelectorAll(".scatter-img"));
+	// 			const targetImgs = componentObj.images; // already filtered
+	// 			const nonTargets = allImgs.filter((el) => !targetImgs.includes(el));
+
+	// 			// Hide non-target images
+	// 			gsap.set(nonTargets, { autoAlpha: 0 });
+
+	// 			// Animate only target images
+	// 			tl.fromTo(
+	// 				targetImgs,
+	// 				{ y: config.posYOffset, autoAlpha: 0 },
+	// 				{
+	// 					xPercent: () => gsap.utils.random(bounds.xMin, bounds.xMax),
+	// 					yPercent: () => gsap.utils.random(bounds.yMin, bounds.yMax),
+	// 					rotation: () => gsap.utils.random(-config.maxRotation, config.maxRotation),
+	// 					scale: () => gsap.utils.random(config.scale),
+	// 					autoAlpha: 1,
+	// 					y: 0,
+	// 					duration: config.transformDuration,
+	// 					ease: "power3.out",
+	// 					stagger: { amount: config.stagger, from: "random" },
+	// 				}
+	// 			);
+	// 		} else {
+	// 			tl.fromTo(
+	// 				component.querySelectorAll(
+	// 					".scatter-hero_media-wrap:is(.is-left, .is-right) .scatter-img"
+	// 				),
+	// 				{
+	// 					y: config.posYOffset,
+	// 					autoAlpha: 0,
+	// 				},
+	// 				{
+	// 					xPercent: () => gsap.utils.random(bounds.xMin, bounds.xMax),
+	// 					yPercent: () => gsap.utils.random(bounds.yMin, bounds.yMax),
+	// 					rotation: () => gsap.utils.random(-config.maxRotation, config.maxRotation),
+	// 					scale: () => gsap.utils.random(config.scale),
+	// 					autoAlpha: 1,
+	// 					y: 0,
+	// 					duration: config.transformDuration,
+	// 					ease: "power3.out",
+	// 					stagger: {
+	// 						amount: config.stagger,
+	// 						from: "random",
+	// 					},
+	// 				}
+	// 			).fromTo(
+	// 				component.querySelectorAll(".scatter-hero_media-wrap.is-main .scatter-img"),
+	// 				{
+	// 					opacity: 0,
+	// 					y: config.posYOffset,
+	// 				},
+	// 				{
+	// 					opacity: 1,
+	// 					yPercent: () => gsap.utils.random(centerBounds.yMin, centerBounds.yMax),
+	// 					rotation: () => gsap.utils.random(-2, 2),
+	// 					y: 0,
+	// 					scale: 1, // keep size fixed
+	// 					duration: config.fadeDuration,
+	// 					ease: "power3.out",
+	// 				},
+	// 				"<"
+	// 			);
+	// 		}
+
+	// 		tl.eventCallback("onComplete", () => {
+	// 			console.log("Animation in completed");
+	// 			componentObj.inAnimationCompleted = true;
+	// 			// if (componentObj.outAnimationToRun) {
+	// 			// 	componentObj.tl_out.play(); // play out animation if it was triggered while in not yet completed
+	// 			// }
+
+	// 			// make draggable
+	// 			if (!isMobile()) {
+	// 				setupDraggable(componentObj);
+	// 			}
+	// 		});
+
+	// 		return tl;
+	// 	};
+
+	// 	function setupDraggable(componentObj) {
+	// 		if (isMobile()) return; // mobile: no draggable
+	// 		const component = componentObj.component;
+	// 		const section = componentObj.section;
+	// 		// find all images
+	// 		const imgs = component.querySelectorAll(".scatter-img");
+	// 		if (imgs.length === 0) return;
+
+	// 		// Set up draggable for rotation and translation
+	// 		imgs.forEach((el) => {
+	// 			let rotationDrag = setupRotationDraggable(el);
+	// 			let translateDrag = setupTranslateDraggable(el);
+
+	// 			function setupRotationDraggable(el) {
+	// 				let rotationDrag = new Draggable(el, {
+	// 					type: "rotation",
+	// 					throwProps: true,
+	// 					inertia: true,
+	// 					zIndexBoost: false,
+	// 					onPress: setDraggable,
+	// 				}).disable();
+	// 				return rotationDrag;
+	// 			}
+
+	// 			function setupTranslateDraggable(el) {
+	// 				let translateDrag = new Draggable(el, {
+	// 					bounds: section,
+	// 					throwProps: true,
+	// 					inertia: true,
+	// 					zIndexBoost: false,
+	// 					onPress: setDraggable,
+	// 				});
+	// 				return translateDrag;
+	// 			}
+
+	// 			function setDraggable(event) {
+	// 				let isRotation = this.vars.type === "rotation";
+	// 				let isCorner = event.target.classList.contains("scatter-img_corner");
+
+	// 				if (isCorner) {
+	// 					// No need to do this if it's already the rotation draggable
+	// 					if (!isRotation) {
+	// 						translateDrag.disable();
+	// 						rotationDrag.enable().startDrag(event);
+	// 					}
+	// 				} else if (isRotation) {
+	// 					rotationDrag.disable();
+	// 					translateDrag.enable().startDrag(event);
+	// 				}
+	// 			}
+	// 		});
+	// 	}
+
+	// 	// Function to animate images out of view
+	// 	const animateOutTl = (componentObj) => {
+	// 		let component = componentObj.component;
+	// 		let tl = gsap.timeline({
+	// 			paused: true,
+	// 			onStart: () => {
+	// 				console.log("Starting animation out");
+	// 			},
+	// 			onComplete: () => {
+	// 				console.log("Animation out completed");
+	// 				// componentObj.outAnimationToRun = false;
+	// 			},
+	// 		});
+	// 		tl.to(component.querySelectorAll(".scatter-hero_media-wrap"), {
+	// 			y: -200,
+	// 			autoAlpha: 0,
+	// 			duration: config.transformDuration,
+	// 			ease: "power2.in",
+	// 			stagger: {
+	// 				amount: config.stagger,
+	// 				from: "random",
+	// 			},
+	// 		});
+
+	// 		return tl;
+	// 	};
+
+	// 	// Store resize timeout to debounce resize events
+	// 	let resizeTimeout;
+
+	// 	// loop through all .c-scatter-hero components
+	// 	document.querySelectorAll(".c-scatter-hero").forEach((component) => {
+	// 		let componentObj = {
+	// 			component: component,
+	// 			section: component.closest(".section"),
+	// 			images: gsap.utils.toArray(".scatter-img", component),
+	// 			inAnimationCompleted: false,
+	// 			outAnimationToRun: false,
+	// 		};
+	// 		let currentScreenType = isMobile() ? "mobile" : "desktop";
+
+	// 		// componentObj.tl_out = animateOutTl(componentObj);
+	// 		componentObj.tl_in = animateInTl(componentObj);
+
+	// 		// wait for images to load before starting animations
+	// 		const images = componentObj.images;
+
+	// 		const loadPromises = images.map((img_wrap) => {
+	// 			const img = img_wrap.querySelector("img");
+	// 			if (img.complete) return Promise.resolve(img); // already loaded
+	// 			return new Promise((resolve) => {
+	// 				img.addEventListener("load", () => resolve(img));
+	// 				img.addEventListener("error", () => resolve(img)); // resolve even on error to avoid blocking
+	// 			});
+	// 		});
+
+	// 		Promise.all(loadPromises).then(() => {
+	// 			console.log("All images loaded");
+	// 			// Start animations
+	// 			componentObj.tl_in.play();
+	// 		});
+
+	// 		// // if html element has class 'lenus-page-loaded' then run animation, otherwise wait for window load event
+	// 		// if (document.documentElement.classList.contains("lenus-page-loaded")) {
+	// 		// 	componentObj.tl_in.play();
+	// 		// } else {
+	// 		// 	window.addEventListener("load", () => {
+	// 		// 		componentObj.tl_in.play();
+	// 		// 	});
+	// 		// }
+
+	// 		// Create scroll trigger for scroll-based animations
+	// 		ScrollTrigger.create({
+	// 			trigger: component,
+	// 			start: "bottom 80%",
+	// 			end: "bottom 79%",
+	// 			onEnter: () => {
+	// 				componentObj.outAnimationToRun = true;
+	// 				if (!componentObj.inAnimationCompleted) {
+	// 					console.log("Animation in not yet completed, deferring animation out");
+	// 					return; // don't animate out if in not yet completed
+	// 				}
+	// 				// componentObj.tl_out.play();
+	// 			},
+	// 			onLeave: () => {},
+	// 			onEnterBack: () => {
+	// 				// componentObj.tl_out.reverse();
+	// 			},
+	// 			onLeaveBack: () => {},
+	// 		});
+
+	// 		// Handle resize events
+	// 		// const handleResize = () => {
+	// 		// 	clearTimeout(resizeTimeout);
+	// 		// 	resizeTimeout = setTimeout(() => {
+	// 		// 		const newScreenType = isMobile() ? "mobile" : "desktop";
+
+	// 		// 		// Only re-animate if screen type changed and component is in view
+	// 		// 		if (newScreenType !== currentScreenType && isInView) {
+	// 		// 			currentScreenType = newScreenType;
+	// 		// 			animateImagesIn(component);
+	// 		// 		} else {
+	// 		// 			currentScreenType = newScreenType;
+	// 		// 		}
+	// 		// 	}, 150); // Debounce resize events
+	// 		// };
+
+	// 		// window.addEventListener("resize", handleResize);
+	// 	});
+	// }
+
 	function scatterHero() {
 		// ====== Configurable Randomization Bounds ======
 		const config = {
 			maxRotation: 10, // degrees
-			minScale: 0.8, // scale
+			minScale: 0.8,
 			maxScale: 1.0,
-			posYOffset: 300, // how far down to animate from
-			fadeDuration: 0.5, // seconds
-			transformDuration: 1, // seconds
-			stagger: 0.05, // stagger between each image
-			scale: [0.8, 1], // scale options for randomization
-
-			// positioning bounds for random X/Y (in % relative to parent)
-			bounds: {
-				desktop: {
-					xMin: -25,
-					xMax: 25,
-					yMin: -100,
-					yMax: 100,
-				},
-				mobile: {
-					xMin: -15,
-					xMax: 15,
-					yMin: -50,
-					yMax: 50,
-				},
+			posYOffset: {
+				desktop: 300,
+				mobile: 100,
 			},
-
+			fadeDuration: 0.5,
+			transformDuration: 1,
+			stagger: 0.05,
+			scale: [0.8, 1],
+			bounds: {
+				desktop: { xMin: -25, xMax: 25, yMin: -100, yMax: 100 },
+				mobile: { xMin: -15, xMax: 15, yMin: -50, yMax: 50 },
+			},
 			centerBounds: {
-				desktop: {
-					yMin: -20,
-					yMax: 20,
-				},
-				mobile: {
-					yMin: -10,
-					yMax: 10,
-				},
+				desktop: { yMin: -20, yMax: 20 },
+				mobile: { yMin: -10, yMax: 10 },
 			},
 		};
 
-		// Helper function to detect if we're on mobile
 		const isMobile = () => window.innerWidth <= 768;
-
-		// Helper function to get current bounds based on screen size
 		const getCurrentBounds = () => (isMobile() ? config.bounds.mobile : config.bounds.desktop);
 		const getCurrentCenterBounds = () =>
 			isMobile() ? config.centerBounds.mobile : config.centerBounds.desktop;
 
-		// Function to animate images to their scattered positions
+		// Animate images to scattered positions
 		const animateInTl = (componentObj) => {
-			let component = componentObj.component;
+			const component = componentObj.component;
 			const bounds = getCurrentBounds();
 			const centerBounds = getCurrentCenterBounds();
+			const tl = gsap.timeline({ paused: true });
 
-			let tl = gsap.timeline({ paused: true });
+			if (isMobile()) {
+				// MOBILE: only animate images with data-scatter-image="mbl"
+				const allImgs = Array.from(component.querySelectorAll(".scatter-img"));
+				const targetImgs = componentObj.images; // already filtered
+				const nonTargets = allImgs.filter((el) => !targetImgs.includes(el));
 
-			tl.fromTo(
-				component.querySelectorAll(".scatter-hero_media-wrap:is(.is-left, .is-right) .scatter-img"),
-				{
-					y: config.posYOffset,
-					autoAlpha: 0,
-				},
-				{
-					xPercent: () => gsap.utils.random(bounds.xMin, bounds.xMax),
-					yPercent: () => gsap.utils.random(bounds.yMin, bounds.yMax),
-					rotation: () => gsap.utils.random(-config.maxRotation, config.maxRotation),
-					scale: () => gsap.utils.random(config.scale),
-					autoAlpha: 1,
-					y: 0,
-					duration: config.transformDuration,
-					ease: "power3.out",
-					stagger: {
-						amount: config.stagger,
-						from: "random",
+				// Hide non-target images
+				gsap.set(nonTargets, { autoAlpha: 0 });
+
+				// Animate only target images
+				tl.fromTo(
+					targetImgs,
+					{ y: config.posYOffset.mobile, autoAlpha: 0 },
+					{
+						xPercent: () => gsap.utils.random(bounds.xMin, bounds.xMax),
+						yPercent: () => gsap.utils.random(bounds.yMin, bounds.yMax),
+						rotation: () => gsap.utils.random(-config.maxRotation, config.maxRotation),
+						scale: () => gsap.utils.random(config.scale),
+						autoAlpha: 1,
+						y: 0,
+						duration: config.transformDuration,
+						ease: "power3.out",
+						stagger: { amount: config.stagger, from: "random" },
+					}
+				);
+			} else {
+				// DESKTOP: original logic
+				tl.fromTo(
+					component.querySelectorAll(
+						".scatter-hero_media-wrap:is(.is-left, .is-right) .scatter-img"
+					),
+					{ y: config.posYOffset.desktop, autoAlpha: 0 },
+					{
+						xPercent: () => gsap.utils.random(bounds.xMin, bounds.xMax),
+						yPercent: () => gsap.utils.random(bounds.yMin, bounds.yMax),
+						rotation: () => gsap.utils.random(-config.maxRotation, config.maxRotation),
+						scale: () => gsap.utils.random(config.scale),
+						autoAlpha: 1,
+						y: 0,
+						duration: config.transformDuration,
+						ease: "power3.out",
+						stagger: { amount: config.stagger, from: "random" },
+					}
+				).fromTo(
+					component.querySelectorAll(".scatter-hero_media-wrap.is-main .scatter-img"),
+					{ opacity: 0, y: config.posYOffset.desktop },
+					{
+						opacity: 1,
+						yPercent: () => gsap.utils.random(centerBounds.yMin, centerBounds.yMax),
+						rotation: () => gsap.utils.random(-2, 2),
+						y: 0,
+						scale: 1,
+						duration: config.fadeDuration,
+						ease: "power3.out",
 					},
-				}
-			).fromTo(
-				component.querySelectorAll(".scatter-hero_media-wrap.is-main .scatter-img"),
-				{
-					opacity: 0,
-					y: config.posYOffset,
-				},
-				{
-					opacity: 1,
-					yPercent: () => gsap.utils.random(centerBounds.yMin, centerBounds.yMax),
-					rotation: () => gsap.utils.random(-2, 2),
-					y: 0,
-					scale: 1, // keep size fixed
-					duration: config.fadeDuration,
-					ease: "power3.out",
-				},
-				"<"
-			);
+					"<"
+				);
+			}
 
 			tl.eventCallback("onComplete", () => {
-				console.log("Animation in completed");
 				componentObj.inAnimationCompleted = true;
-				// if (componentObj.outAnimationToRun) {
-				// 	componentObj.tl_out.play(); // play out animation if it was triggered while in not yet completed
-				// }
-
-				// make draggable
-				setupDraggable(componentObj);
+				// Disable draggable on mobile
+				if (!isMobile()) {
+					setupDraggable(componentObj);
+				}
 			});
 
 			return tl;
 		};
 
 		function setupDraggable(componentObj) {
+			if (isMobile()) return; // mobile: no draggable
 			const component = componentObj.component;
 			const section = componentObj.section;
-			// find all images
 			const imgs = component.querySelectorAll(".scatter-img");
-			if (imgs.length === 0) return;
+			if (!imgs.length) return;
 
-			// Set up draggable for rotation and translation
 			imgs.forEach((el) => {
-				let rotationDrag = setupRotationDraggable(el);
-				let translateDrag = setupTranslateDraggable(el);
+				const rotationDrag = new Draggable(el, {
+					type: "rotation",
+					throwProps: true,
+					inertia: true,
+					zIndexBoost: false,
+					onPress: setDraggable,
+				}).disable();
 
-				function setupRotationDraggable(el) {
-					let rotationDrag = new Draggable(el, {
-						type: "rotation",
-						throwProps: true,
-						inertia: true,
-						zIndexBoost: false,
-						onPress: setDraggable,
-					}).disable();
-					return rotationDrag;
-				}
-
-				function setupTranslateDraggable(el) {
-					let translateDrag = new Draggable(el, {
-						bounds: section,
-						throwProps: true,
-						inertia: true,
-						zIndexBoost: false,
-						onPress: setDraggable,
-					});
-					return translateDrag;
-				}
+				const translateDrag = new Draggable(el, {
+					bounds: section,
+					throwProps: true,
+					inertia: true,
+					zIndexBoost: false,
+					onPress: setDraggable,
+				});
 
 				function setDraggable(event) {
-					let isRotation = this.vars.type === "rotation";
-					let isCorner = event.target.classList.contains("scatter-img_corner");
-
-					if (isCorner) {
-						// No need to do this if it's already the rotation draggable
-						if (!isRotation) {
-							translateDrag.disable();
-							rotationDrag.enable().startDrag(event);
-						}
-					} else if (isRotation) {
+					const isRotation = this.vars.type === "rotation";
+					const isCorner = event.target.classList.contains("scatter-img_corner");
+					if (isCorner && !isRotation) {
+						translateDrag.disable();
+						rotationDrag.enable().startDrag(event);
+					} else if (!isCorner && isRotation) {
 						rotationDrag.disable();
 						translateDrag.enable().startDrag(event);
 					}
@@ -3003,114 +3290,58 @@ function main() {
 			});
 		}
 
-		// Function to animate images out of view
-		const animateOutTl = (componentObj) => {
-			let component = componentObj.component;
-			let tl = gsap.timeline({
-				paused: true,
-				onStart: () => {
-					console.log("Starting animation out");
-				},
-				onComplete: () => {
-					console.log("Animation out completed");
-					// componentObj.outAnimationToRun = false;
-				},
-			});
-			tl.to(component.querySelectorAll(".scatter-hero_media-wrap"), {
-				y: -200,
-				autoAlpha: 0,
-				duration: config.transformDuration,
-				ease: "power2.in",
-				stagger: {
-					amount: config.stagger,
-					from: "random",
-				},
-			});
+		const animateOutTl = (componentObj) =>
+			gsap
+				.timeline({ paused: true })
+				.to(componentObj.component.querySelectorAll(".scatter-hero_media-wrap"), {
+					y: -200,
+					autoAlpha: 0,
+					duration: config.transformDuration,
+					ease: "power2.in",
+					stagger: { amount: config.stagger, from: "random" },
+				});
 
-			return tl;
-		};
-
-		// Store resize timeout to debounce resize events
-		let resizeTimeout;
-
-		// loop through all .c-scatter-hero components
 		document.querySelectorAll(".c-scatter-hero").forEach((component) => {
-			let componentObj = {
-				component: component,
+			const allImages = gsap.utils.toArray(".scatter-img", component);
+			const mobileImages = allImages.filter(
+				(el) => el.getAttribute("data-scatter-image") === "mbl"
+			);
+
+			const componentObj = {
+				component,
 				section: component.closest(".section"),
-				images: gsap.utils.toArray(".scatter-img", component),
+				images: isMobile() ? mobileImages : allImages,
 				inAnimationCompleted: false,
 				outAnimationToRun: false,
 			};
-			let currentScreenType = isMobile() ? "mobile" : "desktop";
 
-			// componentObj.tl_out = animateOutTl(componentObj);
 			componentObj.tl_in = animateInTl(componentObj);
 
-			// wait for images to load before starting animations
-			const images = componentObj.images;
-
-			const loadPromises = images.map((img_wrap) => {
-				const img = img_wrap.querySelector("img");
-				if (img.complete) return Promise.resolve(img); // already loaded
+			// Load only the targeted images (mobile: filtered; desktop: all)
+			const loadPromises = componentObj.images.map((imgWrap) => {
+				const img = imgWrap.querySelector("img") || imgWrap;
+				if (!img) return Promise.resolve();
+				if (img.complete) return Promise.resolve();
 				return new Promise((resolve) => {
-					img.addEventListener("load", () => resolve(img));
-					img.addEventListener("error", () => resolve(img)); // resolve even on error to avoid blocking
+					img.addEventListener("load", resolve);
+					img.addEventListener("error", resolve);
 				});
 			});
 
 			Promise.all(loadPromises).then(() => {
-				console.log("All images loaded");
-				// Start animations
 				componentObj.tl_in.play();
 			});
 
-			// // if html element has class 'lenus-page-loaded' then run animation, otherwise wait for window load event
-			// if (document.documentElement.classList.contains("lenus-page-loaded")) {
-			// 	componentObj.tl_in.play();
-			// } else {
-			// 	window.addEventListener("load", () => {
-			// 		componentObj.tl_in.play();
-			// 	});
-			// }
-
-			// Create scroll trigger for scroll-based animations
 			ScrollTrigger.create({
 				trigger: component,
 				start: "bottom 80%",
 				end: "bottom 79%",
 				onEnter: () => {
 					componentObj.outAnimationToRun = true;
-					if (!componentObj.inAnimationCompleted) {
-						console.log("Animation in not yet completed, deferring animation out");
-						return; // don't animate out if in not yet completed
-					}
-					// componentObj.tl_out.play();
+					if (!componentObj.inAnimationCompleted) return;
+					// (out animation currently disabled)
 				},
-				onLeave: () => {},
-				onEnterBack: () => {
-					// componentObj.tl_out.reverse();
-				},
-				onLeaveBack: () => {},
 			});
-
-			// Handle resize events
-			// const handleResize = () => {
-			// 	clearTimeout(resizeTimeout);
-			// 	resizeTimeout = setTimeout(() => {
-			// 		const newScreenType = isMobile() ? "mobile" : "desktop";
-
-			// 		// Only re-animate if screen type changed and component is in view
-			// 		if (newScreenType !== currentScreenType && isInView) {
-			// 			currentScreenType = newScreenType;
-			// 			animateImagesIn(component);
-			// 		} else {
-			// 			currentScreenType = newScreenType;
-			// 		}
-			// 	}, 150); // Debounce resize events
-			// };
-
-			// window.addEventListener("resize", handleResize);
 		});
 	}
 
@@ -6072,8 +6303,6 @@ function main() {
 				return;
 			}
 
-			console.log(job.content);
-
 			document.documentElement.setAttribute("data-job-status", "loaded");
 
 			// Populate core fields
@@ -6111,6 +6340,19 @@ function main() {
 			} else if (parentSidebarItem) {
 				parentSidebarItem.style.display = "none";
 			}
+		},
+
+		handleApplicationIframe() {
+			// on application tab click, fire resize event and scroll trigger refresh
+			const tabButtons = document.querySelectorAll("[data-w-tab]");
+			tabButtons.forEach((btn) => {
+				btn.addEventListener("click", () => {
+					// wait a moment for iframe to load
+					setTimeout(() => {
+						window.dispatchEvent(new Event("resize"));
+					}, 500);
+				});
+			});
 		},
 	};
 
@@ -7267,6 +7509,7 @@ Features:
 	}
 	if (document.querySelector("#job-details.c-job")) {
 		lenus.greenhouseJob.init();
+		lenus.greenhouseJob.handleApplicationIframe();
 	}
 	handleLocalTimes();
 	ctaImage();
