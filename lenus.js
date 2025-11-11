@@ -7456,6 +7456,44 @@ Features:
 		]);
 	}
 
+	function tippyTooltipsInit() {
+		// check tippy is loaded, or wait for a maximum time
+		if (typeof tippy === "undefined") {
+			let attempts = 0;
+			const maxAttempts = 10;
+			const interval = setInterval(() => {
+				attempts++;
+				if (typeof tippy !== "undefined") {
+					clearInterval(interval);
+					initializeTippy();
+				} else if (attempts >= maxAttempts) {
+					clearInterval(interval);
+					console.warn("Tippy.js not loaded after maximum attempts.");
+				}
+			}, 500); // check every 500ms
+			return;
+		}
+
+		initializeTippy();
+
+		function initializeTippy() {
+			console.log("Initializing Tippy tooltips");
+
+			tippy("[data-tippy-content][data-theme='dark']", {
+				maxWidth: 200,
+				// arrow: tippy.roundArrow + tippy.roundArrow,
+				// trigger: "click",
+				theme: "dark",
+			});
+			tippy("[data-tippy-content][data-theme='light']", {
+				maxWidth: 200,
+				// arrow: tippy.roundArrow + tippy.roundArrow,
+				// trigger: "click",
+				theme: "light",
+			});
+		}
+	}
+
 	parallax();
 	loadVideos();
 	// gradTest1();
@@ -7514,4 +7552,5 @@ Features:
 	handleLocalTimes();
 	ctaImage();
 	cardHover();
+	tippyTooltipsInit();
 }
