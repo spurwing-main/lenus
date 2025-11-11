@@ -116,16 +116,27 @@ function main() {
 		// Single timeline for header theme animation
 		let headerThemeTl = null;
 		function setupHeaderThemeTimeline() {
-			const targets = [header, document.querySelector(".nav-mega_bg")].filter(Boolean);
+			const targets = [
+				header,
+				document.querySelector(".nav-mega_bg"),
+				document.querySelector(".nav-mega_link"),
+			].filter(Boolean);
 
 			const darkThemer = document.querySelector(".nav-dark-themer");
 			const lightThemer = document.querySelector(".nav-light-themer");
 
+			// helper: commit theme state + reflect on header attribute
+			function commitTheme(theme) {
+				state = theme;
+				header.setAttribute("data-wf--header--theme", theme);
+				console.log(`Committed header theme: ${theme}`);
+			}
+
 			if (headerThemeTl) headerThemeTl.kill();
 			headerThemeTl = gsap.timeline({
 				paused: true,
-				onComplete: () => (state = "dark"),
-				onReverseComplete: () => (state = "light"),
+				onComplete: () => commitTheme("dark"),
+				onReverseComplete: () => commitTheme("light"),
 			});
 
 			if (!darkThemer || !lightThemer) {
@@ -147,6 +158,7 @@ function main() {
 				"--_theme---nav--col-header",
 				"--_theme---nav--search-border",
 				"--_theme---nav--bg-mbl",
+				"--_theme---nav--link-hover",
 			];
 
 			// Helper function to extract values from computed styles
@@ -165,6 +177,7 @@ function main() {
 			headerThemeTl.fromTo(targets, { ...lightVars }, { ...darkVars, duration: 0.3 }, 0);
 
 			headerThemeTl.progress(state === "dark" ? 1 : 0);
+			commitTheme(state);
 		}
 
 		// Only create ScrollTriggers for dark section groups
@@ -256,17 +269,20 @@ function main() {
 					found = group;
 				}
 			});
-			const variant = found
-				? found.getAttribute(attributeName)
-				: sectionGroups[0]?.getAttribute(attributeName);
+
+			const targetGroup = found || sectionGroups[0] || null;
+
+			const rawVariant = targetGroup ? targetGroup.getAttribute(attributeName) || "" : "light";
+			const variant = rawVariant || "light";
+
+			console.log("[headerTheme] targetGroup:", targetGroup);
+			console.log("[headerTheme] variant resolved:", variant);
+
+			// Apply timeline direction only if state differs
 			if (DARK_THEMES.includes(variant)) {
-				// if state is already dark, do nothing
-				if (state === "dark") return;
-				headerThemeTl.play(0);
+				if (state !== "dark") headerThemeTl.play(0);
 			} else {
-				// if state is already light, do nothing
-				if (state === "light") return;
-				headerThemeTl.reverse(0);
+				if (state !== "light") headerThemeTl.reverse(0);
 			}
 		}
 		setInitialHeaderTheme();
