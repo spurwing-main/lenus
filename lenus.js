@@ -846,76 +846,193 @@ function main() {
 		const mediaQuery = window.matchMedia("(max-width: 768px)");
 		const videoLoadPadding = "100%"; // = one full viewport
 
-		// Helper to know current mode
+		const RESUME_OFFSET_PX = 20; // resume threshold: video top is 20px above viewport top
+		const respondImmediately = true; // toggle strategy for rapid scroll direction changes (see advice below)
+
 		const isMobile = () => mediaQuery.matches;
 
-		// update sources once per mode
+		function isPastResumePoint(video) {
+			const r = video.getBoundingClientRect();
+			return r.top <= -RESUME_OFFSET_PX;
+		}
+
+		function setupPauseAndScrollLogic(video, pauseTime) {
+			// Ensure metadata loaded
+			if (!Number.isFinite(video.duration) || video.duration <= 0) {
+				video.addEventListener("loadedmetadata", () => setupPauseAndScrollLogic(video, pauseTime), {
+					once: true,
+				});
+				return;
+			}
+
+			if (pauseTime >= video.duration) {
+				console.warn(
+					`[loadVideos] data-video-pause (${pauseTime}s) >= duration (${video.duration}s) for`,
+					video
+				);
+				return;
+			}
+
+			// if video has a loop attribute, we disable the pause-and-scroll logic
+			if (video.hasAttribute("loop")) {
+				console.warn(
+					`[loadVideos] Video has loop attribute; skipping pause-and-scroll logic for`,
+					video
+				);
+				video.removeAttribute("loop");
+			}
+
+			video.dataset.pauseAt = pauseTime;
+			video.dataset.segmentState = "segment1"; // states: segment1, pausedAt, segment2, reversing
+
+			// Timeupdate listener for first segment
+			const onTimeUpdate = () => {
+				if (video.dataset.segmentState !== "segment1") return;
+				if (video.currentTime >= pauseTime) {
+					if (isPastResumePoint(video)) {
+						// already beyond resume point – skip pause, continue into second segment
+						video.dataset.segmentState = "segment2";
+						video.removeEventListener("timeupdate", onTimeUpdate);
+						return;
+					}
+					video.pause();
+					video.currentTime = pauseTime;
+					video.dataset.segmentState = "pausedAt";
+					video.removeEventListener("timeupdate", onTimeUpdate);
+				}
+			};
+			video.addEventListener("timeupdate", onTimeUpdate);
+
+			// ScrollTrigger for second segment control
+			const st = ScrollTrigger.create({
+				trigger: video,
+				start: `top top-=${RESUME_OFFSET_PX}`, // when top passes above by 20px
+				end: "bottom top",
+				onEnter: () => handleScrollAdvance(video),
+				onLeaveBack: () => handleScrollReverse(video),
+			});
+			video._secondSegmentST = st;
+		}
+
+		function handleScrollAdvance(video) {
+			const state = video.dataset.segmentState;
+			if (!state) return;
+			const pauseTime = parseFloat(video.dataset.pauseAt || "0");
+			if (state === "pausedAt") {
+				// Resume forward playback (native)
+				video.currentTime = pauseTime;
+				video.play();
+				video.dataset.segmentState = "segment2";
+				killReverseTween(video);
+			} else if (state === "reversing") {
+				// Interrupt reverse and go forward
+				if (respondImmediately) {
+					killReverseTween(video);
+					video.play();
+					video.dataset.segmentState = "segment2";
+				} else {
+					video._queuedAction = "playForward";
+				}
+			}
+		}
+
+		function handleScrollReverse(video) {
+			const state = video.dataset.segmentState;
+			const pauseTime = parseFloat(video.dataset.pauseAt || "0");
+			if (state === "segment2") {
+				// Reverse from current (or end) back to pauseTime (never earlier)
+				if (respondImmediately) {
+					video.pause();
+					killReverseTween(video);
+					const dist = Math.max(0, video.currentTime - pauseTime);
+					const dur = dist || 0.001;
+					video.dataset.segmentState = "reversing";
+					video._reverseTween = gsap.to(video, {
+						currentTime: pauseTime,
+						duration: dur,
+						ease: "none",
+						onComplete: () => {
+							video.dataset.segmentState = "pausedAt";
+							video._reverseTween = null;
+							if (video._queuedAction === "playForward") {
+								video._queuedAction = null;
+								handleScrollAdvance(video);
+							}
+						},
+					});
+				} else {
+					// queue reverse until forward finishes
+					video._queuedAction = "reverseToPause";
+				}
+			} else if (state === "segment2-pending" && respondImmediately) {
+				// Edge state if we introduce buffering logic later
+				video._queuedAction = "reverseToPause";
+			}
+		}
+
+		function killReverseTween(video) {
+			if (video._reverseTween) {
+				video._reverseTween.kill();
+				video._reverseTween = null;
+			}
+		}
+
+		function parsePauseTimeAttr(video) {
+			const raw = video.getAttribute("data-video-pause");
+			if (!raw) return null;
+			const val = parseFloat(raw);
+			if (!isFinite(val) || val <= 0) {
+				console.warn(`[loadVideos] Invalid data-video-pause "${raw}" on`, video);
+				return null;
+			}
+			return val;
+		}
+
+		function setupVideoControls(video) {
+			const pauseTime = parsePauseTimeAttr(video);
+			if (pauseTime !== null && video.hasAttribute("autoplay")) {
+				setupPauseAndScrollLogic(video, pauseTime);
+			}
+		}
+
 		function updateSources(video, mode) {
-			if (video.dataset.videoLoaded) return; // skip if already done
-			// console.group(`🎥 Loading video: ${video.id || "unnamed"} (${mode} mode)`);
-
-			const sources = video.querySelectorAll("source");
-			// console.log(`Found ${sources.length} source elements`);
-
-			video.querySelectorAll("source").forEach((srcEl, index) => {
-				// console.group(`Source ${index + 1}:`);
-
-				const data = srcEl.dataset;
-				//  console.log("Raw dataset:", {
-				// 	srcDesktop: data.srcDesktop,
-				// 	srcMobile: data.srcMobile,
-				// 	typeDesktop: data.typeDesktop,
-				// 	typeMobile: data.typeMobile,
-				// });
+			if (video.dataset.videoLoaded) return;
+			video.querySelectorAll("source").forEach((srcEl) => {
 				const { srcMobile, srcDesktop, typeMobile, typeDesktop, codecsMobile, codecsDesktop } =
 					srcEl.dataset;
-				srcEl.src = ""; // reset src to avoid stale data
-				// pick URL + MIME + codecs
+				srcEl.src = "";
 				const url = mode === "mobile" ? srcMobile || srcDesktop : srcDesktop;
 				const mime = mode === "mobile" ? typeMobile || typeDesktop : typeDesktop;
 				const codecs = mode === "mobile" ? codecsMobile || codecsDesktop : codecsDesktop;
-
 				if (!url) return;
 				srcEl.src = url;
-				// console.log(`Setting source for ${video.id}:`, url);
-
 				let typeAttr = mime || "";
 				if (codecs) typeAttr += `; codecs="${codecs}"`;
 				if (typeAttr) srcEl.setAttribute("type", typeAttr);
-
-				// console.groupEnd();
 			});
-
-			// console.groupEnd();
-
 			video.load();
 			video.dataset.videoLoaded = "true";
+			setupVideoControls(video); // after sources loaded
 		}
 
-		// preload triggers (±1 viewport)
 		let preloadTriggers = videos.map((video) =>
 			ScrollTrigger.create({
 				trigger: video,
-				start: `top bottom+=${videoLoadPadding}`, // 1 viewport below
-				end: `bottom top-=${videoLoadPadding}`, // 1 viewport above
+				start: `top bottom+=${videoLoadPadding}`,
+				end: `bottom top-=${videoLoadPadding}`,
 				onEnter(self) {
 					updateSources(video, isMobile() ? "mobile" : "desktop");
-					console.log("Preloading video:", video);
-					self.kill(); // don’t fire again until mode change
+					self.kill();
 				},
 				onEnterBack(self) {
 					updateSources(video, isMobile() ? "mobile" : "desktop");
-					console.log("Preloading video (back):", video);
 					self.kill();
 				},
-				// markers: true,
 			})
 		);
 
-		// play / pause triggers
+		// play / pause triggers (viewport region)
 		videos.forEach((video) => {
-			// only play if autoplay is enabled or video was previously playing, but pause for all
-
 			ScrollTrigger.create({
 				trigger: video,
 				start: "top 90%",
@@ -924,19 +1041,20 @@ function main() {
 					lenus.helperFunctions.playVideo(video);
 				},
 				onLeave: () => {
-					if (!video.paused) {
-						console.log("Pausing", video);
-						video.pause();
+					// If in second segment and above resume point, do not pause (keep playing to allow reverse later)
+					if (video.dataset.segmentState === "segment2" && isPastResumePoint(video)) {
+						return;
 					}
+					if (!video.paused) video.pause();
 				},
 				onEnterBack: () => {
 					lenus.helperFunctions.playVideo(video);
 				},
 				onLeaveBack: () => {
-					if (!video.paused) {
-						console.log("Pausing", video);
-						video.pause();
+					if (video.dataset.segmentState === "segment2" && isPastResumePoint(video)) {
+						return;
 					}
+					if (!video.paused) video.pause();
 				},
 			});
 		});
@@ -944,16 +1062,18 @@ function main() {
 		// mode change
 		mediaQuery.addEventListener("change", () => {
 			const newMode = isMobile() ? "mobile" : "desktop";
-			// console.log(`Mode changed to: ${newMode}`);
-
-			// console.log("Updating video sources for new mode:", newMode);
-
-			// Clear loaded flags so videos will reload in new mode
 			videos.forEach((video) => {
 				delete video.dataset.videoLoaded;
+				// clean second segment triggers & tweens
+				if (video._secondSegmentST) {
+					video._secondSegmentST.kill();
+					video._secondSegmentST = null;
+				}
+				killReverseTween(video);
+				video._queuedAction = null;
+				delete video.dataset.segmentState;
+				delete video.dataset.pauseAt;
 			});
-
-			// Kill old preload triggers, then recreate them
 			preloadTriggers.forEach((t) => t.kill());
 			preloadTriggers = videos.map((video) =>
 				ScrollTrigger.create({
@@ -970,8 +1090,6 @@ function main() {
 					},
 				})
 			);
-
-			// Refresh all ScrollTriggers to recalc positions
 			ScrollTrigger.refresh();
 		});
 	}
@@ -1280,8 +1398,19 @@ function main() {
 	function randomTestimonial() {
 		const sources = Array.from(document.querySelectorAll('[data-lenus-source="testimonial-img"]'));
 
+		if (sources.length === 0) {
+			// if no sources, hide all groups and exit
+			document.querySelectorAll('[data-lenus-target="testimonial-group"]').forEach((group) => {
+				gsap.set(group, {
+					display: "none",
+				});
+			});
+		}
+
 		document.querySelectorAll('[data-lenus-target="testimonial-group"]').forEach((group) => {
 			const targets = Array.from(group.querySelectorAll('[data-lenus-target="testimonial-img"]'));
+
+			if (targets.length === 0) return;
 
 			// clone & shuffle a fresh copy of the sources
 			const pool = sources.slice();
