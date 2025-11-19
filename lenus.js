@@ -23,12 +23,12 @@ function main() {
 	});
 	ScrollTrigger.addEventListener("refreshInit", function () {
 		// this code will run BEFORE the refresh
-		console.log("ScrollTrigger refreshInit");
+		// console.log("ScrollTrigger refreshInit");
 	});
 
 	ScrollTrigger.addEventListener("refresh", function () {
 		// this code will run AFTER all ScrollTriggers refreshed.
-		console.log("ScrollTrigger refresh");
+		// console.log("ScrollTrigger refresh");
 	});
 
 	// GSDevTools setup for development
@@ -100,7 +100,7 @@ function main() {
 		const headerTheme = header.getAttribute("data-wf--header--theme") || "light"; // get initial theme from header
 		let state = headerTheme === "dark" ? "dark" : "light"; // track current state
 
-		console.log(`Initial header theme state: ${state}`);
+		// console.log(`[headerThemeScrollTrigger] Initial header theme state: ${state}`);
 
 		const sectionGroups = gsap.utils.toArray(`.section-group`);
 
@@ -129,7 +129,7 @@ function main() {
 			function commitTheme(theme) {
 				state = theme;
 				header.setAttribute("data-wf--header--theme", theme);
-				console.log(`Committed header theme: ${theme}`);
+				// console.log(`[headerThemeScrollTrigger] Committed header theme: ${theme}`);
 			}
 
 			if (headerThemeTl) headerThemeTl.kill();
@@ -140,9 +140,9 @@ function main() {
 			});
 
 			if (!darkThemer || !lightThemer) {
-				console.warn(
-					"Header theme elements not found. Ensure .nav-dark-themer and .nav-light-themer exist."
-				);
+				// console.warn(
+				// 	"[headerThemeScrollTrigger] Header theme elements not found. Ensure .nav-dark-themer and .nav-light-themer exist."
+				// );
 				return;
 			}
 
@@ -997,22 +997,105 @@ function main() {
 
 		function updateSources(video, mode) {
 			if (video.dataset.videoLoaded) return;
-			video.querySelectorAll("source").forEach((srcEl) => {
+
+			const ua = navigator.userAgent || "";
+			const isIOS = /iP(hone|ad|od)/i.test(ua);
+			const isSafariDesktop = /Safari/i.test(ua) && !/(Chrome|Chromium|CriOS|Edg|OPR)/i.test(ua);
+			const isAppleEngine = isIOS || isSafariDesktop;
+			const sourceEls = Array.from(video.querySelectorAll("source"));
+
+			const meta = sourceEls.map((srcEl) => {
 				const { srcMobile, srcDesktop, typeMobile, typeDesktop, codecsMobile, codecsDesktop } =
 					srcEl.dataset;
-				srcEl.src = "";
 				const url = mode === "mobile" ? srcMobile || srcDesktop : srcDesktop;
 				const mime = mode === "mobile" ? typeMobile || typeDesktop : typeDesktop;
 				const codecs = mode === "mobile" ? codecsMobile || codecsDesktop : codecsDesktop;
-				if (!url) return;
-				srcEl.src = url;
-				let typeAttr = mime || "";
-				if (codecs) typeAttr += `; codecs="${codecs}"`;
-				if (typeAttr) srcEl.setAttribute("type", typeAttr);
+				return {
+					srcEl,
+					url,
+					mime,
+					codecs,
+					isWebm: /webm/i.test(mime || ""),
+					isHevc: /(mp4)/i.test(mime || "") && /(hvc1|hev1)/i.test(codecs || ""),
+				};
 			});
+
+			const hasWebm = meta.some((m) => m.isWebm);
+			const hasHevc = meta.some((m) => m.isHevc);
+			const dual = hasWebm && hasHevc;
+			console.log(
+				`[loadVideos:updateSources]` +
+					`\n  → Engine: ${isAppleEngine ? "Apple" : "Non-Apple"}` +
+					`\n  → Mode: ${mode}` +
+					`\n  → hasWebm: ${hasWebm}` +
+					`\n  → hasHevc: ${hasHevc}` +
+					`\n  → dualVariants: ${dual}`
+			);
+
+			let chosen = null;
+			if (dual) {
+				if (isAppleEngine) {
+					chosen = meta.find((m) => m.isHevc && m.url);
+				} else {
+					chosen = meta.find((m) => m.isWebm && m.url);
+				}
+			} else {
+				// Single variant present – pick first with URL
+				chosen = meta.find((m) => m.url);
+			}
+
+			// Blank out non-chosen variants when dual to avoid accidental fallback ordering
+			if (dual && chosen) {
+				meta.forEach((m) => {
+					if (m !== chosen) m.srcEl.src = "";
+				});
+			}
+
+			if (chosen) {
+				chosen.srcEl.src = chosen.url;
+				let typeAttr = chosen.mime || "";
+				if (chosen.codecs) typeAttr += `; codecs="${chosen.codecs}"`;
+				if (typeAttr) chosen.srcEl.setAttribute("type", typeAttr);
+				console.log(
+					`[loadVideos:updateSources] ✔ Using source:` +
+						`\n    URL: ${chosen.url}` +
+						`\n    MIME: ${chosen.mime}` +
+						`\n    Codecs: ${chosen.codecs || "(none)"}` +
+						`\n    Variant: ${chosen.isWebm ? "WebM" : chosen.isHevc ? "HEVC" : "Other"}`
+				);
+				video._variantChoice = chosen.isWebm ? "webm" : chosen.isHevc ? "hevc" : "other";
+			} else {
+				console.warn("[loadVideos:updateSources] ⚠ No valid source found", video);
+			}
+
+			// Error fallback – if chosen fails and dual variants existed, try the other
+			if (dual) {
+				const onError = () => {
+					if (!dual || !chosen) return;
+					console.warn(
+						"[loadVideos:updateSources] chosen variant failed – attempting fallback",
+						video
+					);
+					const alt = isAppleEngine
+						? meta.find((m) => m.isWebm && m.url)
+						: meta.find((m) => m.isHevc && m.url);
+					if (alt && alt !== chosen) {
+						alt.srcEl.src = alt.url;
+						let typeAttr = alt.mime || "";
+						if (alt.codecs) typeAttr += `; codecs="${alt.codecs}"`;
+						if (typeAttr) alt.srcEl.setAttribute("type", typeAttr);
+						video.load();
+						video._variantChoice = alt.isWebm ? "webm" : alt.isHevc ? "hevc" : "other";
+						console.log("[loadVideos:updateSources] Fallback variant applied", alt);
+					}
+					video.removeEventListener("error", onError);
+				};
+				video.addEventListener("error", onError, { once: true });
+			}
+
 			video.load();
 			video.dataset.videoLoaded = "true";
-			setupVideoControls(video); // after sources loaded
+			setupVideoControls(video);
 		}
 
 		let preloadTriggers = videos.map((video) =>
@@ -7613,7 +7696,7 @@ Features:
 					initializeTippy();
 				} else if (attempts >= maxAttempts) {
 					clearInterval(interval);
-					console.warn("Tippy.js not loaded after maximum attempts.");
+					console.warn("[tippyTooltipsInit] Tippy.js not loaded after maximum attempts.");
 				}
 			}, 500); // check every 500ms
 			return;
@@ -7622,18 +7705,14 @@ Features:
 		initializeTippy();
 
 		function initializeTippy() {
-			console.log("Initializing Tippy tooltips");
-
 			tippy("[data-tippy-content][data-theme='dark']", {
 				maxWidth: 200,
-				// arrow: tippy.roundArrow + tippy.roundArrow,
-				// trigger: "click",
+
 				theme: "dark",
 			});
 			tippy("[data-tippy-content][data-theme='light']", {
 				maxWidth: 200,
-				// arrow: tippy.roundArrow + tippy.roundArrow,
-				// trigger: "click",
+
 				theme: "light",
 			});
 		}
