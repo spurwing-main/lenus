@@ -1002,52 +1002,66 @@ function main() {
 			const isIOS = /iP(hone|ad|od)/i.test(ua);
 			const isSafariDesktop = /Safari/i.test(ua) && !/(Chrome|Chromium|CriOS|Edg|OPR)/i.test(ua);
 			const isAppleEngine = isIOS || isSafariDesktop;
+
 			const sourceEls = Array.from(video.querySelectorAll("source"));
 
+			// Build meta for each source
 			const meta = sourceEls.map((srcEl) => {
 				const { srcMobile, srcDesktop, typeMobile, typeDesktop, codecsMobile, codecsDesktop } =
 					srcEl.dataset;
+
 				const url = mode === "mobile" ? srcMobile || srcDesktop : srcDesktop;
 				const mime = mode === "mobile" ? typeMobile || typeDesktop : typeDesktop;
 				const codecs = mode === "mobile" ? codecsMobile || codecsDesktop : codecsDesktop;
+
+				const lowerMime = (mime || "").toLowerCase();
+
 				return {
 					srcEl,
 					url,
 					mime,
 					codecs,
-					isWebm: /webm/i.test(mime || ""),
-					isHevc: /(mp4)/i.test(mime || "") && /(hvc1|hev1)/i.test(codecs || ""),
+					isWebm: lowerMime.includes("webm"),
+					isMp4: lowerMime.includes("mp4"),
 				};
 			});
 
 			const hasWebm = meta.some((m) => m.isWebm);
-			const hasHevc = meta.some((m) => m.isHevc);
-			const dual = hasWebm && hasHevc;
+			const hasMp4 = meta.some((m) => m.isMp4);
+			const dual = hasWebm && hasMp4;
+
 			console.log(
 				`[loadVideos:updateSources]` +
 					`\n  → Engine: ${isAppleEngine ? "Apple" : "Non-Apple"}` +
 					`\n  → Mode: ${mode}` +
 					`\n  → hasWebm: ${hasWebm}` +
-					`\n  → hasHevc: ${hasHevc}` +
+					`\n  → hasMp4: ${hasMp4}` +
 					`\n  → dualVariants: ${dual}`
 			);
 
 			let chosen = null;
+
 			if (dual) {
+				// Alpha pair case: one webm + one mp4
 				if (isAppleEngine) {
-					chosen = meta.find((m) => m.isHevc && m.url);
+					// Safari / iOS: use MP4 (HEVC export from Rotato)
+					chosen = meta.find((m) => m.isMp4 && m.url);
 				} else {
+					// Chrome/Firefox/Edge: use WebM (VP9 g=1)
 					chosen = meta.find((m) => m.isWebm && m.url);
 				}
 			} else {
-				// Single variant present – pick first with URL
+				// Single variant – just pick first with URL (normal videos)
 				chosen = meta.find((m) => m.url);
 			}
 
-			// Blank out non-chosen variants when dual to avoid accidental fallback ordering
+			// When dual, blank out non-chosen srcs so browser can't fall back
 			if (dual && chosen) {
 				meta.forEach((m) => {
-					if (m !== chosen) m.srcEl.src = "";
+					if (m !== chosen) {
+						m.srcEl.removeAttribute("src");
+						m.srcEl.removeAttribute("type");
+					}
 				});
 			}
 
@@ -1056,41 +1070,18 @@ function main() {
 				let typeAttr = chosen.mime || "";
 				if (chosen.codecs) typeAttr += `; codecs="${chosen.codecs}"`;
 				if (typeAttr) chosen.srcEl.setAttribute("type", typeAttr);
+
 				console.log(
 					`[loadVideos:updateSources] ✔ Using source:` +
 						`\n    URL: ${chosen.url}` +
 						`\n    MIME: ${chosen.mime}` +
 						`\n    Codecs: ${chosen.codecs || "(none)"}` +
-						`\n    Variant: ${chosen.isWebm ? "WebM" : chosen.isHevc ? "HEVC" : "Other"}`
+						`\n    Variant: ${chosen.isWebm ? "WebM" : chosen.isMp4 ? "MP4 (Safari/iOS)" : "Other"}`
 				);
-				video._variantChoice = chosen.isWebm ? "webm" : chosen.isHevc ? "hevc" : "other";
+
+				video._variantChoice = chosen.isWebm ? "webm" : chosen.isMp4 ? "mp4" : "other";
 			} else {
 				console.warn("[loadVideos:updateSources] ⚠ No valid source found", video);
-			}
-
-			// Error fallback – if chosen fails and dual variants existed, try the other
-			if (dual) {
-				const onError = () => {
-					if (!dual || !chosen) return;
-					console.warn(
-						"[loadVideos:updateSources] chosen variant failed – attempting fallback",
-						video
-					);
-					const alt = isAppleEngine
-						? meta.find((m) => m.isWebm && m.url)
-						: meta.find((m) => m.isHevc && m.url);
-					if (alt && alt !== chosen) {
-						alt.srcEl.src = alt.url;
-						let typeAttr = alt.mime || "";
-						if (alt.codecs) typeAttr += `; codecs="${alt.codecs}"`;
-						if (typeAttr) alt.srcEl.setAttribute("type", typeAttr);
-						video.load();
-						video._variantChoice = alt.isWebm ? "webm" : alt.isHevc ? "hevc" : "other";
-						console.log("[loadVideos:updateSources] Fallback variant applied", alt);
-					}
-					video.removeEventListener("error", onError);
-				};
-				video.addEventListener("error", onError, { once: true });
 			}
 
 			video.load();
@@ -6088,7 +6079,6 @@ function main() {
 				}
 				revealDistance = 0;
 			} else if (delta > hideBuffer && y > hideThreshold && !navHidden) {
-				console.log("delta:", delta, "hiding nav");
 				nav.classList.add("is-hidden", "is-past-threshold");
 				navHidden = true;
 				revealDistance = 0;
@@ -7132,7 +7122,7 @@ function main() {
 
 		// Overflow handling - disable features when not needed
 		instance.on("overflow", function (isOverflow) {
-			console.log("Carousel overflow status:", isOverflow);
+			console.log("[initSplideCarousel] Carousel overflow status:", isOverflow);
 			instance.go(0);
 			const updates = {
 				arrows: hasControls && isOverflow, // arrows only if controls exist and overflow
@@ -7155,13 +7145,13 @@ function main() {
 		// Event handlers - to be declared before mounting
 		if (onMounted)
 			instance.on("mounted", () => {
-				console.log("Splide mounted:", instance);
+				console.log("[initSplideCarousel] Splide mounted:", instance);
 				onMounted(instance);
 			});
 
 		if (onReady)
 			instance.on("ready", () => {
-				console.log("Splide ready:", instance);
+				console.log("[initSplideCarousel] Splide ready:", instance);
 				onReady(instance);
 			});
 
