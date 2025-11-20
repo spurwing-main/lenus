@@ -193,7 +193,7 @@ function main() {
 			killHeaderThemeScrollTriggers();
 			// console.log("Creating header theme ScrollTriggers...");
 			sectionGroups.forEach((group, idx) => {
-				const variant = group.getAttribute(attributeName);
+				let variant = group.getAttribute(attributeName);
 				// if no variant, assume light
 				if (!variant) {
 					variant = "light";
@@ -1965,17 +1965,34 @@ function main() {
 	}
 
 	function animateTitles() {
-		gsap.utils.toArray(".anim-grad-text").forEach((title) => {
-			// exclude titles inside .c-cta
-			if (title.closest(".c-cta")) return;
+		// Requires GSAP SplitText plugin
+		document.querySelectorAll(".anim-grad-text").forEach((el) => {
+			if (el.closest(".c-cta")) return;
 
-			gsap.to(title, {
+			// split the text into words with custom class
+			const split = new SplitText(el, {
+				type: "words",
+				wordsClass: "anim-grad-text-word",
+			});
+
+			const words = split.words;
+
+			// initial state
+			gsap.set(words, {
+				backgroundPosition: "100% 0%",
+			});
+
+			gsap.to(words, {
 				backgroundPosition: "0% 0%",
 				ease: "none",
+				stagger: {
+					each: 0.08,
+					from: "start",
+				},
 				scrollTrigger: {
-					trigger: title,
+					trigger: el,
 					start: "top 80%",
-					end: "bottom 20%",
+					end: "top 40%",
 					scrub: true,
 				},
 			});
@@ -2153,19 +2170,49 @@ function main() {
 	}
 
 	function tabsWithToggleSlider() {
+		// add object to track video states across panels to global lenus object
+		if (!lenus.toggleTabs) lenus.toggleTabs = [];
+
 		document.querySelectorAll("[data-tabs-element='component']").forEach((component) => {
+			let obj = {};
+			lenus.toggleTabs.push(obj);
+
+			// find required elements
+
 			const controls = component.querySelector("[data-tabs-element='controls']");
 			const track = component.querySelector("[data-tabs-element='controls-track']");
 			const list = component.querySelector("[data-tabs-element='controls-list']");
 			const panelsList = component.querySelector("[data-tabs-element='panel-list']");
 			if (!controls || !track || !list || !panelsList) return;
 
+			obj.component = component;
+			obj.controls = controls;
+			obj.track = track;
+			obj.list = list;
+			obj.panelsList = panelsList;
 			//  find panels
 			let panels = Array.from(panelsList.querySelectorAll("[data-tabs-element='panel']"));
-			console.log(panels);
+
+			obj.panels = panels;
 
 			// If no panels found, abort quietly
 			if (!panels.length) return;
+
+			// get all videos and those marked pausable
+			const allVideos = Array.from(component.querySelectorAll("video"));
+			const pausableVideos = allVideos.filter((v) => v.hasAttribute("data-video-pause"));
+			// determine if we use a shared timeline for all videos
+			const useSharedTimeline =
+				pausableVideos.length > 1 && pausableVideos.length === allVideos.length;
+
+			obj.videos = allVideos;
+			obj.pausableVideos = pausableVideos;
+			obj.useSharedTimeline = useSharedTimeline;
+
+			// shared timeline state (only meaningful if useSharedTimeline === true)
+			obj.sharedTime = 0;
+			obj.sharedSegmentState = "segment1";
+			obj.sharedWasPlaying = false;
 
 			// --- build or reuse buttons ----------------------------------------------
 			let tabs = Array.from(list.querySelectorAll("[data-tabs-element='controls-item']"));
@@ -2530,6 +2577,47 @@ function main() {
 			console.log("Wide carousel initialized.");
 		});
 	}
+
+	function relatedProductsCarousel() {
+		document.querySelectorAll(".related-products").forEach((component) => {
+			console.log("Initializing related products carousel:", component);
+			const instance = lenus.helperFunctions.initSplideCarousel(component, {
+				config: {
+					gap: "2rem",
+					type: "slide",
+					breakpoints: {
+						767: {
+							gap: "1rem",
+							autoWidth: false,
+						},
+					},
+				},
+			});
+
+			console.log("Related products carousel initialized.");
+		});
+	}
+
+	function productImageCarousel() {
+		// class is .product_carousel
+		document.querySelectorAll(".product_carousel").forEach((component) => {
+			console.log("Initializing product image carousel:", component);
+			const instance = lenus.helperFunctions.initSplideCarousel(component, {
+				config: {
+					gap: "3rem",
+					arrows: true,
+					breakpoints: {
+						767: {
+							gap: "1rem",
+						},
+					},
+				},
+			});
+
+			console.log("Product image carousel initialized.");
+		});
+	}
+
 	function miniCarousel() {
 		document.querySelectorAll(".c-carousel.is-mini").forEach((component) => {
 			gsap.set(component, { autoAlpha: 0 });
@@ -7767,4 +7855,6 @@ Features:
 	ctaImage();
 	cardHover();
 	tippyTooltipsInit();
+	relatedProductsCarousel();
+	productImageCarousel();
 }
