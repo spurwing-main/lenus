@@ -6196,6 +6196,15 @@ function main() {
 				// No need to animate if only one item
 				const controls = component.querySelector(".carousel_controls");
 				if (controls) controls.remove();
+			}
+			if (items.length === 0) {
+				// No items found, nothing to do
+				return;
+			}
+			if (items.length === 1) {
+				// Only one item, just show it without carousel
+				items[0].classList.add("is-active");
+
 				return;
 			}
 
