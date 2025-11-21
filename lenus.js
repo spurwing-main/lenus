@@ -544,6 +544,11 @@ function main() {
 			const observer = new IntersectionObserver(
 				([entry]) => {
 					inView = entry.isIntersecting;
+					if (inView) {
+						stopCycle();
+					} else {
+						normalizeSlots();
+					}
 					handlePauseState();
 				},
 				{ threshold: 0.1 }
@@ -673,6 +678,24 @@ function main() {
 				});
 			}
 
+			function normalizeSlots() {
+				logoSlots.forEach((slot) => {
+					const logos = Array.from(slot.querySelectorAll(".logo-swap_logo"));
+					if (logos.length === 0) return;
+
+					// Keep last one only
+					const keep = logos[logos.length - 1];
+					logos.slice(0, -1).forEach((el) => el.remove());
+
+					keep.removeAttribute("data-logo-swap");
+					gsap.set(keep, {
+						autoAlpha: 1,
+						scale: 1,
+						filter: `${invertFilter}blur(0px) grayscale()`,
+					});
+				});
+			}
+
 			function clearTimeline() {
 				if (tl) {
 					tl.kill();
@@ -689,6 +712,8 @@ function main() {
 					tl.kill();
 					tl = null;
 				}
+
+				normalizeSlots();
 			}
 
 			function handlePauseState() {
@@ -755,9 +780,10 @@ function main() {
 			document.addEventListener("visibilitychange", () => {
 				if (document.hidden) {
 					paused = true;
-					handlePauseState();
+					stopCycle();
 				} else {
 					paused = false;
+					normalizeSlots();
 					handlePauseState();
 				}
 			});
@@ -793,49 +819,118 @@ function main() {
 		});
 	}
 
+	// function parallax() {
+	// 	const parallaxTriggers = document.querySelectorAll(".anim-parallax-trigger");
+	// 	if (parallaxTriggers.length === 0) return;
+	// 	parallaxTriggers.forEach((trigger) => {
+	// 		const parallaxElements = trigger.querySelectorAll("[data-parallax]");
+	// 		if (parallaxElements.length === 0) return;
+
+	// 		gsap.utils.toArray(parallaxElements).forEach((el) => {
+	// 			// Set the initial position of the element based on the speed
+	// 			const speed = parseFloat(el.getAttribute("data-parallax")) || 0.5;
+	// 			const scalingFactor = 5; // just to tweak feel
+	// 			let startY = 50 * speed * scalingFactor;
+	// 			let endY = -50 * speed * scalingFactor;
+	// 			const xSpeed = parseFloat(el.getAttribute("data-parallax-x")) || 0;
+	// 			let startX = 50 * xSpeed;
+	// 			let endX = -50 * xSpeed;
+
+	// 			// Check if mobile (768px and below)
+	// 			const isMobile = window.matchMedia("(max-width: 768px)").matches;
+
+	// 			// Mobile-specific adjustments
+	// 			if (isMobile) {
+	// 				// On mobile, animate from startX to natural position (0)
+	// 				startX = startY = endX = endY = 0;
+	// 			}
+
+	// 			gsap.fromTo(
+	// 				el,
+	// 				{ yPercent: startY, xPercent: startX },
+	// 				{
+	// 					yPercent: endY,
+	// 					xPercent: endX,
+	// 					ease: "none",
+	// 					scrollTrigger: {
+	// 						trigger: trigger,
+	// 						start: "top bottom",
+	// 						// On mobile, end when trigger is 20% from top of viewport
+	// 						// This means element reaches natural position at 20% from top
+	// 						end: isMobile ? "top 20%" : "bottom top",
+	// 						// scrub: true,
+	// 					},
+	// 				}
+	// 			);
+	// 		});
+	// 	});
+	// }
 	function parallax() {
-		const parallaxTriggers = document.querySelectorAll(".anim-parallax-trigger");
-		if (parallaxTriggers.length === 0) return;
-		parallaxTriggers.forEach((trigger) => {
-			const parallaxElements = trigger.querySelectorAll("[data-parallax]");
-			if (parallaxElements.length === 0) return;
+		const sections = document.querySelectorAll(".anim-parallax-trigger");
+		if (!sections.length) return;
 
-			gsap.utils.toArray(parallaxElements).forEach((el) => {
-				// Set the initial position of the element based on the speed
-				const speed = parseFloat(el.getAttribute("data-parallax")) || 0.5;
-				const scalingFactor = 5; // just to tweak feel
-				let startY = 50 * speed * scalingFactor;
-				let endY = -50 * speed * scalingFactor;
-				const xSpeed = parseFloat(el.getAttribute("data-parallax-x")) || 0;
-				let startX = 50 * xSpeed;
-				let endX = -50 * xSpeed;
+		sections.forEach((section) => {
+			const imgs = gsap.utils.toArray(section.querySelectorAll(".collage_img"));
+			if (!imgs.length) return;
 
-				// Check if mobile (768px and below)
-				const isMobile = window.matchMedia("(max-width: 768px)").matches;
+			const mm = gsap.matchMedia();
 
-				// Mobile-specific adjustments
-				if (isMobile) {
-					// On mobile, animate from startX to natural position (0)
-					startX = startY = endX = endY = 0;
-				}
+			// -----------------------------------------------------
+			// MOBILE
+			// -----------------------------------------------------
+			mm.add("(max-width: 768px)", () => {
+				imgs.forEach((img, i) => {
+					gsap.set(img, { clearProps: "all" });
+					if (i > 0) gsap.set(img, { autoAlpha: 0 });
+				});
+			});
 
-				gsap.fromTo(
-					el,
-					{ yPercent: startY, xPercent: startX },
+			// -----------------------------------------------------
+			// DESKTOP
+			// -----------------------------------------------------
+			mm.add("(min-width: 769px)", () => {
+				const revealTl = gsap.timeline({
+					scrollTrigger: {
+						trigger: section,
+						start: "top 60%",
+						end: "top 40%",
+						toggleActions: "play none none reverse",
+					},
+				});
+
+				// movement
+				revealTl.from(
+					imgs,
 					{
-						yPercent: endY,
-						xPercent: endX,
-						ease: "none",
-						scrollTrigger: {
-							trigger: trigger,
-							start: "top bottom",
-							// On mobile, end when trigger is 20% from top of viewport
-							// This means element reaches natural position at 20% from top
-							end: isMobile ? "top 20%" : "bottom top",
-							scrub: true,
-						},
-					}
+						y: 40,
+						rotate: () => gsap.utils.random(-4, 4),
+						scale: 0.95,
+						duration: 5,
+						ease: "power3.out",
+						stagger: 0.12,
+					},
+					0
 				);
+
+				// opacity
+				revealTl.from(
+					imgs,
+					{
+						autoAlpha: 0,
+						duration: 2,
+						ease: "power3.out",
+						stagger: 0.12,
+					},
+					0
+				);
+
+				// cleanup on unmatch
+				return () => {
+					revealTl.kill();
+					ScrollTrigger.getAll().forEach((st) => {
+						if (st.trigger === section) st.kill();
+					});
+				};
 			});
 		});
 	}
@@ -1364,7 +1459,7 @@ function main() {
 					scrollTrigger: {
 						trigger: component,
 						start: "top top",
-						end: "+=50%",
+						end: "+=60%",
 						scrub: 0.5,
 						pin: pinned,
 						// markers: true,
@@ -2307,11 +2402,13 @@ function main() {
 					const active = idx === i;
 					p.classList.toggle("is-active", active);
 					if (active) {
+						gsap.set(p, { display: "flex" });
 						gsap.to(p, { autoAlpha: 1, duration: immediate ? 0 : 0.28, ease: "power2.out" });
 						// Refresh Splide carousels in the active panel
 						refreshSplideInPanel(p, immediate);
 					} else {
 						gsap.to(p, { autoAlpha: 0, duration: immediate ? 0 : 0.28, ease: "power2.out" });
+						gsap.set(p, { display: "none", delay: immediate ? 0 : 0.28 });
 					}
 				});
 
