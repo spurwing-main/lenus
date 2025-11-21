@@ -2061,7 +2061,7 @@ function main() {
 
 	function animateTitles() {
 		// Requires GSAP SplitText plugin
-		document.querySelectorAll(".anim-grad-text").forEach((el) => {
+		document.querySelectorAll(".anim-grad-text, .c-title:not(.no-anim)").forEach((el) => {
 			if (el.closest(".c-cta")) return;
 
 			// split the text into words with custom class
