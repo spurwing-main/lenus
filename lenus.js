@@ -1608,7 +1608,7 @@ function main() {
 	}
 
 	function accordion() {
-		document.querySelectorAll(".c-accordion, .c-faq").forEach((component) => {
+		function buildAccordion(component) {
 			const items = gsap.utils.toArray(".accordion-item, .faq-item", component);
 			const fallbackImage = component.querySelector(".accordion_media.is-fallback .accordion-img");
 			const images = gsap.utils.toArray(
@@ -1703,8 +1703,41 @@ function main() {
 					gsap.set(fallbackImage, { autoAlpha: 1 });
 				}
 			}
-		});
+		}
+
+		function normalAccordions() {
+			document.querySelectorAll(".c-accordion, .c-faq").forEach((component) => {
+				buildAccordion(component);
+			});
+		}
+		normalAccordions();
+
+		function legalAccordions() {
+			// accordions inside content sections with TOC
+			const components = document.querySelectorAll(".contents:has(.accordion-item)");
+
+			if (components.length === 0) return;
+
+			window.FinsweetAttributes ||= [];
+			window.FinsweetAttributes.push([
+				"toc",
+				(result) => {
+					console.log(
+						"[legalAccordions] Accordions detected, building accordions inside TOC content sections."
+					);
+					components.forEach((contentsBlock) => {
+						const hasAccordion = contentsBlock.querySelector(".accordion-item");
+						if (!hasAccordion) return;
+
+						buildAccordion(contentsBlock);
+					});
+				},
+			]);
+		}
+		legalAccordions();
 	}
+
+	// ---- NEW: expose a refresh function ----
 
 	function expandingCards() {
 		const videoSelector = "video";
