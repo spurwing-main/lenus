@@ -1101,25 +1101,36 @@ function main() {
 			const sourceEls = Array.from(video.querySelectorAll("source"));
 
 			// Build meta for each source
-			const meta = sourceEls.map((srcEl) => {
-				const { srcMobile, srcDesktop, typeMobile, typeDesktop, codecsMobile, codecsDesktop } =
-					srcEl.dataset;
+			const meta = sourceEls
+				.map((srcEl) => {
+					const { srcMobile, srcDesktop, typeMobile, typeDesktop, codecsMobile, codecsDesktop } =
+						srcEl.dataset;
 
-				const url = mode === "mobile" ? srcMobile || srcDesktop : srcDesktop;
-				const mime = mode === "mobile" ? typeMobile || typeDesktop : typeDesktop;
-				const codecs = mode === "mobile" ? codecsMobile || codecsDesktop : codecsDesktop;
+					const url = mode === "mobile" ? srcMobile || srcDesktop : srcDesktop;
+					const mime = mode === "mobile" ? typeMobile || typeDesktop : typeDesktop;
+					const codecs = mode === "mobile" ? codecsMobile || codecsDesktop : codecsDesktop;
 
-				const lowerMime = (mime || "").toLowerCase();
+					const lowerMime = (mime || "").toLowerCase();
 
-				return {
-					srcEl,
-					url,
-					mime,
-					codecs,
-					isWebm: lowerMime.includes("webm"),
-					isMp4: lowerMime.includes("mp4"),
-				};
-			});
+					if (!url) return undefined; // ensure we skip any sources without URL for this mode
+
+					console.log(
+						`[loadVideos:updateSources] Found source:` +
+							`\n    URL: ${url}` +
+							`\n    MIME: ${mime}` +
+							`\n    Codecs: ${codecs || "(none)"}`
+					);
+
+					return {
+						srcEl,
+						url,
+						mime,
+						codecs,
+						isWebm: lowerMime.includes("webm"),
+						isMp4: lowerMime.includes("mp4"),
+					};
+				})
+				.filter(Boolean); // filter out undefined entries
 
 			const hasWebm = meta.some((m) => m.isWebm);
 			const hasMp4 = meta.some((m) => m.isMp4);
@@ -1183,6 +1194,19 @@ function main() {
 			video.dataset.videoLoaded = "true";
 			setupVideoControls(video);
 		}
+
+		// Helper to check if video is in viewport
+		function isInViewport(video) {
+			const rect = video.getBoundingClientRect();
+			return rect.bottom > 0 && rect.top < window.innerHeight;
+		}
+
+		// Immediately load sources for videos already in viewport
+		videos.forEach((video) => {
+			if (isInViewport(video)) {
+				updateSources(video, isMobile() ? "mobile" : "desktop");
+			}
+		});
 
 		let preloadTriggers = videos.map((video) =>
 			ScrollTrigger.create({
@@ -1455,12 +1479,25 @@ function main() {
 					imgTimes.push(imgTimeObj);
 				});
 
+				// set up splittext for title
+				const split = new SplitText(title, {
+					type: "words",
+					wordsClass: "anim-grad-text-word",
+				});
+
+				const words = split.words;
+
+				// initial state
+				gsap.set(words, {
+					backgroundPosition: "100% 0%",
+				});
+
 				const tl = gsap.timeline({
 					scrollTrigger: {
 						trigger: component,
 						start: "top top",
 						end: "+=60%",
-						scrub: 0.5,
+						scrub: 1,
 						pin: pinned,
 						// markers: true,
 						onUpdate(self) {
@@ -1518,13 +1555,17 @@ function main() {
 				tl.add(Flip.fit(img, endParent, { duration: 0.5 }), "<");
 
 				tl.to(
-					title,
+					words,
 					{
 						backgroundPosition: "0% 0%",
 						ease: "none",
 						duration: 0.3,
+						stagger: {
+							each: 0.08,
+							from: "start",
+						},
 					},
-					"0.2"
+					"0.1"
 				);
 			};
 
@@ -2093,11 +2134,9 @@ function main() {
 	}
 
 	function animateTitles() {
-		// Requires GSAP SplitText plugin
 		document.querySelectorAll(".anim-grad-text, .c-title:not(.no-anim)").forEach((el) => {
 			if (el.closest(".c-cta")) return;
 
-			// split the text into words with custom class
 			const split = new SplitText(el, {
 				type: "words",
 				wordsClass: "anim-grad-text-word",
@@ -2121,7 +2160,7 @@ function main() {
 					trigger: el,
 					start: "top 80%",
 					end: "top 40%",
-					scrub: true,
+					scrub: 1,
 				},
 			});
 		});
@@ -2323,8 +2362,8 @@ function main() {
 
 			obj.panels = panels;
 
-			// If no panels found, abort quietly
-			if (!panels.length) return;
+			if (!panels.length) return; // if no panels, exit
+			if (panels.length == 1) return; // no need for tabs if only one panel
 
 			// get all videos and those marked pausable
 			const allVideos = Array.from(component.querySelectorAll("video"));
@@ -2333,14 +2372,10 @@ function main() {
 			const useSharedTimeline =
 				pausableVideos.length > 1 && pausableVideos.length === allVideos.length;
 
-			obj.videos = allVideos;
-			obj.pausableVideos = pausableVideos;
-			obj.useSharedTimeline = useSharedTimeline;
-
 			// shared timeline state (only meaningful if useSharedTimeline === true)
-			obj.sharedTime = 0;
-			obj.sharedSegmentState = "segment1";
-			obj.sharedWasPlaying = false;
+			let sharedTime = 0;
+			let sharedSegmentState = "segment1";
+			let sharedWasPlaying = false;
 
 			// --- build or reuse buttons ----------------------------------------------
 			let tabs = Array.from(list.querySelectorAll("[data-tabs-element='controls-item']"));
@@ -2387,23 +2422,127 @@ function main() {
 			function saveVideoState(panel) {
 				const v = panel?.querySelector?.("video");
 				if (!v) return;
-				videoState.set(v, { time: v.currentTime || 0, wasPlaying: !v.paused && !v.ended });
-				v.pause();
-			}
-			async function restoreVideoState(panel, { autoplay = true } = {}) {
-				const v = panel?.querySelector?.("video");
-				if (!v) return;
-				const state = videoState.get(v);
-				await ensureMetadata(v);
-				if (state && Number.isFinite(state.time)) {
-					try {
-						v.currentTime = state.time;
-					} catch {}
+
+				// if using shared timeline, only pause videos marked pausable [unecessary really as a requirement for a shared timeline]
+				if (useSharedTimeline && v.hasAttribute("data-video-pause")) {
+					const time = v.currentTime || 0;
+					const segment = v.getAttribute("data-video-segment") || "segment1";
+
+					// get pauseAt from dataset or attribute [unclear why two options exist]
+					const pauseAt = parseFloat(
+						v.dataset.pauseAt ||
+							v.getAttribute("data-video-pause") ||
+							(segment === "segment1" ? 3 : 0)
+					);
+
+					sharedTime = time;
+					sharedSegmentState = segment;
+					sharedWasPlaying = !v.paused && !v.ended; // store play state
+
+					// do some normalisation - if we're before pauseAt, call it segment1
+					if (pauseAt && time < pauseAt) {
+						sharedSegmentState = "segment1";
+					} else if (pauseAt && time >= pauseAt && segment === "segment1") {
+						// crossed the pause point but segmentState never updated yet
+						sharedSegmentState = "pausedAt";
+					}
+
+					// clean up any reverse tween
+					if (v._reverseTween) {
+						v._reverseTween.kill();
+						v._reverseTween = null;
+					}
+
+					// pause the video
+					v.pause();
+				} else {
+					// existing logic
+					const wasPlaying = !v.paused && !v.ended;
+					videoState.set(v, { time: v.currentTime || 0, wasPlaying });
+					v.pause();
 				}
-				if (autoplay) {
+			}
+
+			async function restoreVideoState(panel, { autoplay } = {}) {
+				const video = panel.querySelector("video");
+				if (!video) return;
+
+				// Shared timeline: all videos in this component behave like one track
+				if (useSharedTimeline && video.hasAttribute("data-video-pause")) {
+					// 1. Ensure we know duration before clamping currentTime
+					if (video.readyState < 1) {
+						await new Promise((resolve) => {
+							const onMeta = () => {
+								video.removeEventListener("loadedmetadata", onMeta);
+								resolve();
+							};
+							video.addEventListener("loadedmetadata", onMeta, { once: true });
+						});
+					}
+
+					const dur = video.duration || 0;
+					let targetTime = sharedTime || 0;
+					if (dur && targetTime > dur) {
+						targetTime = Math.max(0, dur - 0.05);
+					}
+
+					const pauseAt =
+						parseFloat(video.dataset.pauseAt || video.getAttribute("data-video-pause") || "0") || 0;
+
+					// 2. Decide what segment this video should be in
+					let seg = sharedSegmentState || "segment1";
+
+					if (pauseAt && targetTime < pauseAt) {
+						seg = "segment1";
+					} else if (pauseAt && targetTime >= pauseAt) {
+						// if we've passed the pause time, prefer pausedAt or segment2, not segment1
+						if (seg === "segment1") seg = "segment2";
+					}
+
+					video.dataset.segmentState = seg;
+
+					// 3. Apply the time
 					try {
-						await primeAndPlay(v);
-					} catch {}
+						video.currentTime = targetTime;
+					} catch (e) {
+						console.warn("[tabsWithToggleSlider] Failed to set currentTime", e);
+					}
+
+					// 4. Autoplay rules
+					const shouldPlay = autoplay && sharedWasPlaying && seg !== "pausedAt";
+
+					if (shouldPlay) {
+						video.play().catch(() => {});
+					} else {
+						video.pause();
+					}
+
+					return;
+				}
+
+				// --- Normal behaviour (no shared timeline) ---
+				const state = videoState.get(video);
+				if (!state) return;
+
+				// If you already had a metadata helper, use that instead of re-implementing
+				if (video.readyState < 1) {
+					await new Promise((resolve) => {
+						const onMeta = () => {
+							video.removeEventListener("loadedmetadata", onMeta);
+							resolve();
+						};
+						video.addEventListener("loadedmetadata", onMeta, { once: true });
+					});
+				}
+
+				try {
+					video.currentTime = state.time || 0;
+				} catch (e) {
+					console.warn("[tabsWithToggleSlider] Failed to restore currentTime", e);
+				}
+
+				if (autoplay && state.wasPlaying) {
+					video.play().catch(() => {});
 				}
 			}
 
@@ -2865,6 +3004,232 @@ function main() {
 		});
 	}
 
+	// function bentoHero_old() {
+	// 	/*
+	// 	- bg image starts full width and height
+	// 	- on scroll with scrolltrigger, image shrinks to defined container. We will probably use GSAP Flip for this to move it to the new position
+	// 	- will need to change the nav logo color at the same time from white to black
+	// 	- on mobile we don't do this, we just load the image at the correct size.
+	// 	- but on mobile we do the following:
+	// 		- on load, the top part of the component is 100vh with the section image shown and the section title content pinned to the bottom
+	// 		- as we scroll, the image container remains pinned, but the image changes to the image from the first bento card. The section title content scrolls up out of view. The first bento card title appears.
+	// 		- there are then left/right arrows to scroll through the bento cards. The image container remains pinned but the image itself changes to the image from the bento card. The bento card title translates in from the left/right like a normal carousel.
+	// 	- we need to handle the appropriate resize events, checking if the mode has changed and doing the appropriate setup / teardown.
+
+	// 	*/
+
+	// 	document.querySelectorAll(".c-bento-hero").forEach((component) => {
+	// 		const bg = component.querySelector(".bento-hero_bg");
+	// 		const primaryBg = component.querySelector(".bento-hero_bg-img.is-primary");
+	// 		const cardBgs = gsap.utils.toArray(".bento-hero_bg-img.is-card", component);
+
+	// 		const topContent = component.querySelector(".bento-hero_title-wrap");
+	// 		const bottomContent = component.querySelector(".bento-hero_bottom");
+	// 		const controls = component.querySelector(".bento-hero_controls");
+
+	// 		const cards = gsap.utils.toArray(".bento-hero-card", component);
+	// 		const bgTarget = component.querySelector(".bento-hero_layout");
+
+	// 		const mediaQuery = window.matchMedia("(max-width: 768px)");
+	// 		let currentMode = mediaQuery.matches ? "mobile" : "desktop";
+
+	// 		let desktopCtx, mobileCtx;
+	// 		let splideInstance;
+
+	// 		function initDesktop() {
+	// 			// return;
+	// 			teardownMobile();
+	// 			desktopCtx && desktopCtx.revert();
+	// 			desktopCtx = gsap.context(() => {
+	// 				// start with image at full size
+	// 				gsap.set(bg, {
+	// 					width: "100%",
+	// 					height: "100%",
+	// 					// scale: 1.05,
+	// 				});
+	// 				const tl = gsap.timeline({
+	// 					onComplete: () => {},
+	// 					scrollTrigger: {
+	// 						trigger: component,
+	// 						start: 0,
+	// 						end: "+=300",
+	// 						toggleActions: "play none reverse  reverse",
+	// 						scrub: 1,
+	// 						pin: true,
+	// 						pinSpacing: true,
+	// 						onLeave: () => {
+	// 							ctaImage();
+	// 						},
+	// 					},
+	// 				});
+
+	// 				tl.add(Flip.fit(bg, bgTarget, { duration: 1.75, ease: "power2.out" }));
+	// 				tl.to(
+	// 					bg,
+	// 					{
+	// 						borderRadius: "20px",
+	// 						duration: 1.75,
+	// 						ease: "power4.out",
+	// 					},
+	// 					0
+	// 				);
+	// 			});
+	// 		}
+
+	// 		function initMobile() {
+	// 			teardownDsk();
+
+	// 			gsap.set(topContent, {
+	// 				autoAlpha: 1,
+	// 				y: 0,
+	// 			});
+	// 			gsap.set(bg, {
+	// 				scale: 1,
+	// 			});
+	// 			gsap.set([bottomContent, controls], {
+	// 				autoAlpha: 0,
+	// 				y: 20,
+	// 			});
+	// 			mobileCtx = gsap.context(() => {
+	// 				const tl = gsap.timeline({
+	// 					onComplete: () => {},
+	// 					scrollTrigger: {
+	// 						trigger: component,
+	// 						start: 20,
+	// 						end: "+=300",
+	// 						toggleActions: "play none reverse  reverse",
+
+	// 						// scrub: true,
+	// 						// pin: true,
+	// 						// pinSpacing: true,
+	// 						// markers: true,
+	// 					},
+	// 				});
+	// 				tl.to(
+	// 					bg,
+	// 					{
+	// 						autoAlpha: 0,
+	// 						duration: 0.5,
+	// 						ease: "power2.out",
+	// 					},
+	// 					0.1
+	// 				)
+	// 					.to(
+	// 						topContent,
+	// 						{
+	// 							autoAlpha: 0,
+	// 							y: -20,
+	// 							duration: 0.5,
+	// 							ease: "power2.out",
+	// 						},
+	// 						0.1
+	// 					)
+	// 					// .to(
+	// 					// 	cardBgs[0],
+	// 					// 	{
+	// 					// 		autoAlpha: 1,
+	// 					// 		duration: 0.5,
+	// 					// 		ease: "power2.out",
+	// 					// 	},
+	// 					// 	0.1
+	// 					// )
+	// 					.to(
+	// 						[bottomContent, controls],
+	// 						{
+	// 							y: 0,
+	// 							autoAlpha: 1,
+	// 							duration: 0.5,
+	// 							ease: "power2.out",
+	// 						},
+	// 						0.1
+	// 					);
+	// 			});
+	// 			setupSplide();
+	// 		}
+
+	// 		function setupSplide() {
+	// 			splideInstance = new Splide(component, {
+	// 				autoplay: false,
+	// 				arrows: true,
+	// 				pagination: false,
+	// 				snap: true,
+	// 				drag: "free",
+	// 				autoWidth: true,
+	// 				focus: "center",
+	// 			});
+	// 			splideInstance.mount();
+	// 			// on active slide change, update the image in the container
+	// 			splideInstance.on("active", (slide) => {
+	// 				// get the nth element from cardBgs
+	// 				const index = slide.index;
+	// 				const cardImage = cardBgs[index];
+	// 				if (!cardImage) return; // no image found for this slide
+
+	// 				if (cardImage) {
+	// 					const bgTl = gsap.timeline();
+	// 					bgTl.to(cardBgs, {
+	// 						autoAlpha: 0,
+	// 						duration: 0.5,
+	// 						ease: "power2.out",
+	// 					});
+	// 					bgTl.to(
+	// 						cardImage,
+	// 						{
+	// 							autoAlpha: 1,
+	// 							duration: 0.5,
+	// 							ease: "power2.out",
+	// 						},
+	// 						"<"
+	// 					);
+	// 				}
+	// 			});
+	// 		}
+
+	// 		function teardownDsk() {
+	// 			if (desktopCtx) {
+	// 				desktopCtx.revert();
+	// 				desktopCtx = null;
+	// 			}
+	// 		}
+
+	// 		function teardownMobile() {
+	// 			if (mobileCtx) {
+	// 				mobileCtx.revert();
+	// 				mobileCtx = null;
+	// 			}
+	// 			if (splideInstance) {
+	// 				splideInstance.destroy();
+	// 				splideInstance = null;
+	// 			}
+	// 			gsap.set(topContent, {
+	// 				autoAlpha: 1,
+	// 				y: 0,
+	// 			});
+	// 			gsap.set(bottomContent, {
+	// 				autoAlpha: 1,
+	// 				y: 0,
+	// 			});
+	// 		}
+
+	// 		// Initial setup
+	// 		if (currentMode === "mobile") initMobile();
+	// 		else initDesktop();
+
+	// 		const onResize = lenus.helperFunctions.debounce(() => {
+	// 			const newMode = mediaQuery.matches ? "mobile" : "desktop";
+
+	// 			if (newMode === currentMode) {
+	// 				return;
+	// 			}
+
+	// 			currentMode = newMode;
+	// 			if (newMode === "mobile") initMobile();
+	// 			else initDesktop();
+	// 		});
+
+	// 		window.addEventListener("resize", onResize);
+	// 	});
+	// }
 	function bentoHero() {
 		/*
 		- bg image starts full width and height
@@ -2881,24 +3246,17 @@ function main() {
 
 		document.querySelectorAll(".c-bento-hero").forEach((component) => {
 			const bg = component.querySelector(".bento-hero_bg");
-			const primaryBg = component.querySelector(".bento-hero_bg-img.is-primary");
-			const cardBgs = gsap.utils.toArray(".bento-hero_bg-img.is-card", component);
 
 			const topContent = component.querySelector(".bento-hero_title-wrap");
-			const bottomContent = component.querySelector(".bento-hero_bottom");
-			const controls = component.querySelector(".bento-hero_controls");
 
-			const cards = gsap.utils.toArray(".bento-hero-card", component);
 			const bgTarget = component.querySelector(".bento-hero_layout");
 
 			const mediaQuery = window.matchMedia("(max-width: 768px)");
 			let currentMode = mediaQuery.matches ? "mobile" : "desktop";
 
 			let desktopCtx, mobileCtx;
-			let splideInstance;
 
 			function initDesktop() {
-				// return;
 				teardownMobile();
 				desktopCtx && desktopCtx.revert();
 				desktopCtx = gsap.context(() => {
@@ -2906,7 +3264,6 @@ function main() {
 					gsap.set(bg, {
 						width: "100%",
 						height: "100%",
-						// scale: 1.05,
 					});
 					const tl = gsap.timeline({
 						onComplete: () => {},
@@ -2947,10 +3304,7 @@ function main() {
 				gsap.set(bg, {
 					scale: 1,
 				});
-				gsap.set([bottomContent, controls], {
-					autoAlpha: 0,
-					y: 20,
-				});
+
 				mobileCtx = gsap.context(() => {
 					const tl = gsap.timeline({
 						onComplete: () => {},
@@ -2959,90 +3313,17 @@ function main() {
 							start: 20,
 							end: "+=300",
 							toggleActions: "play none reverse  reverse",
-
-							// scrub: true,
-							// pin: true,
-							// pinSpacing: true,
-							// markers: true,
 						},
 					});
-					tl.to(
-						bg,
-						{
-							autoAlpha: 0,
-							duration: 0.5,
-							ease: "power2.out",
-						},
-						0.1
-					)
-						.to(
-							topContent,
-							{
-								autoAlpha: 0,
-								y: -20,
-								duration: 0.5,
-								ease: "power2.out",
-							},
-							0.1
-						)
-						// .to(
-						// 	cardBgs[0],
-						// 	{
-						// 		autoAlpha: 1,
-						// 		duration: 0.5,
-						// 		ease: "power2.out",
-						// 	},
-						// 	0.1
-						// )
-						.to(
-							[bottomContent, controls],
-							{
-								y: 0,
-								autoAlpha: 1,
-								duration: 0.5,
-								ease: "power2.out",
-							},
-							0.1
-						);
-				});
-				setupSplide();
-			}
-
-			function setupSplide() {
-				splideInstance = new Splide(component, {
-					autoplay: false,
-					arrows: true,
-					pagination: false,
-					snap: true,
-					drag: "free",
-					autoWidth: true,
-					focus: "center",
-				});
-				splideInstance.mount();
-				// on active slide change, update the image in the container
-				splideInstance.on("active", (slide) => {
-					// get the nth element from cardBgs
-					const index = slide.index;
-					const cardImage = cardBgs[index];
-					if (!cardImage) return; // no image found for this slide
-
-					if (cardImage) {
-						const bgTl = gsap.timeline();
-						bgTl.to(cardBgs, {
-							autoAlpha: 0,
-							duration: 0.5,
-							ease: "power2.out",
-						});
-						bgTl.to(
-							cardImage,
-							{
-								autoAlpha: 1,
-								duration: 0.5,
-								ease: "power2.out",
-							},
-							"<"
-						);
-					}
+					// tl.to(
+					// 	bg,
+					// 	{
+					// 		autoAlpha: 0,
+					// 		duration: 0.5,
+					// 		ease: "power2.out",
+					// 	},
+					// 	0.1
+					// );
 				});
 			}
 
@@ -3058,15 +3339,8 @@ function main() {
 					mobileCtx.revert();
 					mobileCtx = null;
 				}
-				if (splideInstance) {
-					splideInstance.destroy();
-					splideInstance = null;
-				}
+
 				gsap.set(topContent, {
-					autoAlpha: 1,
-					y: 0,
-				});
-				gsap.set(bottomContent, {
 					autoAlpha: 1,
 					y: 0,
 				});
