@@ -59,6 +59,10 @@ function main() {
 
 	// set nav breakpoint
 	lenus.navBreakpoint = 991; // px
+	// if DOM contains element with class .css-nav-1125, set navBreakpoint to 1125
+	if (document.querySelector(".css-nav-1125")) {
+		lenus.navBreakpoint = 1125;
+	}
 
 	// all the card classes we use
 	lenus.cardClasses = [
