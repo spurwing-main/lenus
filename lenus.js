@@ -57,6 +57,9 @@ function main() {
 	// Lenus variables
 	lenus.search = { stateClass: "search-active" };
 
+	// set nav breakpoint
+	lenus.navBreakpoint = 991; // px
+
 	// all the card classes we use
 	lenus.cardClasses = [
 		"c-card",
@@ -4954,7 +4957,7 @@ function main() {
 		let iconMbl;
 		if (navBtnMbl) iconMbl = navBtnMbl.querySelector(".nav-plus");
 
-		const mediaQuery = window.matchMedia("(max-width: 767px)");
+		const mediaQuery = window.matchMedia("(max-width: " + lenus.navBreakpoint + "px)");
 		let currentMode = mediaQuery.matches ? "mobile" : "desktop";
 		let navOpen = false;
 
