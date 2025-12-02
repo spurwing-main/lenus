@@ -1762,7 +1762,6 @@ function main() {
 						end: "top 40%",
 						scrub: 3,
 						toggleActions: "play reverse play reverse",
-						markers: true,
 					},
 				}
 			);
@@ -2037,10 +2036,14 @@ function main() {
 
 		function expandingCards_resetCards(cards, resetVideos = false, lowerOpacity = true) {
 			cards.forEach((c) => {
+				const content = c.querySelector(".card_content");
 				c.classList.remove("is-expanded");
 				gsap.set(c, {
 					opacity: lowerOpacity ? inactiveOpacity : 1,
 				});
+				if (content) {
+					gsap.set(content, { opacity: 0 });
+				}
 				if (resetVideos) {
 					const video = c.querySelector("video");
 					if (video) {
@@ -2054,10 +2057,14 @@ function main() {
 
 		function activateCard(card, activateVideo = true) {
 			if (!card) return;
+			const content = card.querySelector(".card_content");
 			card.classList.add("is-expanded");
 			gsap.set(card, {
 				opacity: 1,
 			});
+			if (content) {
+				gsap.set(content, { opacity: 1 });
+			}
 			if (activateVideo) {
 				const video = card.querySelector("video");
 				if (video) {
@@ -2068,7 +2075,7 @@ function main() {
 		}
 
 		function createFlip(component, cards, card, contents) {
-			const state = Flip.getState([cards, contents], { props: "flex, opacity, width" });
+			const state = Flip.getState([cards], { props: "flex, width" });
 
 			gsap.set(component, { minHeight: () => cards[0].offsetHeight + "px" });
 
@@ -3760,8 +3767,7 @@ function main() {
 		// ====== Configurable Randomization Bounds ======
 		const config = {
 			maxRotation: 10, // degrees
-			minScale: 0.8,
-			maxScale: 1.0,
+
 			posYOffset: {
 				desktop: 300,
 				mobile: 100,
@@ -3769,14 +3775,14 @@ function main() {
 			fadeDuration: 0.5,
 			transformDuration: 1,
 			stagger: 0.05,
-			scale: [0.8, 1],
+			scale: [0.9, 1],
 			bounds: {
-				desktop: { xMin: -25, xMax: 25, yMin: -100, yMax: 100 },
-				mobile: { xMin: -15, xMax: 15, yMin: -50, yMax: 50 },
+				desktop: { xMin: -15, xMax: 15, yMin: -50, yMax: 50 },
+				mobile: { xMin: -10, xMax: 10, yMin: -20, yMax: 20 },
 			},
 			centerBounds: {
-				desktop: { yMin: -20, yMax: 20 },
-				mobile: { yMin: -10, yMax: 10 },
+				desktop: { yMin: -10, yMax: 10 },
+				mobile: { yMin: -5, yMax: 5 },
 			},
 		};
 
@@ -3880,7 +3886,7 @@ function main() {
 				}).disable();
 
 				const translateDrag = new Draggable(el, {
-					bounds: section,
+					// bounds: section,
 					throwProps: true,
 					inertia: true,
 					zIndexBoost: false,
