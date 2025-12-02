@@ -521,7 +521,7 @@ function main() {
 					: "";
 
 			const logoList = component.querySelector(".logo-swap_list");
-			// const buttonWrap = component.querySelector(".logo-swap_btn-wrap");
+			const buttonWrap = component.querySelector(".logo-swap_btn-wrap");
 			let logoSlots = Array.from(logoList.querySelectorAll(".logo-swap_slot"));
 			const logoEls = Array.from(component.querySelectorAll(".logo-swap_logo"));
 			let logoCount = getLogoCount(component);
@@ -564,14 +564,19 @@ function main() {
 
 			function hoverHandler() {
 				paused = true;
-				gsap.to(logoList, { filter: "blur(6px)", autoAlpha: 0.5, duration: 0.3 });
-				// if (buttonWrap) gsap.to(buttonWrap, { autoAlpha: 1, duration: 0.3 });
+				// only do animation if buttonWrap is present
+				if (buttonWrap) {
+					gsap.to(logoList, { filter: "blur(6px)", autoAlpha: 0.5, duration: 0.3 });
+					// if (buttonWrap) gsap.to(buttonWrap, { autoAlpha: 1, duration: 0.3 });
+				}
 				handlePauseState();
 			}
 			function hoverOutHandler() {
 				paused = false;
-				gsap.to(logoList, { filter: "blur(0px)", autoAlpha: 1, duration: 0.3 });
-				// if (buttonWrap) gsap.to(buttonWrap, { autoAlpha: 0, duration: 0.3 });
+				if (buttonWrap) {
+					gsap.to(logoList, { filter: "blur(0px)", autoAlpha: 1, duration: 0.3 });
+					// if (buttonWrap) gsap.to(buttonWrap, { autoAlpha: 0, duration: 0.3 });
+				}
 				handlePauseState();
 			}
 
@@ -1798,8 +1803,8 @@ function main() {
 				});
 			});
 
-			// on load have first item open and hide fallback
-			if (items.length > 0) {
+			// on load have first item open and hide fallback - but don't do this for FAQs
+			if (items.length > 0 && !component.classList.contains("c-faq")) {
 				const firstItem = items[0];
 				firstItem._tl.reversed(false);
 				firstItem
@@ -2042,7 +2047,7 @@ function main() {
 			// if card already active, do nothing
 			if (card.classList.contains("is-expanded")) return;
 
-			console.log("Card mouse enter:", card);
+			// console.log("Card mouse enter:", card);
 
 			// set up flip animation and add to context
 			ctx.add(() => {
@@ -3043,9 +3048,10 @@ function main() {
 			console.log("Initializing mini carousel:", component);
 			const instance = lenus.helperFunctions.initSplideCarousel(component, {
 				config: {
+					type: "loop",
 					speed: 400,
 					perMove: 3,
-					clones: 3,
+					clones: 2,
 					breakpoints: {
 						767: {
 							perMove: 1,
@@ -7440,7 +7446,44 @@ function main() {
 			easing: "cubic-bezier(0.25, 1, 0.5, 1)", // ease out
 		};
 
+		function getCloneCountFromSets(component, sets) {
+			if (!sets || sets <= 0) return 0;
+
+			// Use validation result first to avoid re-querying
+			const slideCount =
+				validation && typeof validation.slideCount === "number"
+					? validation.slideCount
+					: lenus.helperFunctions.validateSplideStructure(component).slideCount || 0;
+
+			if (!slideCount) return 0;
+
+			const totalClonesNeeded = slideCount * sets;
+			// Splide expects clones per side
+			return Math.ceil(totalClonesNeeded / 2);
+		}
+
 		const mergedConfig = { ...defaultConfig, ...config };
+
+		// Interpret clones as "sets" with priority:
+		// 1) data-splide-clones attribute
+		// 2) config.clones
+		// 3) defaultConfig.clones
+		const attr = component.getAttribute("data-splide-clones");
+		const attrSets = attr != null ? parseInt(attr, 10) : null;
+
+		let setsFromConfig = mergedConfig.clones;
+		if (typeof setsFromConfig === "function") {
+			const raw = setsFromConfig(component);
+			setsFromConfig = Number.isFinite(raw) ? raw : defaultConfig.clones;
+		}
+
+		const effectiveSets = Number.isFinite(attrSets)
+			? attrSets
+			: Number.isFinite(setsFromConfig)
+			? setsFromConfig
+			: defaultConfig.clones;
+
+		mergedConfig.clones = getCloneCountFromSets(component, effectiveSets);
 
 		const hasAutoScroll = component.dataset.autoscroll === "true";
 
@@ -7999,6 +8042,17 @@ Features:
 			};
 		}
 		return timeline;
+	};
+
+	// Calculate the number of clones needed for a Splide carousel based on slides and sets
+	lenus.helperFunctions.getCloneCountFromSets = function (component, sets = 1) {
+		const slides = component.querySelectorAll(".splide__slide");
+		const slideCount = slides.length;
+		if (!slideCount || !sets) return 0;
+
+		// Splide wants clones per side, rounded up
+		const totalClonesNeeded = slideCount * sets;
+		return Math.ceil(totalClonesNeeded / 2);
 	};
 
 	// Finsweet Attributes v2: Refresh ScrollTrigger after list render and handle blog filtering
