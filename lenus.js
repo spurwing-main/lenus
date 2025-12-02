@@ -1741,6 +1741,34 @@ function main() {
 		}
 	}
 
+	function basicMediaAnim() {
+		// do a basic scale from 0;9 and slight move up for .large-card_media elements in viewport using scrollTrigger, revserse on leave, and use scrub with a large delay
+		gsap.utils.toArray(".large-card_media, .full-screen_media-wrap").forEach((media) => {
+			let scaleStart = 0.9;
+			if (media.classList.contains("full-screen_media-wrap")) {
+				scaleStart = 0.95;
+			}
+
+			gsap.fromTo(
+				media,
+				{ y: 30, scale: scaleStart },
+				{
+					y: 0,
+					scale: 1,
+					ease: "power1.out",
+					scrollTrigger: {
+						trigger: media,
+						start: "top 80%",
+						end: "top 40%",
+						scrub: 3,
+						toggleActions: "play reverse play reverse",
+						markers: true,
+					},
+				}
+			);
+		});
+	}
+
 	function accordion() {
 		function buildAccordion(component) {
 			const items = gsap.utils.toArray(".accordion-item, .faq-item", component);
@@ -8136,7 +8164,7 @@ Features:
 	// gradTest1();
 	logoSwap();
 	videoCarousel();
-
+	basicMediaAnim();
 	randomTestimonial();
 	accordion();
 	expandingCards();
