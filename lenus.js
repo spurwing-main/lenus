@@ -1692,7 +1692,7 @@ function main() {
 			});
 		}
 
-		document.querySelectorAll('[data-lenus-target="testimonial-group"]').forEach((group) => {
+		document.querySelectorAll('[data-lenus-target="testimonial-group"]').forEach(async (group) => {
 			const targets = Array.from(group.querySelectorAll('[data-lenus-target="testimonial-img"]'));
 
 			if (targets.length === 0) return;
@@ -1700,6 +1700,9 @@ function main() {
 			// clone & shuffle a fresh copy of the sources
 			const pool = sources.slice();
 			gsap.utils.shuffle(pool);
+
+			let newImgs = [];
+
 			targets.forEach((targetEl, idx) => {
 				const srcEl = pool[idx];
 				if (!srcEl) return; // in case there are more targets than sources
@@ -1716,11 +1719,26 @@ function main() {
 
 				// swap it in
 				targetEl.replaceWith(clone);
+
+				// If the clone is an <img>, track it for load-waiting
+				if (clone.tagName === "IMG") newImgs.push(clone);
+				else newImgs = newImgs.concat(Array.from(clone.querySelectorAll("img")));
 			});
-			gsap.set(group, {
-				autoAlpha: 1,
-			});
+			await waitForImages(newImgs);
+			gsap.to(group, { autoAlpha: 1 });
 		});
+
+		function waitForImages(imgs) {
+			return Promise.all(
+				imgs.map((img) => {
+					if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+					return new Promise((resolve) => {
+						img.addEventListener("load", resolve, { once: true });
+						img.addEventListener("error", resolve, { once: true }); // resolve on error so it doesn't hang
+					});
+				})
+			);
+		}
 	}
 
 	function accordion() {
