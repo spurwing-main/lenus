@@ -7143,22 +7143,30 @@ function main() {
 		bool = true
 	) {
 		const video = card.querySelector(videoSelector);
-		const img = card.querySelector(imgSelector);
-		if (!video || !img) return;
-		let toShow = bool ? video : img;
-		let toHide = bool ? img : video;
+		const img = imgSelector ? card.querySelector(imgSelector) : null;
+		// If we have both video and image, keep the existing crossfade
+		if (video && img) {
+			const toShow = bool ? video : img;
+			const toHide = bool ? img : video;
 
-		// hide image and show video
-		gsap.to(toHide, {
-			autoAlpha: 0,
-			duration: 0.3,
-			ease: "power2.out",
-		});
-		gsap.to(toShow, {
-			autoAlpha: 1,
-			duration: 0.3,
-			ease: "power2.out",
-		});
+			gsap.to(toHide, {
+				autoAlpha: 0,
+				duration: 0.3,
+				ease: "power2.out",
+			});
+			gsap.to(toShow, {
+				autoAlpha: 1,
+				duration: 0.3,
+				ease: "power2.out",
+			});
+		} else {
+			// Video-only case: just toggle the video visibility
+			gsap.to(video, {
+				autoAlpha: bool ? 1 : 0,
+				duration: 0.3,
+				ease: "power2.out",
+			});
+		}
 
 		// add playing class to card if showing video
 		if (bool) {
@@ -7396,6 +7404,7 @@ function main() {
 					console.warn("Video play prevented", error);
 				});
 			}
+			card.classList.add("playing");
 			emit("play", { card, video });
 			entry.onPlay?.({ card, video });
 		}
