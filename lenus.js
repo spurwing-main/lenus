@@ -6400,49 +6400,117 @@ function main() {
 	}
 
 	function multiQuote() {
-		const components = document.querySelectorAll(".c-quote.splide");
-		if (components.length === 0) return;
+		const components = document.querySelectorAll(".c-quote");
+		if (!components.length) return;
 
 		components.forEach((component) => {
 			const items = component.querySelectorAll(".quote_list-item");
-			if (items.length <= 1) {
-				// No need to animate if only one item
-				const controls = component.querySelector(".carousel_controls");
-				if (controls) controls.remove();
-			}
-			if (items.length === 0) {
-				// No items found, nothing to do
-				return;
-			}
-			if (items.length === 1) {
-				// Only one item, just show it without carousel
+			const itemsCount = items.length;
+
+			if (itemsCount === 0) return;
+
+			if (itemsCount === 1) {
+				// Only one item, just show it and bail
 				items[0].classList.add("is-active");
-
+				gsap.set(items[0], { autoAlpha: 1 });
 				return;
 			}
 
-			// Initialize Splide with breakpoints for desktop/mobile configs
-			const splideInstance = lenus.helperFunctions.initSplideCarousel(component, {
-				config: {
-					// Desktop defaults (768px and above)
-					type: "fade",
-					rewind: true,
-					autoplay: true,
-					interval: 5000,
-					pauseOnHover: true,
-					pagination: false,
-					speed: 600,
-					arrows: false,
-					// Mobile breakpoint
-					breakpoints: {
-						767: {
-							arrows: false,
-							gap: "0rem",
-						},
-					},
+			// Global timings per quote
+			const visibleTime = 8; // how long each quote stays on screen
+			const transitionTime = 1; // exit anim duration
+
+			// Hide all items initially (CSS already fades with .is-active, this keeps them truly hidden)
+			gsap.set(items, { autoAlpha: 0 });
+
+			// Master timeline for this quote component, playing only when in view
+			const masterTl = gsap.timeline({
+				repeat: -1,
+				paused: false,
+				scrollTrigger: {
+					trigger: component,
+					start: "top 80%",
+					end: "bottom 20%",
+					onEnter: () => masterTl.play(),
+					onEnterBack: () => masterTl.play(),
+					onLeave: () => masterTl.pause(),
+					onLeaveBack: () => masterTl.pause(),
 				},
-				useAutoScroll: false,
 			});
+
+			items.forEach((item, index) => {
+				const title = item.querySelector(".c-title");
+				title.classList.add("anim-grad-text-word");
+				gsap.set(title, { backgroundSize: "300% 300%" });
+				const credit = item.querySelector(".c-subtitle");
+
+				// One timeline for this specific quote
+				const itemTl = gsap.timeline({
+					// When this quote starts, mark it active and others inactive
+					onStart: () => {
+						items.forEach((el) => el.classList.remove("is-active"));
+						item.classList.add("is-active");
+					},
+				});
+
+				itemTl
+					// Make sure this item is visible when its turn starts
+					.set(item, { autoAlpha: 1 })
+
+					// Intro
+					.fromTo(
+						title,
+						{ y: 50, autoAlpha: 0 },
+						{ y: 0, autoAlpha: 1, duration: 0.3, ease: "power2.out" },
+						0
+					)
+					.fromTo(
+						title,
+						{
+							backgroundPosition: "100% 0%",
+						},
+						{
+							backgroundPosition: "0% 100%",
+							ease: "power2.out",
+							duration: 2,
+						},
+						0
+					)
+					.fromTo(
+						credit,
+						{ y: 30, autoAlpha: 0 },
+						{ y: 0, autoAlpha: 1, duration: 1, ease: "power2.out" },
+						0.2
+					)
+
+					// Hold the quote on screen
+					.to({}, { duration: visibleTime })
+
+					// Outro
+					.to(
+						title,
+						{ y: -50, autoAlpha: 0, duration: transitionTime, ease: "power2.in" },
+						">" // start right after the hold
+					)
+					.to(
+						credit,
+						{ y: -30, autoAlpha: 0, duration: transitionTime, ease: "power2.in" },
+						"<+0.2" // slightly after title
+					)
+
+					// Hide the item at the end so it's clean for the next cycle
+					.set(item, { autoAlpha: 0 });
+
+				// Store for debugging if you like
+				item._itemTl = itemTl;
+
+				// Add this quote's timeline to the master sequence
+				// No position argument = append directly after the previous one
+				masterTl.add(itemTl);
+			});
+
+			// // Optionally store the master timeline for devtools / debugging
+			// component._quoteMasterTl = masterTl;
 		});
 	}
 
