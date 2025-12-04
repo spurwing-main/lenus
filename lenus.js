@@ -1204,14 +1204,14 @@ function main() {
 			const hasMp4 = meta.some((m) => m.isMp4);
 			const dual = hasWebm && hasMp4;
 
-			// console.log(
-			// 	`[loadVideos:updateSources]` +
-			// 		`\n  → Engine: ${isAppleEngine ? "Apple" : "Non-Apple"}` +
-			// 		`\n  → Mode: ${mode}` +
-			// 		`\n  → hasWebm: ${hasWebm}` +
-			// 		`\n  → hasMp4: ${hasMp4}` +
-			// 		`\n  → dualVariants: ${dual}`
-			// );
+			console.log(
+				`[loadVideos:updateSources]` +
+					`\n  → Engine: ${isAppleEngine ? "Apple" : "Non-Apple"}` +
+					`\n  → Mode: ${mode}` +
+					`\n  → hasWebm: ${hasWebm}` +
+					`\n  → hasMp4: ${hasMp4}` +
+					`\n  → dualVariants: ${dual}`
+			);
 
 			let chosen = null;
 
@@ -3221,246 +3221,7 @@ function main() {
 		});
 	}
 
-	// function bentoHero_old() {
-	// 	/*
-	// 	- bg image starts full width and height
-	// 	- on scroll with scrolltrigger, image shrinks to defined container. We will probably use GSAP Flip for this to move it to the new position
-	// 	- will need to change the nav logo color at the same time from white to black
-	// 	- on mobile we don't do this, we just load the image at the correct size.
-	// 	- but on mobile we do the following:
-	// 		- on load, the top part of the component is 100vh with the section image shown and the section title content pinned to the bottom
-	// 		- as we scroll, the image container remains pinned, but the image changes to the image from the first bento card. The section title content scrolls up out of view. The first bento card title appears.
-	// 		- there are then left/right arrows to scroll through the bento cards. The image container remains pinned but the image itself changes to the image from the bento card. The bento card title translates in from the left/right like a normal carousel.
-	// 	- we need to handle the appropriate resize events, checking if the mode has changed and doing the appropriate setup / teardown.
-
-	// 	*/
-
-	// 	document.querySelectorAll(".c-bento-hero").forEach((component) => {
-	// 		const bg = component.querySelector(".bento-hero_bg");
-	// 		const primaryBg = component.querySelector(".bento-hero_bg-img.is-primary");
-	// 		const cardBgs = gsap.utils.toArray(".bento-hero_bg-img.is-card", component);
-
-	// 		const topContent = component.querySelector(".bento-hero_title-wrap");
-	// 		const bottomContent = component.querySelector(".bento-hero_bottom");
-	// 		const controls = component.querySelector(".bento-hero_controls");
-
-	// 		const cards = gsap.utils.toArray(".bento-hero-card", component);
-	// 		const bgTarget = component.querySelector(".bento-hero_layout");
-
-	// 		const mediaQuery = window.matchMedia("(max-width: 768px)");
-	// 		let currentMode = mediaQuery.matches ? "mobile" : "desktop";
-
-	// 		let desktopCtx, mobileCtx;
-	// 		let splideInstance;
-
-	// 		function initDesktop() {
-	// 			// return;
-	// 			teardownMobile();
-	// 			desktopCtx && desktopCtx.revert();
-	// 			desktopCtx = gsap.context(() => {
-	// 				// start with image at full size
-	// 				gsap.set(bg, {
-	// 					width: "100%",
-	// 					height: "100%",
-	// 					// scale: 1.05,
-	// 				});
-	// 				const tl = gsap.timeline({
-	// 					onComplete: () => {},
-	// 					scrollTrigger: {
-	// 						trigger: component,
-	// 						start: 0,
-	// 						end: "+=300",
-	// 						toggleActions: "play none reverse  reverse",
-	// 						scrub: 1,
-	// 						pin: true,
-	// 						pinSpacing: true,
-	// 						onLeave: () => {
-	// 							ctaImage();
-	// 						},
-	// 					},
-	// 				});
-
-	// 				tl.add(Flip.fit(bg, bgTarget, { duration: 1.75, ease: "power2.out" }));
-	// 				tl.to(
-	// 					bg,
-	// 					{
-	// 						borderRadius: "20px",
-	// 						duration: 1.75,
-	// 						ease: "power4.out",
-	// 					},
-	// 					0
-	// 				);
-	// 			});
-	// 		}
-
-	// 		function initMobile() {
-	// 			teardownDsk();
-
-	// 			gsap.set(topContent, {
-	// 				autoAlpha: 1,
-	// 				y: 0,
-	// 			});
-	// 			gsap.set(bg, {
-	// 				scale: 1,
-	// 			});
-	// 			gsap.set([bottomContent, controls], {
-	// 				autoAlpha: 0,
-	// 				y: 20,
-	// 			});
-	// 			mobileCtx = gsap.context(() => {
-	// 				const tl = gsap.timeline({
-	// 					onComplete: () => {},
-	// 					scrollTrigger: {
-	// 						trigger: component,
-	// 						start: 20,
-	// 						end: "+=300",
-	// 						toggleActions: "play none reverse  reverse",
-
-	// 						// scrub: true,
-	// 						// pin: true,
-	// 						// pinSpacing: true,
-	// 						// markers: true,
-	// 					},
-	// 				});
-	// 				tl.to(
-	// 					bg,
-	// 					{
-	// 						autoAlpha: 0,
-	// 						duration: 0.5,
-	// 						ease: "power2.out",
-	// 					},
-	// 					0.1
-	// 				)
-	// 					.to(
-	// 						topContent,
-	// 						{
-	// 							autoAlpha: 0,
-	// 							y: -20,
-	// 							duration: 0.5,
-	// 							ease: "power2.out",
-	// 						},
-	// 						0.1
-	// 					)
-	// 					// .to(
-	// 					// 	cardBgs[0],
-	// 					// 	{
-	// 					// 		autoAlpha: 1,
-	// 					// 		duration: 0.5,
-	// 					// 		ease: "power2.out",
-	// 					// 	},
-	// 					// 	0.1
-	// 					// )
-	// 					.to(
-	// 						[bottomContent, controls],
-	// 						{
-	// 							y: 0,
-	// 							autoAlpha: 1,
-	// 							duration: 0.5,
-	// 							ease: "power2.out",
-	// 						},
-	// 						0.1
-	// 					);
-	// 			});
-	// 			setupSplide();
-	// 		}
-
-	// 		function setupSplide() {
-	// 			splideInstance = new Splide(component, {
-	// 				autoplay: false,
-	// 				arrows: true,
-	// 				pagination: false,
-	// 				snap: true,
-	// 				drag: "free",
-	// 				autoWidth: true,
-	// 				focus: "center",
-	// 			});
-	// 			splideInstance.mount();
-	// 			// on active slide change, update the image in the container
-	// 			splideInstance.on("active", (slide) => {
-	// 				// get the nth element from cardBgs
-	// 				const index = slide.index;
-	// 				const cardImage = cardBgs[index];
-	// 				if (!cardImage) return; // no image found for this slide
-
-	// 				if (cardImage) {
-	// 					const bgTl = gsap.timeline();
-	// 					bgTl.to(cardBgs, {
-	// 						autoAlpha: 0,
-	// 						duration: 0.5,
-	// 						ease: "power2.out",
-	// 					});
-	// 					bgTl.to(
-	// 						cardImage,
-	// 						{
-	// 							autoAlpha: 1,
-	// 							duration: 0.5,
-	// 							ease: "power2.out",
-	// 						},
-	// 						"<"
-	// 					);
-	// 				}
-	// 			});
-	// 		}
-
-	// 		function teardownDsk() {
-	// 			if (desktopCtx) {
-	// 				desktopCtx.revert();
-	// 				desktopCtx = null;
-	// 			}
-	// 		}
-
-	// 		function teardownMobile() {
-	// 			if (mobileCtx) {
-	// 				mobileCtx.revert();
-	// 				mobileCtx = null;
-	// 			}
-	// 			if (splideInstance) {
-	// 				splideInstance.destroy();
-	// 				splideInstance = null;
-	// 			}
-	// 			gsap.set(topContent, {
-	// 				autoAlpha: 1,
-	// 				y: 0,
-	// 			});
-	// 			gsap.set(bottomContent, {
-	// 				autoAlpha: 1,
-	// 				y: 0,
-	// 			});
-	// 		}
-
-	// 		// Initial setup
-	// 		if (currentMode === "mobile") initMobile();
-	// 		else initDesktop();
-
-	// 		const onResize = lenus.helperFunctions.debounce(() => {
-	// 			const newMode = mediaQuery.matches ? "mobile" : "desktop";
-
-	// 			if (newMode === currentMode) {
-	// 				return;
-	// 			}
-
-	// 			currentMode = newMode;
-	// 			if (newMode === "mobile") initMobile();
-	// 			else initDesktop();
-	// 		});
-
-	// 		window.addEventListener("resize", onResize);
-	// 	});
-	// }
 	function bentoHero() {
-		/*
-		- bg image starts full width and height
-		- on scroll with scrolltrigger, image shrinks to defined container. We will probably use GSAP Flip for this to move it to the new position
-		- will need to change the nav logo color at the same time from white to black
-		- on mobile we don't do this, we just load the image at the correct size.
-		- but on mobile we do the following:
-			- on load, the top part of the component is 100vh with the section image shown and the section title content pinned to the bottom
-			- as we scroll, the image container remains pinned, but the image changes to the image from the first bento card. The section title content scrolls up out of view. The first bento card title appears.
-			- there are then left/right arrows to scroll through the bento cards. The image container remains pinned but the image itself changes to the image from the bento card. The bento card title translates in from the left/right like a normal carousel.
-		- we need to handle the appropriate resize events, checking if the mode has changed and doing the appropriate setup / teardown.
-
-		*/
-
 		document.querySelectorAll(".c-bento-hero").forEach((component) => {
 			const bg = component.querySelector(".bento-hero_bg");
 
@@ -3481,8 +3242,34 @@ function main() {
 					gsap.set(bg, {
 						width: "100%",
 						height: "100%",
+						autoAlpha: 0,
 					});
-					const tl = gsap.timeline({
+					gsap.set([".c-social-reviews, .c-title, .c-subtitle"], {
+						autoAlpha: 0,
+						// y: 25,
+					});
+					const tl_time = gsap.timeline();
+					tl_time.to(
+						bg,
+						{
+							autoAlpha: 1,
+							duration: 1.5,
+							ease: "power2.out",
+						},
+						0.5
+					);
+					tl_time.to(
+						[".c-social-reviews, .c-title, .c-subtitle"],
+						{
+							autoAlpha: 1,
+							// y: 0,
+							duration: 1.5,
+							ease: "power2.in",
+							stagger: 0.15,
+						},
+						2
+					);
+					const tl_scroll = gsap.timeline({
 						onComplete: () => {},
 						scrollTrigger: {
 							trigger: component,
@@ -3498,8 +3285,8 @@ function main() {
 						},
 					});
 
-					tl.add(Flip.fit(bg, bgTarget, { duration: 1.75, ease: "power2.out" }));
-					tl.to(
+					tl_scroll.add(Flip.fit(bg, bgTarget, { duration: 1.75, ease: "power2.out" }));
+					tl_scroll.to(
 						bg,
 						{
 							borderRadius: "20px",
