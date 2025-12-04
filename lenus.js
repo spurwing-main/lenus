@@ -1204,14 +1204,14 @@ function main() {
 			const hasMp4 = meta.some((m) => m.isMp4);
 			const dual = hasWebm && hasMp4;
 
-			console.log(
-				`[loadVideos:updateSources]` +
-					`\n  → Engine: ${isAppleEngine ? "Apple" : "Non-Apple"}` +
-					`\n  → Mode: ${mode}` +
-					`\n  → hasWebm: ${hasWebm}` +
-					`\n  → hasMp4: ${hasMp4}` +
-					`\n  → dualVariants: ${dual}`
-			);
+			// console.log(
+			// 	`[loadVideos:updateSources]` +
+			// 		`\n  → Engine: ${isAppleEngine ? "Apple" : "Non-Apple"}` +
+			// 		`\n  → Mode: ${mode}` +
+			// 		`\n  → hasWebm: ${hasWebm}` +
+			// 		`\n  → hasMp4: ${hasMp4}` +
+			// 		`\n  → dualVariants: ${dual}`
+			// );
 
 			let chosen = null;
 
@@ -2561,7 +2561,15 @@ function main() {
 			const track = component.querySelector("[data-tabs-element='controls-track']");
 			const list = component.querySelector("[data-tabs-element='controls-list']");
 			const panelsList = component.querySelector("[data-tabs-element='panel-list']");
-			if (!controls || !track || !list || !panelsList) return;
+			if (!controls || !track || !list || !panelsList) {
+				console.log(
+					"[tabsWithToggleSlider] Missing required elements in tabs component:",
+					component
+				);
+				return;
+			}
+
+			console.log("[tabsWithToggleSlider] Setting up tabs component:", component);
 
 			// find panels
 			let panels = Array.from(panelsList.querySelectorAll("[data-tabs-element='panel']"));
@@ -8253,6 +8261,7 @@ Features:
 	expandingCards();
 	animateTitles();
 	animateGradientLines();
+	tabsWithToggleSlider();
 	wideCarousel();
 	standardCarousel();
 	multiQuote();
