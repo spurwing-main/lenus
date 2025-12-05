@@ -2911,7 +2911,7 @@ function main() {
 						onLeaveBack: () => {
 							// saveVideoState(panels[activeIndex]);
 						},
-						markers: true,
+						// markers: true,
 					});
 				};
 
