@@ -1381,7 +1381,7 @@ function main() {
 	}
 
 	function registerVideoCard(card, overrides = {}) {
-		console.log("Registering video card:", card);
+		// console.log("Registering video card:", card);
 		const config = getVideoConfig(card);
 		if (!config) return null;
 		const controller = lenus.helperFunctions.videoController;
@@ -1936,7 +1936,7 @@ function main() {
 					initDsk(cards, bgs, contents);
 				} else {
 					// console.log("Mobile mode detected, switching to carousel.");
-					expandingCards_resetCards(cards, true, false);
+					expandingCards_resetCards(cards, true, false, true);
 					initSplide(cards, component);
 				}
 			}
@@ -1954,7 +1954,7 @@ function main() {
 
 				if (newMode === "mobile") {
 					console.log("Mobile mode detected, switching to carousel.");
-					expandingCards_resetCards(cards, true, false);
+					expandingCards_resetCards(cards, true, false, true);
 					updateBgs(bgs, cards, contents, true);
 					cards.forEach((c) => {
 						c.removeEventListener("mouseenter", handlers.get(c));
@@ -2034,7 +2034,12 @@ function main() {
 			console.log("Splide carousel initialized.");
 		}
 
-		function expandingCards_resetCards(cards, resetVideos = false, lowerOpacity = true) {
+		function expandingCards_resetCards(
+			cards,
+			resetVideos = false,
+			lowerOpacity = true,
+			showContent = false
+		) {
 			cards.forEach((c) => {
 				const content = c.querySelector(".card_content");
 				c.classList.remove("is-expanded");
@@ -2042,7 +2047,8 @@ function main() {
 					opacity: lowerOpacity ? inactiveOpacity : 1,
 				});
 				if (content) {
-					gsap.set(content, { opacity: 0 });
+					// console.log("Setting content opacity for card:", c, "to", showContent ? 1 : 0);
+					gsap.set(content, { opacity: showContent ? 1 : 0 });
 				}
 				if (resetVideos) {
 					const video = c.querySelector("video");
@@ -2128,6 +2134,7 @@ function main() {
 		}
 
 		function initDsk(cards, bgs, contents) {
+			expandingCards_resetCards(cards, true, false, false);
 			activateCard(cards[0], true);
 			updateBgs(bgs, cards, contents);
 		}
@@ -2294,35 +2301,6 @@ function main() {
 		});
 	}
 
-	// function animateSvgGradients() {
-	// 	// Target any <linearGradient> you want animated
-	// 	const gradients = gsap.utils.toArray("linearGradient.js-svg-gradient");
-	// 	if (!gradients.length) return;
-
-	// 	gradients.forEach((grad) => {
-	// 		// Find a reasonable trigger: nearest .svg-cross or fallback to the gradient's ownerSVGElement
-	// 		const svg = grad.closest(".svg-cross") || grad.ownerSVGElement;
-	// 		if (!svg) return;
-
-	// 		// Initial position: "off to the left"
-	// 		// gsap.set(grad, {
-	// 		// 	attr: { x1: "-20%", x2: "0%" },
-	// 		// });
-
-	// 		const tl = gsap.timeline({});
-	// 		tl.to(grad, {
-	// 			attr: { x1: "100%", x2: "200%", y1: "0%", y2: "-100%" },
-	// 			ease: "none",
-	// 			scrollTrigger: {
-	// 				trigger: svg,
-	// 				start: "top 80%",
-	// 				end: "top 10%",
-	// 				scrub: 1,
-	// 			},
-	// 		});
-	// 	});
-	// }
-
 	function animateGradientLines() {
 		// animate background position of .svg-cross_line elements in the same way as text gradients
 		document.querySelectorAll(".svg-cross_line").forEach((el) => {
@@ -2332,6 +2310,23 @@ function main() {
 
 			gsap.to(el, {
 				backgroundPosition: "200% 0%",
+				ease: "none",
+				scrollTrigger: {
+					trigger: el,
+					start: "top 80%",
+					end: "top 10%",
+					scrub: 3,
+				},
+			});
+		});
+
+		document.querySelectorAll(".cred_line").forEach((el) => {
+			gsap.set(el, {
+				backgroundPosition: "0% -100%",
+			});
+
+			gsap.to(el, {
+				backgroundPosition: "0% 200%",
 				ease: "none",
 				scrollTrigger: {
 					trigger: el,
@@ -2770,6 +2765,7 @@ function main() {
 			}
 
 			async function primeAndPlay(video) {
+				console.log("[tabsWithToggleSlider] Priming and playing video:", video);
 				video.preload = "auto";
 				video.playsInline = true;
 				if (!video.hasAttribute("muted")) video.muted = true;
@@ -2887,7 +2883,6 @@ function main() {
 			controller.select(activeIndex, { immediate: true, center: true });
 			showPanel(activeIndex, { immediate: true });
 
-			// Optional: hero-level ScrollTrigger to gate play/pause of current tab
 			const mediaWrap = component.querySelector(".tabbed-hero_media");
 			if (mediaWrap) {
 				let st;
@@ -2898,7 +2893,8 @@ function main() {
 					st = ScrollTrigger.create({
 						trigger: component,
 						start: "top top",
-						end: `bottom top-=${END_OFFSET_PX}`,
+						// end: `bottom top-=${END_OFFSET_PX}`,
+						end: "top+=50 top",
 						pinSpacing: true,
 						invalidateOnRefresh: true,
 						onEnter: () => {
@@ -2913,9 +2909,9 @@ function main() {
 							if (vid) primeAndPlay(vid);
 						},
 						onLeaveBack: () => {
-							saveVideoState(panels[activeIndex]);
+							// saveVideoState(panels[activeIndex]);
 						},
-						// markers: true,
+						markers: true,
 					});
 				};
 
