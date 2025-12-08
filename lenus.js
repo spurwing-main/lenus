@@ -6208,7 +6208,7 @@ function main() {
 			}
 
 			// Global timings per quote
-			const visibleTime = 8; // how long each quote stays on screen
+			const visibleTime = 5; // how long each quote stays on screen
 			const transitionTime = 1; // exit anim duration
 
 			// Hide all items initially (CSS already fades with .is-active, this keeps them truly hidden)
