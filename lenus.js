@@ -1583,7 +1583,7 @@ function main() {
 								if (p >= time.time) {
 									gsap.to(time.img, {
 										autoAlpha: 1,
-										duration: 0.15,
+										duration: 0.05,
 										ease: "power2.inOut",
 									});
 								}
@@ -1593,7 +1593,7 @@ function main() {
 								if (p < time.time) {
 									gsap.to(time.img, {
 										autoAlpha: 0,
-										duration: 0.15,
+										duration: 0.05,
 										ease: "power2.inOut",
 									});
 								}
