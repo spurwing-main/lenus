@@ -2304,15 +2304,16 @@ function main() {
 	function animateGradientLines() {
 		// animate background position of .svg-cross_line elements in the same way as text gradients
 		document.querySelectorAll(".svg-cross_line").forEach((el) => {
+			const trigger = el.closest(".media") || el;
 			gsap.set(el, {
-				backgroundPosition: "0% 0%",
+				backgroundPosition: "50% 0%", // middle of the 300% gradient
 			});
 
 			gsap.to(el, {
-				backgroundPosition: "200% 0%",
+				backgroundPosition: "0% 0%", // sweep the highlight across
 				ease: "none",
 				scrollTrigger: {
-					trigger: el,
+					trigger: trigger,
 					start: "top 80%",
 					end: "top 10%",
 					scrub: 3,
