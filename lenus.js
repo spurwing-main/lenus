@@ -3228,6 +3228,9 @@ function main() {
 			const bg = component.querySelector(".bento-hero_bg");
 
 			const topContent = component.querySelector(".bento-hero_title-wrap");
+			const itemsToFade = gsap.utils.toArray(
+				component.querySelectorAll(".c-social-reviews, .c-title, .c-subtitle")
+			);
 
 			const bgTarget = component.querySelector(".bento-hero_layout");
 
@@ -3246,7 +3249,7 @@ function main() {
 						height: "100%",
 						autoAlpha: 0,
 					});
-					gsap.set([".c-social-reviews, .c-title, .c-subtitle"], {
+					gsap.set(itemsToFade, {
 						autoAlpha: 0,
 						// y: 25,
 					});
@@ -3261,7 +3264,7 @@ function main() {
 						0.5
 					);
 					tl_time.to(
-						[".c-social-reviews, .c-title, .c-subtitle"],
+						itemsToFade,
 						{
 							autoAlpha: 1,
 							// y: 0,
@@ -6568,7 +6571,6 @@ function main() {
 		}
 	}
 
-	// ...existing code...
 	lenus.greenhouse = {
 		apiUrl: "https://boards-api.greenhouse.io/v1/boards/lenusehealth/jobs?content=true", // ✅ your actual board slug
 
@@ -8094,15 +8096,12 @@ Features:
 
 	parallax();
 	loadVideos();
-	// gradTest1();
 	logoSwap();
 	videoCarousel();
 	basicMediaAnim();
 	randomTestimonial();
 	accordion();
 	expandingCards();
-	animateTitles();
-	animateGradientLines();
 	tabsWithToggleSlider();
 	wideCarousel();
 	standardCarousel();
@@ -8154,4 +8153,6 @@ Features:
 	tippyTooltipsInit();
 	relatedProductsCarousel();
 	productImageCarousel();
+	animateTitles();
+	animateGradientLines();
 }
