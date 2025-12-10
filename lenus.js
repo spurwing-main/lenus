@@ -2321,7 +2321,11 @@ function main() {
 			});
 		});
 
-		document.querySelectorAll(".cred_line").forEach((el) => {
+		document.querySelectorAll(".cred_line").forEach((el, index) => {
+			const startOffset = 80 + index * 5;
+			const endOffset = 10 - index * 5;
+			const start = `top ${startOffset}%`;
+			const end = `top ${Math.max(endOffset, 0)}%`;
 			gsap.set(el, {
 				backgroundPosition: "0% -100%",
 			});
@@ -2331,9 +2335,10 @@ function main() {
 				ease: "none",
 				scrollTrigger: {
 					trigger: el,
-					start: "top 80%",
-					end: "top 10%",
+					start: start, //"top 80%",
+					end: end, //"top 10%",
 					scrub: 3,
+					markers: true,
 				},
 			});
 		});
@@ -7143,7 +7148,7 @@ function main() {
 		const video = card.querySelector("video");
 		if (video) {
 			video.pause();
-			video.currentTime = 0;
+			// video.currentTime = 0;
 			// video.controls = true;
 		}
 	};
@@ -7229,6 +7234,10 @@ function main() {
 
 			const handleVideoPause = () => {
 				if (!card.classList.contains("playing")) return;
+				// if video is paused by click on progress bar, don't pause card
+				if (video.seeking) {
+					return;
+				}
 				pause(card);
 			};
 			const handleVideoEnded = () => pause(card);
@@ -7270,6 +7279,7 @@ function main() {
 		}
 
 		function pause(card) {
+			console.log("Pausing card", card);
 			const entry = registry.get(card);
 			if (!entry) return;
 			const wasPlaying = card.classList.contains("playing");
