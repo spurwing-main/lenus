@@ -2338,7 +2338,7 @@ function main() {
 					start: start, //"top 80%",
 					end: end, //"top 10%",
 					scrub: 3,
-					markers: true,
+					// markers: true,
 				},
 			});
 		});
@@ -7220,6 +7220,48 @@ function main() {
 			video.removeAttribute("autoplay");
 			video.pause();
 
+			const isVideoFullscreen = (vid) =>
+				document.fullscreenElement === vid ||
+				document.webkitFullscreenElement === vid ||
+				document.msFullscreenElement === vid ||
+				(typeof vid.matches === "function" && vid.matches(":fullscreen")) ||
+				vid.webkitDisplayingFullscreen;
+
+			const clearFullscreenIgnore = () => {
+				if (video._ignorePauseTimer) {
+					clearTimeout(video._ignorePauseTimer);
+					video._ignorePauseTimer = null;
+				}
+				video._ignorePauseReason = null;
+			};
+
+			const markFullscreenInteraction = () => {
+				if (video._ignorePauseTimer) {
+					clearTimeout(video._ignorePauseTimer);
+				}
+				video._ignorePauseReason = "fullscreen";
+				video._ignorePauseTimer = setTimeout(clearFullscreenIgnore, 450);
+			};
+
+			let wasFullscreen = isVideoFullscreen(video);
+			const handleFullscreenChange = () => {
+				const isFs = isVideoFullscreen(video);
+				if (isFs !== wasFullscreen) {
+					wasFullscreen = isFs;
+					markFullscreenInteraction();
+				}
+			};
+
+			["fullscreenchange", "webkitfullscreenchange", "MSFullscreenChange"].forEach((evt) => {
+				document.addEventListener(evt, handleFullscreenChange);
+				entry.handlers.push({ element: document, type: evt, handler: handleFullscreenChange });
+			});
+
+			["webkitbeginfullscreen", "webkitendfullscreen"].forEach((evt) => {
+				video.addEventListener(evt, markFullscreenInteraction);
+				entry.handlers.push({ element: video, type: evt, handler: markFullscreenInteraction });
+			});
+
 			if (playSelector) {
 				const triggers = Array.from(card.querySelectorAll(playSelector));
 				triggers.forEach((trigger) => {
@@ -7234,8 +7276,14 @@ function main() {
 
 			const handleVideoPause = () => {
 				if (!card.classList.contains("playing")) return;
-				// if video is paused by click on progress bar, don't pause card
+				if (isVideoFullscreen(video)) {
+					markFullscreenInteraction();
+					return;
+				}
 				if (video.seeking) {
+					return;
+				}
+				if (video._ignorePauseReason === "fullscreen") {
 					return;
 				}
 				pause(card);
