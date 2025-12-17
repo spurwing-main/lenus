@@ -522,7 +522,7 @@ function main() {
 
 			const logoList = component.querySelector(".logo-swap_list");
 			const buttonWrap = component.querySelector(".logo-swap_btn-wrap");
-			const button = buttonWrap.querySelector("a.button:not([href='#'])"); // valid button link
+			const button = component.querySelector("a.button:not([href='#'])"); // valid button link
 			let logoSlots = Array.from(logoList.querySelectorAll(".logo-swap_slot"));
 			const logoEls = Array.from(component.querySelectorAll(".logo-swap_logo"));
 			let logoCount = getLogoCount(component);
