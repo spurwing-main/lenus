@@ -522,6 +522,7 @@ function main() {
 
 			const logoList = component.querySelector(".logo-swap_list");
 			const buttonWrap = component.querySelector(".logo-swap_btn-wrap");
+			const button = buttonWrap.querySelector("a.button:not([href='#'])"); // valid button link
 			let logoSlots = Array.from(logoList.querySelectorAll(".logo-swap_slot"));
 			const logoEls = Array.from(component.querySelectorAll(".logo-swap_logo"));
 			let logoCount = getLogoCount(component);
@@ -565,7 +566,7 @@ function main() {
 			function hoverHandler() {
 				paused = true;
 				// only do animation if buttonWrap is present
-				if (buttonWrap) {
+				if (buttonWrap && button) {
 					gsap.to(logoList, { filter: "blur(6px)", autoAlpha: 0.5, duration: 0.3 });
 					// if (buttonWrap) gsap.to(buttonWrap, { autoAlpha: 1, duration: 0.3 });
 				}
@@ -573,7 +574,7 @@ function main() {
 			}
 			function hoverOutHandler() {
 				paused = false;
-				if (buttonWrap) {
+				if (buttonWrap && button) {
 					gsap.to(logoList, { filter: "blur(0px)", autoAlpha: 1, duration: 0.3 });
 					// if (buttonWrap) gsap.to(buttonWrap, { autoAlpha: 0, duration: 0.3 });
 				}
