@@ -4679,11 +4679,11 @@ function main() {
 			nav.querySelector(".nav-mega_col:nth-child(2)"),
 			nav.querySelector(".nav-mega_col:nth-child(4)"),
 		]);
-		let staggerGroup3_dsk = filterValidElements([nav.querySelector(".nav-mega_feat")]);
+		let staggerGroup3_dsk = filterValidElements([nav.querySelector(".nav-mega_right")]);
 		// }
 		let stagger = 0.05;
 
-		let staggerGroup1_mbl = filterValidElements(nav.querySelector(".nav-mega_feat"));
+		let staggerGroup1_mbl = filterValidElements(nav.querySelector(".nav-mega_right"));
 		let staggerGroup2_mbl = filterValidElements(nav.querySelector(".nav-mega_col:nth-child(1)"));
 		let staggerGroup3_mbl = filterValidElements(nav.querySelector(".nav-mega_col:nth-child(2)"));
 		let staggerGroup4_mbl = filterValidElements(nav.querySelector(".nav-mega_col:nth-child(3)"));
@@ -4725,7 +4725,7 @@ function main() {
 
 			// Then set initial state
 			gsap.set(megaNav, { display: "block", autoAlpha: 0 });
-			gsap.set([".nav-mega_col", ".nav-mega_feat", ".nav-mega_footer"], { autoAlpha: 0 });
+			gsap.set([".nav-mega_col", ".nav-mega_right", ".nav-mega_footer"], { autoAlpha: 0 });
 			gsap.set(megaNavBg, { autoAlpha: 0 });
 		}
 
