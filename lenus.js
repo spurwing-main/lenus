@@ -5804,7 +5804,7 @@ function main() {
 
 		function setupStoreFiltering() {
 			const navLinks = document.querySelectorAll(".nav.is-store .nav-item_link");
-			const hiddenForm = document.querySelector(".products-listing_grid .u-display-none form");
+			const hiddenForm = document.querySelector(".c-products-listing .u-display-none form");
 			const hiddenClearBtn = hiddenForm?.querySelector('[fs-list-element="clear"]');
 			const hiddenRadios = hiddenForm?.querySelectorAll('input[type="radio"]');
 
