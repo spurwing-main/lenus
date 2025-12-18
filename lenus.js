@@ -1939,7 +1939,7 @@ function main() {
 					text,
 					{ y: 20, autoAlpha: 0 },
 					{ y: 0, autoAlpha: 1, ease: "power1.out", duration: 1.6 },
-					"-=0.3"
+					"-=0.5"
 				);
 			});
 		});
