@@ -1785,7 +1785,7 @@ function main() {
 					scrollTrigger: {
 						trigger: component,
 						start: "top top",
-						end: () => "+=" + pinned.offsetHeight * 0.6,
+						end: () => "+=" + pinned.offsetHeight * 1,
 						scrub: 1,
 						pin: pinned,
 						invalidateOnRefresh: true,
