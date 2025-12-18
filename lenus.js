@@ -1912,6 +1912,39 @@ function main() {
 		}
 	}
 
+	function academyCredAnim() {
+		// scrolltriggered load in anim for each .cred inside each .c-creds component. Stagger anim for each .cred. Animation for each item looks like this: the image .cred_img has a slight move up and sharpen from blur, then the .cred_text content fade and move up after
+		document.querySelectorAll(".c-creds").forEach((component) => {
+			gsap.utils.toArray(".cred", component).forEach((cred, index) => {
+				const img = cred.querySelector(".cred_img");
+				const text = cred.querySelector(".cred_text");
+				if (!img || !text) return;
+				const tl = gsap.timeline({
+					scrollTrigger: {
+						trigger: component,
+						start: "top 80%",
+						end: "top 40%",
+						toggleActions: "play none none reverse",
+						scrub: 1,
+						// markers: true,
+					},
+				});
+				tl.fromTo(
+					img,
+					{ y: 30, filter: "blur(4px)", autoAlpha: 0 },
+					{ y: 0, filter: "blur(0px)", autoAlpha: 1, ease: "power1.out", duration: 0.6 },
+					index * 0.2
+				);
+				tl.fromTo(
+					text,
+					{ y: 20, autoAlpha: 0 },
+					{ y: 0, autoAlpha: 1, ease: "power1.out", duration: 1.6 },
+					"-=0.3"
+				);
+			});
+		});
+	}
+
 	function basicMediaAnim() {
 		// do a basic scale from 0;9 and slight move up for .large-card_media elements in viewport using scrollTrigger, revserse on leave, and use scrub with a large delay
 		gsap.utils.toArray(".large-card_media, .full-screen_media-wrap").forEach((media) => {
@@ -8336,6 +8369,7 @@ Features:
 	logoSwap();
 	videoCarousel();
 	basicMediaAnim();
+	academyCredAnim();
 	randomTestimonial();
 	accordion();
 	expandingCards();
