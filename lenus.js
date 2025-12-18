@@ -7006,16 +7006,82 @@ function main() {
 		},
 
 		handleApplicationIframe() {
-			// on application tab click, fire resize event and scroll trigger refresh
-			const tabButtons = document.querySelectorAll("[data-w-tab]");
-			tabButtons.forEach((btn) => {
-				btn.addEventListener("click", () => {
-					// wait a moment for iframe to load
-					setTimeout(() => {
+			const appWrapper = document.querySelector(".greenhouse-application");
+			const tabButtons = document.querySelectorAll(".tab-controls_item");
+
+			if (!appWrapper || !tabButtons.length) return;
+
+			console.log("[Lenus.GreenhouseJob] Setting up Application iframe handling");
+
+			// 1) Whenever the application block changes height, keep ScrollTrigger in sync.
+			if ("ResizeObserver" in window) {
+				const ro = new ResizeObserver(() => {
+					// CTA and any other pinned sections need fresh measurements
+					ScrollTrigger.refresh();
+				});
+				ro.observe(appWrapper);
+			}
+
+			let hasRebuiltIframe = false;
+
+			function initApplicationTab() {
+				console.log("[Lenus.GreenhouseJob] Application tab activated");
+				// Only rebuild once – first time the Application tab is opened
+				if (!hasRebuiltIframe) {
+					hasRebuiltIframe = true;
+
+					// If the Greenhouse embed script is present, rebuild the iframe
+					// now that the panel is visible. Grnhse.Iframe.load() will
+					// look up the gh_jid from the URL and inject a new iframe
+					// into #grnhse_app.
+					if (window.Grnhse && Grnhse.Iframe && typeof Grnhse.Iframe.load === "function") {
+						try {
+							Grnhse.Iframe.load();
+						} catch (e) {
+							console.warn("[Lenus.GreenhouseJob] Grnhse.Iframe.load() failed", e);
+						}
+					}
+				}
+
+				// Give Greenhouse a moment to size itself, then:
+				//  - nudge any resize listeners it has
+				//  - refresh ScrollTrigger so CTA uses the final page length
+				setTimeout(() => {
+					try {
+						// helps the Greenhouse embed's internal window.resize handler
 						window.dispatchEvent(new Event("resize"));
-					}, 500);
+					} catch (e) {
+						// Some environments may not like synthetic resize; non-fatal.
+					}
+
+					// Critical: this is what fixes the CTA and any other ScrollTriggers
+					ScrollTrigger.refresh();
+				}, 400);
+			}
+
+			// 2) Bind to the Application tab (by name) instead of every tab blindly.
+			tabButtons.forEach((btn) => {
+				const tabName = (btn.innerHTML || "").toLowerCase();
+
+				// Adjust this check if your tab label is different (e.g. "Apply now")
+				if (!tabName.includes("application")) return;
+
+				btn.addEventListener("click", () => {
+					// Let Webflow switch the tab pane first
+					setTimeout(initApplicationTab, 50);
 				});
 			});
+
+			// // 3) If the Application tab is already active on initial load (deep-link, restore),
+			// // run the same logic on window load.
+			// window.addEventListener("load", () => {
+			// 	const current = document.querySelector(".job_tabs-menu [data-w-tab].w--current");
+			// 	if (!current) return;
+			// 	const tabName = (current.getAttribute("data-w-tab") || "").toLowerCase();
+			// 	if (tabName.includes("application") || tabName.includes("apply")) {
+			// 		initApplicationTab();
+			// 	}
+			// });
 		},
 	};
 
@@ -8315,6 +8381,7 @@ Features:
 		lenus.greenhouse.init();
 	}
 	if (document.querySelector("#job-details.c-job")) {
+		console.log("Initializing greenhouseJob");
 		lenus.greenhouseJob.init();
 		lenus.greenhouseJob.handleApplicationIframe();
 	}
