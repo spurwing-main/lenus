@@ -1494,7 +1494,7 @@ function main() {
 		}
 	}
 
-	function ctaImage() {
+	function ctaImage_v1() {
 		// Store contexts globally to allow cleanup
 		if (!window._ctaImageContexts) {
 			window._ctaImageContexts = new Map();
@@ -1536,8 +1536,15 @@ function main() {
 				gsap.set(img, {
 					width: "100%",
 					height: "100%",
-					scale: 1.05,
+					clearProps: "transform",
 				});
+				// Scale the images inside instead
+				if (images.length) {
+					gsap.set(images, {
+						scale: 1.05,
+						transformOrigin: "50% 50%",
+					});
+				}
 
 				// Set up images - first image visible, others hidden
 				if (images.length > 1) {
@@ -1577,7 +1584,7 @@ function main() {
 						pin: pinned,
 						// markers: true,
 						onUpdate(self) {
-							if (images.length < 2) return; // no need to adjust nav if no image fades
+							if (images.length < 2) return;
 							const p = self.progress;
 
 							imgTimes.forEach((time, index) => {
@@ -1678,6 +1685,169 @@ function main() {
 
 			// Register via ResizeManager (debounced globally)
 			ResizeManager.add(handleResize);
+		});
+	}
+
+	function ctaImage() {
+		if (!window._ctaImageState) window._ctaImageState = new Map();
+
+		const ResizeManager = lenus.resizeManager;
+		const mobileMq = window.matchMedia(
+			lenus.resizeManager.breakpoints.mobile || "(max-width: 767px)"
+		);
+
+		document.querySelectorAll(".c-cta").forEach((component) => {
+			// --- Clean previous instance ---
+			const prev = window._ctaImageState.get(component);
+			if (prev) {
+				prev.split && prev.split.revert();
+				prev.ctx && prev.ctx.revert();
+				if (prev.resizeHandler) ResizeManager.remove(prev.resizeHandler);
+				window._ctaImageState.delete(component);
+			}
+
+			const isSplit = component.classList.contains("is-split");
+			const imgWrap = component.querySelector(".cta_img");
+			const content = component.querySelector(".cta_content");
+			const pinned = component.querySelector(".cta_pinned");
+			const endParent = component.querySelector(".cta_spacer");
+			const title = component.querySelector(".cta_title");
+
+			if (!imgWrap || !content || !pinned || !endParent || !title) return;
+
+			const images = Array.from(imgWrap.querySelectorAll("img"));
+
+			let ctx = null;
+			let split = null;
+			let tl = null;
+
+			const makeTimeline = () => {
+				// Kill any previous timeline, but keep ctx so context tracking still works
+				if (tl) {
+					if (tl.scrollTrigger) tl.scrollTrigger.kill(false);
+					tl.kill();
+					tl = null;
+				}
+
+				// Mobile split variant → static layout, no ST
+				if (isSplit && mobileMq.matches) {
+					if (split) {
+						split.revert();
+						split = null;
+					}
+					gsap.set([imgWrap, content, title], { clearProps: "all" });
+					return;
+				}
+
+				const gap = endParent.offsetWidth + 48;
+				const titleSpans = title.querySelectorAll("span");
+				const spanWidth = (content.offsetWidth - gap) / 2;
+
+				// Reset wrapper transform before Flip
+				gsap.set(imgWrap, { clearProps: "transform,width,height" });
+				gsap.set(imgWrap, { width: "100%", height: "100%" });
+
+				// Scale inner images instead of wrapper
+				if (images.length) {
+					gsap.set(images, {
+						scale: 1.05,
+						transformOrigin: "50% 50%",
+					});
+				}
+
+				// Initial image visibility
+				if (images.length > 1) {
+					gsap.set(images[0], { autoAlpha: 1 });
+					gsap.set(images.slice(1), { autoAlpha: 0 });
+				}
+
+				const imgTimes = [];
+				if (images.length > 1) {
+					images.forEach((image, index) => {
+						imgTimes.push({
+							img: image,
+							time: (index / (images.length - 1)) * 0.5,
+						});
+					});
+				}
+
+				// Split title for gradient
+				if (split) split.revert();
+				split = new SplitText(title, {
+					type: "words",
+					wordsClass: "anim-grad-text-word",
+				});
+
+				const words = split.words;
+				gsap.set(words, { backgroundPosition: "100% 0%" });
+
+				tl = gsap.timeline({
+					scrollTrigger: {
+						trigger: component,
+						start: "top top",
+						end: () => "+=" + pinned.offsetHeight * 0.6,
+						scrub: 1,
+						pin: pinned,
+						invalidateOnRefresh: true,
+						// markers: true,
+						onUpdate(self) {
+							if (imgTimes.length < 2) return;
+							const p = self.progress;
+							imgTimes.forEach(({ img, time }) => {
+								gsap.set(img, { autoAlpha: p >= time ? 1 : 0 });
+							});
+						},
+					},
+				});
+
+				if (isSplit) {
+					gsap.set(titleSpans, { width: spanWidth });
+					gsap.set(titleSpans[0], { textAlign: "right" });
+					gsap.set(titleSpans[1], { textAlign: "left" });
+
+					tl.to(title, { gap }, 0);
+				}
+
+				tl.add(
+					Flip.fit(imgWrap, endParent, {
+						duration: 0.5,
+						// scale: true, // or false, if you want to control scale separately
+					}),
+					0
+				);
+
+				tl.to(
+					words,
+					{
+						backgroundPosition: "0% 0%",
+						ease: "none",
+						duration: 0.3,
+						stagger: {
+							each: 0.08,
+							from: "start",
+						},
+					},
+					0.1
+				);
+			};
+
+			ctx = gsap.context(makeTimeline, component);
+
+			const resizeHandler = ({ widthChanged, heightChanged }) => {
+				if (!widthChanged && !heightChanged) return;
+				if (mobileMq.matches && !widthChanged) return; // ignore toolbar flicker
+
+				if (ctx) ctx.revert();
+				if (split) {
+					split.revert();
+					split = null;
+				}
+				ctx = gsap.context(makeTimeline, component);
+				ScrollTrigger.refresh();
+			};
+
+			ResizeManager.add(resizeHandler);
+			window._ctaImageState.set(component, { ctx, split, resizeHandler });
 		});
 	}
 
