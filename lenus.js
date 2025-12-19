@@ -1493,6 +1493,7 @@ function main() {
 	}
 
 	function ctaImage() {
+		return; // disabled for now
 		if (!window._ctaImageState) window._ctaImageState = new Map();
 
 		const ResizeManager = lenus.resizeManager;
