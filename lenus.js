@@ -3238,6 +3238,15 @@ function main() {
 		// Prefer your global ResizeManager if available
 		const ResizeManager = window.ResizeManager || lenus?.resizeManager;
 
+		// Basic iOS / Safari-on-iOS detection
+		const ua = navigator.userAgent || navigator.vendor || "";
+		const devOverride = false; // set to true to force iOS-like mode for testing
+		const isIOSDevice =
+			/iP(hone|ad|od)/i.test(ua) ||
+			(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+		const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+		const isIOSLike = devOverride || isIOSDevice || (isSafari && /Mobile/i.test(ua));
+
 		components.forEach((component) => {
 			const bg = component.querySelector(".fancy-hero_bg");
 			if (!bg) return;
@@ -3253,7 +3262,6 @@ function main() {
 
 			// --- intro (run once) ---
 			function buildIntro() {
-				// If this function is ever called again, don't double-stack intro timelines
 				if (introCtx) return;
 
 				introCtx = gsap.context(() => {
@@ -3287,7 +3295,6 @@ function main() {
 			// --- pinned scrub (rebuild on resize) ---
 			function killScroll() {
 				if (tlScroll) {
-					// kills ScrollTrigger too
 					tlScroll.scrollTrigger && tlScroll.scrollTrigger.kill();
 					tlScroll.kill();
 					tlScroll = null;
@@ -3301,6 +3308,57 @@ function main() {
 			function buildScroll() {
 				killScroll();
 
+				// iOS/Safari-mobile fallback: transform-only, no pinning, lighter work
+				if (isIOSLike) {
+					scrollCtx = gsap.context(() => {
+						gsap.set(bg, {
+							clearProps: "width,height,left,top,scale,borderRadius",
+							willChange: "transform",
+						});
+
+						tlScroll = gsap.timeline({
+							scrollTrigger: {
+								trigger: component,
+								start: 0,
+								end: "+=600",
+								scrub: 1,
+								pin: true,
+								pinSpacing: true,
+								anticipatePin: 1,
+								invalidateOnRefresh: true,
+								markers: false,
+							},
+						});
+
+						// Only animate scale (GPU-friendly) and let CSS control final layout
+						tlScroll.from(
+							bg,
+							{
+								scale: () => {
+									// needs to be large enough to cover viewport
+									const vw = window.innerWidth;
+									const vh = window.innerHeight;
+									const diag = Math.sqrt(vw * vw + vh * vh);
+									const imgRect = bg.getBoundingClientRect();
+									const imgMaxDim = Math.max(imgRect.width, imgRect.height);
+									const scaleFactor = diag / imgMaxDim;
+									return scaleFactor * 1.02; // slight oversize
+								},
+								borderRadius: "0px",
+								duration: 1.2,
+								ease: "power2.out",
+								immediateRender: false,
+							},
+							0
+						);
+					}, component);
+
+					// Light refresh to ensure bounds
+					ScrollTrigger.refresh();
+					return;
+				}
+
+				// Default (non-iOS) path
 				scrollCtx = gsap.context(() => {
 					// Ensure we start from the “normal” layout state (CSS-driven end state)
 					gsap.set(bg, { clearProps: "width,height,left,top,scale,borderRadius" });
@@ -3314,10 +3372,7 @@ function main() {
 							pin: true,
 							pinSpacing: true,
 							anticipatePin: 1,
-
-							// critical: re-run function-based values on refresh (i.e. after resize)
 							invalidateOnRefresh: true,
-
 							onLeave: () => ScrollTrigger.refresh(),
 						},
 					});
@@ -3344,7 +3399,6 @@ function main() {
 							duration: 1.75,
 							ease: "power2.out",
 
-							// avoids GSAP applying the "from" values early during init
 							immediateRender: false,
 						},
 						0
@@ -3380,9 +3434,12 @@ function main() {
 						return;
 					}
 
+					// On iOS-like, ignore height-only changes (browser chrome)
+					if (isIOSLike && !widthChanged) return;
+
 					if (!widthChanged && !heightChanged) return;
 
-					// Rebuild so left/top measurements are correct
+					// Rebuild so measurements are correct
 					buildScroll();
 				};
 
@@ -3395,6 +3452,7 @@ function main() {
 								cleanup();
 								return;
 							}
+							// On iOS-like, avoid rebuild on pure height changes by checking width diff
 							buildScroll();
 					  }, 250)
 					: () => buildScroll();
@@ -3404,7 +3462,6 @@ function main() {
 
 			// --- init ---
 			buildIntro();
-			return;
 			buildScroll();
 		});
 	}
