@@ -1420,7 +1420,6 @@ function main() {
 	}
 
 	function videoCarousel() {
-		return;
 		const controller = lenus.helperFunctions.videoController;
 		if (!controller) return;
 
@@ -1494,7 +1493,6 @@ function main() {
 	}
 
 	function ctaImage() {
-		return; // disabled for now
 		if (!window._ctaImageState) window._ctaImageState = new Map();
 
 		const ResizeManager = lenus.resizeManager;
@@ -3056,6 +3054,7 @@ function main() {
 	}
 
 	function wideCarousel() {
+		return; // disable as wide carousels are actually handled by videoCarousel
 		document.querySelectorAll(".c-carousel.is-wide").forEach((component) => {
 			console.log("Initializing wide carousel:", component);
 			const instance = lenus.helperFunctions.initSplideCarousel(component, {
@@ -3234,7 +3233,6 @@ function main() {
 	}
 
 	function fancyHero() {
-		return; // disabled for now
 		const components = document.querySelectorAll(".c-fancy-hero");
 		if (!components.length) return;
 
