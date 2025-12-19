@@ -3232,6 +3232,7 @@ function main() {
 	}
 
 	function fancyHero() {
+		return; // disabled for now
 		const components = document.querySelectorAll(".c-fancy-hero");
 		if (!components.length) return;
 
@@ -3246,6 +3247,7 @@ function main() {
 			(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 		const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
 		const isIOSLike = devOverride || isIOSDevice || (isSafari && /Mobile/i.test(ua));
+		console.log("[fancyHero] isIOSLike:", isIOSLike);
 
 		components.forEach((component) => {
 			const bg = component.querySelector(".fancy-hero_bg");
