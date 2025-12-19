@@ -1423,11 +1423,6 @@ function main() {
 		const controller = lenus.helperFunctions.videoController;
 		if (!controller) return;
 
-		// document.querySelectorAll(".c-carousel.is-testim").forEach((component) => {
-		// 	gsap.set(component, { display: "none" });
-		// });
-		// return;
-
 		document.querySelectorAll(".c-carousel.is-testim, .c-carousel.is-wide").forEach((component) => {
 			const instance = lenus.helperFunctions.initSplideCarousel(component, {
 				config: {
@@ -1447,6 +1442,8 @@ function main() {
 							autoWidth: true,
 						},
 					},
+					customAutoscroll: true,
+					// autoscroll is defined in data attributes and initialized by initSplideCarousel
 				},
 				onMounted: (instance) => {
 					// Register video cards and setup interactions
@@ -1467,14 +1464,15 @@ function main() {
 				const unregister = registerVideoCard(card, {
 					onPlay: () => {
 						instance.go(slideObj.index);
-						if (instance.Components.AutoScroll) {
-							instance.Components.AutoScroll.pause();
-						}
+						instance.Components?.AutoScroll?.pause?.();
+						instance.Components?.Autoplay?.pause?.();
 					},
 					onPause: () => {
-						if (instance.Components.AutoScroll) {
-							instance.Components.AutoScroll.play();
-						}
+						// resume whichever mode is correct (desktop vs mobile)
+						instance._syncAutoMode?.();
+						// fallback if you don’t expose helper:
+						// instance.Components?.AutoScroll?.play?.();
+						// instance.Components?.Autoplay?.play?.();
 					},
 				});
 				if (typeof unregister === "function") {
@@ -1492,200 +1490,6 @@ function main() {
 				unregisterFns.forEach((fn) => fn());
 			});
 		}
-	}
-
-	function ctaImage_v1() {
-		// Store contexts globally to allow cleanup
-		if (!window._ctaImageContexts) {
-			window._ctaImageContexts = new Map();
-		}
-
-		document.querySelectorAll(".c-cta").forEach((component) => {
-			// Clean up existing context for this component
-			if (window._ctaImageContexts.has(component)) {
-				const existingContext = window._ctaImageContexts.get(component);
-				existingContext.revert();
-				window._ctaImageContexts.delete(component);
-			}
-
-			const isSplit = component.classList.contains("is-split");
-			const img = component.querySelector(".cta_img");
-			const content = component.querySelector(".cta_content");
-			const pinned = component.querySelector(".cta_pinned");
-			const endParent = component.querySelector(".cta_spacer");
-			const title = component.querySelector(".cta_title");
-
-			// Get all images inside .cta_img
-			const images = img ? Array.from(img.querySelectorAll("img")) : [];
-
-			// Helper to check if the viewport is mobile
-			const isMobile = () => window.matchMedia("(max-width: 768px)").matches;
-
-			const createTimeline = () => {
-				// If it's a split variant and on mobile, revert to static
-				if (isSplit && isMobile()) {
-					gsap.set([img, content, title], { clearProps: "all" });
-					return;
-				}
-
-				const gap = endParent.offsetWidth + 48;
-				const titleSpans = title.querySelectorAll("span");
-				const spanWidth = (content.offsetWidth - gap) / 2;
-
-				// Start with the image at full size
-				gsap.set(img, {
-					width: "100%",
-					height: "100%",
-					clearProps: "transform",
-				});
-				// Scale the images inside instead
-				if (images.length) {
-					gsap.set(images, {
-						scale: 1.05,
-						transformOrigin: "50% 50%",
-					});
-				}
-
-				// Set up images - first image visible, others hidden
-				if (images.length > 1) {
-					gsap.set(images[0], { autoAlpha: 1 });
-					gsap.set(images.slice(1), { autoAlpha: 0 });
-				}
-
-				// for each image, set progress time we animate it
-				// weight towards end so we move quickly through images
-				let imgTimes = [];
-				images.forEach((image, index) => {
-					const imgTimeObj = {};
-					imgTimeObj.img = image;
-					imgTimeObj.time = (index / (images.length - 1)) * 0.5; // Spread across 75% of timeline
-					imgTimes.push(imgTimeObj);
-				});
-
-				// set up splittext for title
-				const split = new SplitText(title, {
-					type: "words",
-					wordsClass: "anim-grad-text-word",
-				});
-
-				const words = split.words;
-
-				// initial state
-				gsap.set(words, {
-					backgroundPosition: "100% 0%",
-				});
-
-				const tl = gsap.timeline({
-					scrollTrigger: {
-						trigger: component,
-						start: "top top",
-						end: "+=60%",
-						scrub: 1,
-						pin: pinned,
-						// markers: true,
-						onUpdate(self) {
-							if (images.length < 2) return;
-							const p = self.progress;
-
-							imgTimes.forEach((time, index) => {
-								if (p >= time.time) {
-									gsap.to(time.img, {
-										autoAlpha: 1,
-										duration: 0.05,
-										ease: "power2.inOut",
-									});
-								}
-							});
-							// hide images that are ahead of current progress
-							imgTimes.forEach((time, index) => {
-								if (p < time.time) {
-									gsap.to(time.img, {
-										autoAlpha: 0,
-										duration: 0.05,
-										ease: "power2.inOut",
-									});
-								}
-							});
-						},
-					},
-					onStart: () => {
-						console.log("CTA animation started");
-					},
-				});
-
-				if (isSplit) {
-					// console.log(titleSpans, spanWidth);
-					// ensure title doesn't reflow as we adjust the gap - first fix the size of each .cta_title > span to (container width - gap)/2
-					gsap.set(titleSpans, {
-						width: spanWidth,
-					});
-					gsap.set(titleSpans[0], {
-						textAlign: "right",
-					});
-					gsap.set(titleSpans[1], {
-						textAlign: "left",
-					});
-
-					tl.to(
-						title,
-						{
-							gap: gap,
-						},
-						"<"
-					);
-				}
-
-				tl.add(Flip.fit(img, endParent, { duration: 0.5 }), "<");
-
-				tl.to(
-					words,
-					{
-						backgroundPosition: "0% 0%",
-						ease: "none",
-						duration: 0.3,
-						stagger: {
-							each: 0.08,
-							from: "start",
-						},
-					},
-					"0.1"
-				);
-			};
-
-			// Create a new context for this component
-			let ctx = gsap.context(() => {
-				createTimeline();
-			}, component);
-
-			// Store the context for later cleanup
-			window._ctaImageContexts.set(component, ctx);
-
-			// --- Resize handling via ResizeManager ---
-			const handleResize = ({ widthChanged, heightChanged }) => {
-				// Skip Safari address bar show/hide or minimal changes
-				if (!widthChanged && !heightChanged) return;
-				if (isMobile() && !widthChanged) return; // ignore mobile toolbar flickers
-
-				console.log("CTA resize detected");
-
-				// Fully revert and rebuild context cleanly
-				if (ctx) {
-					ctx.revert();
-				}
-
-				ctx = gsap.context(() => {
-					createTimeline();
-				}, component);
-
-				window._ctaImageContexts.set(component, ctx);
-
-				// Refresh ScrollTrigger safely after rebuild
-				// ScrollTrigger.refresh(true);
-			};
-
-			// Register via ResizeManager (debounced globally)
-			ResizeManager.add(handleResize);
-		});
 	}
 
 	function ctaImage() {
@@ -3427,6 +3231,266 @@ function main() {
 		});
 	}
 
+	// function fancyHero() {
+	// 	// a rebuild of the bentoHero with much simpler structure and effects - not using Flip, just animating scale/position of bg image on scroll and doing same fade-in of text elements.
+	// 	document.querySelectorAll(".c-fancy-hero").forEach((component) => {
+	// 		const bg = component.querySelector(".fancy-hero_bg");
+	// 		const itemsToFade = gsap.utils.toArray(
+	// 			component.querySelectorAll(".c-social-reviews, .c-title, .c-subtitle")
+	// 		);
+
+	// 		gsap.set([itemsToFade, bg], {
+	// 			autoAlpha: 0,
+	// 			// y: 25,
+	// 		});
+	// 		gsap.to(component, {
+	// 			autoAlpha: 1,
+	// 		});
+	// 		const tl_time = gsap.timeline();
+	// 		tl_time.to(
+	// 			bg,
+	// 			{
+	// 				autoAlpha: 1,
+	// 				duration: 1.5,
+	// 				ease: "power2.out",
+	// 			},
+	// 			0.5
+	// 		);
+	// 		tl_time.to(
+	// 			itemsToFade,
+	// 			{
+	// 				autoAlpha: 1,
+	// 				// y: 0,
+	// 				duration: 1.5,
+	// 				ease: "power2.in",
+	// 				stagger: 0.15,
+	// 			},
+	// 			2
+	// 		);
+
+	// 		function init() {
+	// 			const tl_scroll = gsap.timeline({
+	// 				onComplete: () => {},
+	// 				scrollTrigger: {
+	// 					trigger: component,
+	// 					start: 0,
+	// 					end: "+=600",
+	// 					toggleActions: "play none reverse  reverse",
+
+	// 					scrub: 2,
+	// 					pin: true,
+	// 					pinSpacing: true,
+	// 					onLeave: () => {
+	// 						ScrollTrigger.refresh();
+	// 					},
+	// 				},
+	// 			});
+	// 			tl_scroll.from(
+	// 				bg,
+	// 				{
+	// 					scale: 1.05,
+	// 					width: "102svw",
+	// 					height: "102svh",
+	// 					left: () => {
+	// 						const rect = bg.getBoundingClientRect();
+	// 						// account for extra 2svw size
+	// 						return -rect.left - (window.innerWidth * 0.02) / 2 + "px";
+	// 					},
+
+	// 					top: () => {
+	// 						const rect = bg.getBoundingClientRect();
+	// 						// account for extra 2svh size
+	// 						return -rect.top - (window.innerHeight * 0.02) / 2 + "px";
+	// 					},
+	// 					borderRadius: "0px",
+	// 					duration: 1.75,
+	// 					ease: "power2.out",
+	// 				},
+	// 				0
+	// 			);
+	// 		}
+
+	// 		init();
+	// 	});
+	// }
+
+	function fancyHero() {
+		const components = document.querySelectorAll(".c-fancy-hero");
+		if (!components.length) return;
+
+		// Prefer your global ResizeManager if available
+		const ResizeManager = window.ResizeManager || lenus?.resizeManager;
+
+		components.forEach((component) => {
+			const bg = component.querySelector(".fancy-hero_bg");
+			if (!bg) return;
+
+			const itemsToFade = gsap.utils.toArray(
+				component.querySelectorAll(".c-social-reviews, .c-title, .c-subtitle")
+			);
+
+			let introCtx = null;
+			let scrollCtx = null;
+			let tlIntro = null;
+			let tlScroll = null;
+
+			// --- intro (run once) ---
+			function buildIntro() {
+				// If this function is ever called again, don't double-stack intro timelines
+				if (introCtx) return;
+
+				introCtx = gsap.context(() => {
+					// Start hidden (FOUC-safe)
+					gsap.set([itemsToFade, bg], { autoAlpha: 0 });
+					gsap.set(component, { autoAlpha: 1 });
+
+					tlIntro = gsap.timeline();
+					tlIntro.to(
+						bg,
+						{
+							autoAlpha: 1,
+							duration: 1.5,
+							ease: "power2.out",
+						},
+						0.5
+					);
+					tlIntro.to(
+						itemsToFade,
+						{
+							autoAlpha: 1,
+							duration: 1.5,
+							ease: "power2.in",
+							stagger: 0.15,
+						},
+						2
+					);
+				}, component);
+			}
+
+			// --- pinned scrub (rebuild on resize) ---
+			function killScroll() {
+				if (tlScroll) {
+					// kills ScrollTrigger too
+					tlScroll.scrollTrigger && tlScroll.scrollTrigger.kill();
+					tlScroll.kill();
+					tlScroll = null;
+				}
+				if (scrollCtx) {
+					scrollCtx.revert();
+					scrollCtx = null;
+				}
+			}
+
+			function buildScroll() {
+				killScroll();
+
+				scrollCtx = gsap.context(() => {
+					// Ensure we start from the “normal” layout state (CSS-driven end state)
+					gsap.set(bg, { clearProps: "width,height,left,top,scale,borderRadius" });
+
+					tlScroll = gsap.timeline({
+						scrollTrigger: {
+							trigger: component,
+							start: 0,
+							end: "+=600",
+							scrub: 2,
+							pin: true,
+							pinSpacing: true,
+							anticipatePin: 1,
+
+							// critical: re-run function-based values on refresh (i.e. after resize)
+							invalidateOnRefresh: true,
+
+							onLeave: () => ScrollTrigger.refresh(),
+						},
+					});
+
+					tlScroll.from(
+						bg,
+						{
+							// "fullscreen-ish" start state
+							scale: 1.05,
+							width: "102svw",
+							height: "102svh",
+
+							// keep the oversized bg centered on the viewport
+							left: () => {
+								const rect = bg.getBoundingClientRect();
+								return -rect.left - (window.innerWidth * 0.02) / 2 + "px";
+							},
+							top: () => {
+								const rect = bg.getBoundingClientRect();
+								return -rect.top - (window.innerHeight * 0.02) / 2 + "px";
+							},
+
+							borderRadius: "0px",
+							duration: 1.75,
+							ease: "power2.out",
+
+							// avoids GSAP applying the "from" values early during init
+							immediateRender: false,
+						},
+						0
+					);
+				}, component);
+
+				// One refresh after building helps pin spacing settle correctly
+				ScrollTrigger.refresh();
+			}
+
+			// --- teardown (handy with Swup / dynamic DOM) ---
+			function cleanup() {
+				killScroll();
+				if (introCtx) {
+					introCtx.revert();
+					introCtx = null;
+				}
+
+				if (ResizeManager && onResizeManaged) ResizeManager.remove(onResizeManaged);
+				if (!ResizeManager && onResizeFallback)
+					window.removeEventListener("resize", onResizeFallback);
+			}
+
+			// --- resize handling ---
+			let onResizeManaged = null;
+			let onResizeFallback = null;
+
+			if (ResizeManager) {
+				onResizeManaged = ({ widthChanged, heightChanged }) => {
+					// component removed? stop listening and clean up.
+					if (!component.isConnected) {
+						cleanup();
+						return;
+					}
+
+					if (!widthChanged && !heightChanged) return;
+
+					// Rebuild so left/top measurements are correct
+					buildScroll();
+				};
+
+				ResizeManager.add(onResizeManaged);
+			} else {
+				// fallback if ResizeManager isn't in scope for some reason
+				onResizeFallback = lenus?.helperFunctions?.debounce
+					? lenus.helperFunctions.debounce(() => {
+							if (!component.isConnected) {
+								cleanup();
+								return;
+							}
+							buildScroll();
+					  }, 250)
+					: () => buildScroll();
+
+				window.addEventListener("resize", onResizeFallback);
+			}
+
+			// --- init ---
+			buildIntro();
+			buildScroll();
+		});
+	}
+
 	function bentoHero() {
 		document.querySelectorAll(".c-bento-hero").forEach((component) => {
 			const bg = component.querySelector(".bento-hero_bg");
@@ -3489,7 +3553,7 @@ function main() {
 							pin: true,
 							pinSpacing: true,
 							onLeave: () => {
-								ctaImage();
+								ScrollTrigger.refresh();
 							},
 						},
 					});
@@ -7804,6 +7868,75 @@ function main() {
 		} else {
 			instance.mount();
 		}
+
+		// Auto-scroll + autoplay dual mode handling for video carousels
+
+		const enableAutoMotion =
+			mergedConfig.customAutoscroll === true && component.dataset.autoscroll !== "false";
+
+		if (enableAutoMotion) {
+			// Ensure both systems are configured (but we’ll only run one at a time)
+			mergedConfig.autoScroll = {
+				speed: 1,
+				pauseOnHover: true,
+				...(config.autoScroll || {}),
+			};
+
+			// Autoplay “snap”
+			mergedConfig.autoplay = true;
+			mergedConfig.interval = mergedConfig.interval ?? 4000;
+			mergedConfig.speed = mergedConfig.speed ?? 700;
+			mergedConfig.easing = mergedConfig.easing ?? "cubic-bezier(0.19, 1, 0.22, 1)"; // expo-ish feel
+			mergedConfig.pauseOnHover = mergedConfig.pauseOnHover ?? true;
+			mergedConfig.pauseOnFocus = mergedConfig.pauseOnFocus ?? true;
+		}
+
+		if (enableAutoMotion) {
+			// see https://github.com/Splidejs/splide/issues/58#issuecomment-641683634
+			const mq = window.matchMedia("(max-width: 767px)");
+
+			const syncAutoMode = () => {
+				const AS = instance.Components?.AutoScroll;
+				const AP = instance.Components?.Autoplay;
+
+				console.log(
+					`[initSplideCarousel] syncAutoMode: ${
+						mq.matches ? "mobile (autoplay)" : "desktop (autoscroll)"
+					}`
+				);
+
+				if (mq.matches) {
+					// mobile: autoplay snap
+					AS?.pause?.();
+					AP?.play?.(99);
+				} else {
+					// desktop: fluid autoscroll
+					AP?.pause?.(99);
+					AS?.play?.();
+				}
+			};
+
+			// Start correct mode
+			instance.on("mounted", syncAutoMode);
+
+			// Switch on breakpoint changes
+			mq.addEventListener("change", syncAutoMode);
+			instance.on("destroy", () => mq.removeEventListener("change", syncAutoMode));
+
+			// Hold/drag should freeze motion
+			instance.on("drag", () => {
+				instance.Components?.AutoScroll?.pause?.();
+				instance.Components?.Autoplay?.pause?.(99);
+			});
+			instance.on("dragged", syncAutoMode);
+
+			// Optional: expose helper so videoCarousel can resume “the right one”
+			instance._syncAutoMode = syncAutoMode;
+
+			// fire it once after mount to ensure correct state
+			syncAutoMode();
+		}
+
 		// if (onDestroy) instance.on("destroy", onDestroy);
 		// if (onActive) instance.on("active", onActive);
 
@@ -8377,7 +8510,7 @@ Features:
 	wideCarousel();
 	standardCarousel();
 	multiQuote();
-	bentoHero();
+	fancyHero();
 	locations();
 	miniCarousel();
 	featureColumns();
