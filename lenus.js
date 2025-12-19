@@ -1420,6 +1420,7 @@ function main() {
 	}
 
 	function videoCarousel() {
+		return;
 		const controller = lenus.helperFunctions.videoController;
 		if (!controller) return;
 
