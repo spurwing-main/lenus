@@ -3404,6 +3404,7 @@ function main() {
 
 			// --- init ---
 			buildIntro();
+			return;
 			buildScroll();
 		});
 	}
