@@ -476,7 +476,7 @@ function main() {
 					onReverseComplete: () => {
 						unlockCoverPixels(mediaCoverEls);
 					},
-				})
+				}),
 			);
 			tl.to(extraContent, { autoAlpha: 1, duration: 0.3, ease: "power2.inOut" }, "0.1");
 			return tl;
@@ -559,7 +559,7 @@ function main() {
 					}
 					handlePauseState();
 				},
-				{ threshold: 0.1 }
+				{ threshold: 0.1 },
 			);
 			observer.observe(component);
 
@@ -612,7 +612,7 @@ function main() {
 			function getLogoCount(component) {
 				const logoCount = parseInt(
 					getComputedStyle(component).getPropertyValue("--logo-swap--count"),
-					10
+					10,
 				);
 				return isNaN(logoCount) ? 5 : logoCount;
 			}
@@ -785,7 +785,7 @@ function main() {
 						stagger: 0.05,
 						ease: "power2.inOut",
 					},
-					"<+0.1"
+					"<+0.1",
 				);
 			}
 
@@ -922,7 +922,7 @@ function main() {
 						ease: "power3.out",
 						stagger: 0.12,
 					},
-					0
+					0,
 				);
 
 				// opacity
@@ -934,7 +934,7 @@ function main() {
 						ease: "power3.out",
 						stagger: 0.12,
 					},
-					0
+					0,
 				);
 
 				// cleanup on unmatch
@@ -970,18 +970,17 @@ function main() {
 		}
 
 		function isPastResumePoint(video) {
-			if (video._resumeOffset == null) setOffset(video); // ensure offset is set
+			// Always recompute; layout + refresh can change "at top" status
+			setOffset(video);
 
 			const r = video.getBoundingClientRect();
-			const offset = video._resumeOffset;
+			const offset = video._resumeOffset ?? -RESUME_OFFSET_PX;
 
-			// Positive offset: treat as "resume when top passes down to this point"
-			// Negative offset: treat as "resume when top has moved up past this point"
-			if (offset >= 0) {
-				return r.top >= offset;
-			} else {
-				return r.top <= offset;
-			}
+			// Both start styles correspond to the same condition in rect-space:
+			// - "top+=20 top"  => r.top <= -20
+			// - "top top-=20"  => r.top <= -20
+			const threshold = offset > 0 ? -offset : offset; // always negative
+			return r.top <= threshold;
 		}
 
 		// --- segment2 <-> reverse helpers -----------------------------------------
@@ -1081,7 +1080,7 @@ function main() {
 				video.addEventListener(
 					"loadedmetadata",
 					() => setupPauseAndScrollLogic(video, pauseTime, { createScrollTrigger }),
-					{ once: true }
+					{ once: true },
 				);
 				return;
 			}
@@ -1089,7 +1088,7 @@ function main() {
 			if (pauseTime >= video.duration) {
 				console.warn(
 					`[loadVideos] data-video-pause (${pauseTime}s) >= duration (${video.duration}s) for`,
-					video
+					video,
 				);
 				return;
 			}
@@ -1098,7 +1097,7 @@ function main() {
 			if (video.hasAttribute("loop")) {
 				console.warn(
 					`[loadVideos] Video has loop attribute; removing loop + skipping pause-and-scroll for`,
-					video
+					video,
 				);
 				video.removeAttribute("loop");
 			}
@@ -1132,7 +1131,7 @@ function main() {
 				trigger: video,
 				start: () => {
 					// recompute offset when ST is evaluated
-					if (video._resumeOffset == null) setOffset(video);
+					setOffset(video);
 					const offset = video._resumeOffset;
 					if (offset > 0) {
 						// push start DOWN into viewport
@@ -1152,11 +1151,8 @@ function main() {
 		function setupVideoControls(video) {
 			const pauseTime = parsePauseTimeAttr(video);
 			if (pauseTime === null) return;
-			if (!video.hasAttribute("autoplay")) return;
+			if (!video.hasAttribute("autoplay") && !video.getAttribute("data-video-pause")) return; // no autoplay and no pause time
 
-			// Shared-timeline tab videos can optionally skip their own ScrollTrigger and
-			// be driven by a parent component. For now we let them create their own ST,
-			// but this flag is here if you want to gate later.
 			const isSharedTimeline = video.dataset.videoSharedTimeline === "true";
 
 			setupPauseAndScrollLogic(video, pauseTime, {
@@ -1211,7 +1207,7 @@ function main() {
 					`\n  → Mode: ${mode}` +
 					`\n  → hasWebm: ${hasWebm}` +
 					`\n  → hasMp4: ${hasMp4}` +
-					`\n  → dualVariants: ${dual}`
+					`\n  → dualVariants: ${dual}`,
 			);
 
 			let chosen = null;
@@ -1251,7 +1247,7 @@ function main() {
 						`\n    URL: ${chosen.url}` +
 						`\n    MIME: ${chosen.mime}` +
 						`\n    Codecs: ${chosen.codecs || "(none)"}` +
-						`\n    Variant: ${chosen.isWebm ? "WebM" : chosen.isMp4 ? "MP4 (Safari/iOS)" : "Other"}`
+						`\n    Variant: ${chosen.isWebm ? "WebM" : chosen.isMp4 ? "MP4 (Safari/iOS)" : "Other"}`,
 				);
 
 				video._variantChoice = chosen.isWebm ? "webm" : chosen.isMp4 ? "mp4" : "other";
@@ -1292,7 +1288,7 @@ function main() {
 					updateSources(video, isMobile() ? "mobile" : "desktop");
 					self.kill();
 				},
-			})
+			}),
 		);
 
 		// Basic play / pause triggers (viewport region)
@@ -1356,7 +1352,7 @@ function main() {
 						updateSources(video, newMode);
 						self.kill();
 					},
-				})
+				}),
 			);
 
 			ScrollTrigger.refresh();
@@ -1497,7 +1493,7 @@ function main() {
 
 		const ResizeManager = lenus.resizeManager;
 		const mobileMq = window.matchMedia(
-			lenus.resizeManager.breakpoints.mobile || "(max-width: 767px)"
+			lenus.resizeManager.breakpoints.mobile || "(max-width: 767px)",
 		);
 
 		document.querySelectorAll(".c-cta").forEach((component) => {
@@ -1617,7 +1613,7 @@ function main() {
 						duration: 0.5,
 						// scale: true, // or false, if you want to control scale separately
 					}),
-					0
+					0,
 				);
 
 				tl.to(
@@ -1631,7 +1627,7 @@ function main() {
 							from: "start",
 						},
 					},
-					0.1
+					0.1,
 				);
 			};
 
@@ -1711,7 +1707,7 @@ function main() {
 						img.addEventListener("load", resolve, { once: true });
 						img.addEventListener("error", resolve, { once: true }); // resolve on error so it doesn't hang
 					});
-				})
+				}),
 			);
 		}
 	}
@@ -1737,13 +1733,13 @@ function main() {
 					img,
 					{ y: 30, filter: "blur(4px)", autoAlpha: 0 },
 					{ y: 0, filter: "blur(0px)", autoAlpha: 1, ease: "power1.out", duration: 0.6 },
-					index * 0.2
+					index * 0.2,
 				);
 				tl.fromTo(
 					text,
 					{ y: 20, autoAlpha: 0 },
 					{ y: 0, autoAlpha: 1, ease: "power1.out", duration: 1.6 },
-					"-=0.5"
+					"-=0.5",
 				);
 			});
 		});
@@ -1771,7 +1767,7 @@ function main() {
 						scrub: 3,
 						toggleActions: "play reverse play reverse",
 					},
-				}
+				},
 			);
 		});
 	}
@@ -1782,7 +1778,7 @@ function main() {
 			const fallbackImage = component.querySelector(".accordion_media.is-fallback .accordion-img");
 			const images = gsap.utils.toArray(
 				".accordion_media.is-not-fallback .accordion-img",
-				component
+				component,
 			);
 
 			// Function to check if any item is open and update fallback image visibility
@@ -1892,7 +1888,7 @@ function main() {
 				"toc",
 				(result) => {
 					console.log(
-						"[legalAccordions] Accordions detected, building accordions inside TOC content sections."
+						"[legalAccordions] Accordions detected, building accordions inside TOC content sections.",
 					);
 					components.forEach((contentsBlock) => {
 						const hasAccordion = contentsBlock.querySelector(".accordion-item");
@@ -1986,6 +1982,7 @@ function main() {
 				}
 			});
 			window.addEventListener("resize", onResize);
+			resizeHandlerRef = onResize;
 		});
 
 		function initSplide(cards, component) {
@@ -2046,7 +2043,7 @@ function main() {
 			cards,
 			resetVideos = false,
 			lowerOpacity = true,
-			showContent = false
+			showContent = false,
 		) {
 			cards.forEach((c) => {
 				const content = c.querySelector(".card_content");
@@ -2245,7 +2242,7 @@ function main() {
 				component,
 				cards,
 				splideInstance,
-				splideInstance.Components.Slides
+				splideInstance.Components.Slides,
 			);
 
 			// When slide becomes active, handle video playback
@@ -2573,7 +2570,7 @@ function main() {
 			if (!controls || !track || !list || !panelsList) {
 				console.log(
 					"[tabsWithToggleSlider] Missing required elements in tabs component:",
-					component
+					component,
 				);
 				return;
 			}
@@ -2582,7 +2579,7 @@ function main() {
 
 			// find panels
 			let panels = Array.from(panelsList.querySelectorAll("[data-tabs-element='panel']"));
-			if (!panels.length || panels.length === 1) return;
+			if (!panels.length) return;
 
 			const obj = {
 				component,
@@ -2678,7 +2675,7 @@ function main() {
 					const rawSegment = v.dataset.segmentState || "segment1";
 
 					const pauseAt = parseFloat(
-						v.dataset.pauseAt || v.getAttribute("data-video-pause") || "0"
+						v.dataset.pauseAt || v.getAttribute("data-video-pause") || "0",
 					);
 
 					let segment = rawSegment;
@@ -2735,7 +2732,7 @@ function main() {
 
 					if (useSharedTimeline && v.hasAttribute("data-video-pause")) {
 						const pauseAt = parseFloat(
-							v.dataset.pauseAt || v.getAttribute("data-video-pause") || "0"
+							v.dataset.pauseAt || v.getAttribute("data-video-pause") || "0",
 						);
 						const duration = v.duration || 0;
 
@@ -2831,7 +2828,7 @@ function main() {
 								panel.splide = splideInstance;
 							},
 						},
-						delay
+						delay,
 					);
 				});
 			}
@@ -2853,11 +2850,11 @@ function main() {
 			let activeIndex =
 				Math.max(
 					0,
-					tabs.findIndex((b) => b.classList.contains("is-active"))
+					tabs.findIndex((b) => b.classList.contains("is-active")),
 				) ||
 				Math.max(
 					0,
-					panels.findIndex((p) => p.classList.contains("is-active"))
+					panels.findIndex((p) => p.classList.contains("is-active")),
 				) ||
 				0;
 
@@ -2884,7 +2881,7 @@ function main() {
 			}
 
 			tabs.forEach((tab, idx) =>
-				tab.addEventListener("click", () => activate(idx, { source: "click" }))
+				tab.addEventListener("click", () => activate(idx, { source: "click" })),
 			);
 
 			// Initial state
@@ -2899,48 +2896,81 @@ function main() {
 
 			const mediaWrap = component.querySelector(".tabbed-hero_media");
 			if (mediaWrap) {
-				let st;
-				const END_OFFSET_PX = 10;
+				let enterST, segmentST;
 
-				const buildHeroST = () => {
-					if (st) st.kill();
-					st = ScrollTrigger.create({
+				const END_OFFSET_PX = 10;
+				const RESUME_OFFSET_PX = 20;
+
+				const getActiveVideo = () => panels[activeIndex]?.querySelector("video");
+
+				const buildHeroSTs = () => {
+					if (enterST) enterST.kill();
+					if (segmentST) segmentST.kill();
+
+					// 1) In/out: only handle priming + saving (no early "top+=50" leave)
+					enterST = ScrollTrigger.create({
 						trigger: component,
 						start: "top top",
-						// end: `bottom top-=${END_OFFSET_PX}`,
-						end: "top+=50 top",
-						pinSpacing: true,
+						end: `bottom top-=${END_OFFSET_PX}`,
 						invalidateOnRefresh: true,
 						onEnter: () => {
-							const vid = panels[activeIndex]?.querySelector("video");
+							const vid = getActiveVideo();
 							if (vid) primeAndPlay(vid);
-						},
-						onLeave: () => {
-							saveVideoState(panels[activeIndex]);
 						},
 						onEnterBack: () => {
-							const vid = panels[activeIndex]?.querySelector("video");
-							if (vid) primeAndPlay(vid);
+							const vid = getActiveVideo();
+							// Important: don’t blindly restart if we’re already pausedAt/segment2
+							if (vid && (vid.dataset.segmentState || "segment1") === "segment1") {
+								primeAndPlay(vid);
+							}
+						},
+						onLeave: () => saveVideoState(panels[activeIndex]),
+					});
+
+					// 2) Segment control: drive segment2 forward + reverse for shared timeline
+					segmentST = ScrollTrigger.create({
+						trigger: component,
+						start: `top+=${RESUME_OFFSET_PX} top`,
+						end: `bottom top-=${END_OFFSET_PX}`,
+						invalidateOnRefresh: true,
+						onEnter: () => {
+							const vid = getActiveVideo();
+							if (!vid) return;
+
+							// keep shared timeline state consistent
+							sharedState.segment = "segment2";
+							sharedState.wasPlaying = true;
+							sharedState.time = vid.currentTime || sharedState.time || 0;
+
+							lenus?.helperFunctions?.advancePausableVideo?.(vid);
 						},
 						onLeaveBack: () => {
-							// saveVideoState(panels[activeIndex]);
+							const vid = getActiveVideo();
+							if (!vid) return;
+
+							sharedState.segment = "reversing";
+							sharedState.wasPlaying = false;
+							sharedState.time = vid.currentTime || sharedState.time || 0;
+
+							lenus?.helperFunctions?.reversePausableVideo?.(vid);
 						},
-						// markers: true,
 					});
 				};
 
-				buildHeroST();
+				buildHeroSTs();
 				ScrollTrigger.refresh();
 
 				const onResize = lenus?.helperFunctions?.debounce
 					? lenus.helperFunctions.debounce(() => {
 							controller.update();
+							buildHeroSTs();
 							ScrollTrigger.refresh();
-					  }, 150)
+						}, 150)
 					: () => {
 							controller.update();
+							buildHeroSTs();
 							ScrollTrigger.refresh();
-					  };
+						};
 
 				window.addEventListener("resize", onResize);
 			}
@@ -3000,7 +3030,7 @@ function main() {
 			// Initial selection
 			const initial = Math.max(
 				0,
-				radios.findIndex((r) => r.checked)
+				radios.findIndex((r) => r.checked),
 			);
 			controller.select(initial, { immediate: true });
 
@@ -3011,19 +3041,19 @@ function main() {
 						updatePickerMode();
 						const current = Math.max(
 							0,
-							radios.findIndex((r) => r.checked)
+							radios.findIndex((r) => r.checked),
 						);
 						controller.select(current, { immediate: true });
-				  }, 150)
+					}, 150)
 				: () => {
 						controller.update();
 						updatePickerMode();
 						const current = Math.max(
 							0,
-							radios.findIndex((r) => r.checked)
+							radios.findIndex((r) => r.checked),
 						);
 						controller.select(current, { immediate: true });
-				  };
+					};
 
 			window.addEventListener("resize", onResize);
 			updatePickerMode();
@@ -3160,12 +3190,12 @@ function main() {
 							// Check if we're already at the target index (no movement needed)
 							if (instance.index === targetIndex) {
 								console.log(
-									`Mini carousel already at active slide index ${targetIndex}, revealing immediately`
+									`Mini carousel already at active slide index ${targetIndex}, revealing immediately`,
 								);
 								revealCarousel();
 							} else {
 								console.log(
-									`Setting mini carousel active slide to index ${targetIndex} (contains .w--current)`
+									`Setting mini carousel active slide to index ${targetIndex} (contains .w--current)`,
 								);
 
 								// Listen for the move completion, then reveal
@@ -3254,7 +3284,7 @@ function main() {
 			if (!bg) return;
 
 			const itemsToFade = gsap.utils.toArray(
-				component.querySelectorAll(".c-social-reviews, .c-title, .c-subtitle")
+				component.querySelectorAll(".c-social-reviews, .c-title, .c-subtitle"),
 			);
 
 			let introCtx = null;
@@ -3279,7 +3309,7 @@ function main() {
 							duration: 1.5,
 							ease: "power2.out",
 						},
-						0.5
+						0.5,
 					);
 					tlIntro.to(
 						itemsToFade,
@@ -3289,7 +3319,7 @@ function main() {
 							ease: "power2.in",
 							stagger: 0.15,
 						},
-						2
+						2,
 					);
 				}, component);
 			}
@@ -3351,7 +3381,7 @@ function main() {
 								ease: "power2.out",
 								immediateRender: false,
 							},
-							0
+							0,
 						);
 					}, component);
 
@@ -3403,7 +3433,7 @@ function main() {
 
 							immediateRender: false,
 						},
-						0
+						0,
 					);
 				}, component);
 
@@ -3456,7 +3486,7 @@ function main() {
 							}
 							// On iOS-like, avoid rebuild on pure height changes by checking width diff
 							buildScroll();
-					  }, 250)
+						}, 250)
 					: () => buildScroll();
 
 				window.addEventListener("resize", onResizeFallback);
@@ -3580,7 +3610,7 @@ function main() {
 							ease: "power2.out",
 							duration: 0.3,
 						},
-						"<"
+						"<",
 					)
 					.fromTo(
 						ctaText,
@@ -3592,7 +3622,7 @@ function main() {
 						{
 							opacity: 1,
 						},
-						"<"
+						"<",
 					);
 
 				// add hover events to the card (these don't affect autoscroll)
@@ -3657,10 +3687,7 @@ function main() {
 	}
 
 	function scatterHero() {
-		// ====== Configurable Randomization Bounds ======
 		const config = {
-			maxRotation: 10, // degrees
-
 			posYOffset: {
 				desktop: 300,
 				mobile: 100,
@@ -3668,87 +3695,39 @@ function main() {
 			fadeDuration: 0.5,
 			transformDuration: 1,
 			stagger: 0.05,
-			scale: [0.9, 1],
-			bounds: {
-				desktop: { xMin: -15, xMax: 15, yMin: -50, yMax: 50 },
-				mobile: { xMin: -10, xMax: 10, yMin: -20, yMax: 20 },
-			},
-			centerBounds: {
-				desktop: { yMin: -10, yMax: 10 },
-				mobile: { yMin: -5, yMax: 5 },
-			},
 		};
 
 		const isMobile = () => window.innerWidth <= 768;
-		const getCurrentBounds = () => (isMobile() ? config.bounds.mobile : config.bounds.desktop);
-		const getCurrentCenterBounds = () =>
-			isMobile() ? config.centerBounds.mobile : config.centerBounds.desktop;
 
 		// Animate images to scattered positions
 		const animateInTl = (componentObj) => {
 			const component = componentObj.component;
-			const bounds = getCurrentBounds();
-			const centerBounds = getCurrentCenterBounds();
+
 			const tl = gsap.timeline({ paused: true });
 			tl.timeScale(0.85);
 
 			if (isMobile()) {
-				// MOBILE: only animate images with data-scatter-image="mbl"
 				const allImgs = Array.from(component.querySelectorAll(".scatter-img"));
-				const targetImgs = componentObj.images; // already filtered
-				const nonTargets = allImgs.filter((el) => !targetImgs.includes(el));
-
-				// Hide non-target images
-				gsap.set(nonTargets, { autoAlpha: 0 });
 
 				// Animate only target images
-				tl.fromTo(
-					targetImgs,
-					{ y: config.posYOffset.mobile, autoAlpha: 0 },
-					{
-						xPercent: () => gsap.utils.random(bounds.xMin, bounds.xMax),
-						yPercent: () => gsap.utils.random(bounds.yMin, bounds.yMax),
-						rotation: () => gsap.utils.random(-config.maxRotation, config.maxRotation),
-						scale: () => gsap.utils.random(config.scale),
-						autoAlpha: 1,
-						y: 0,
-						duration: config.transformDuration,
-						ease: "power3.out",
-						stagger: { amount: config.stagger, from: "random" },
-					}
-				);
+				tl.from(allImgs, {
+					y: config.posYOffset.mobile,
+					autoAlpha: 0,
+					rotation: 0,
+					duration: config.transformDuration,
+					ease: "power3.out",
+					stagger: { amount: config.stagger, from: "random" },
+				});
 			} else {
 				// DESKTOP: original logic
-				tl.fromTo(
-					component.querySelectorAll(
-						".scatter-hero_media-wrap:is(.is-left, .is-right) .scatter-img"
-					),
-					{ y: config.posYOffset.desktop, autoAlpha: 0 },
-					{
-						xPercent: () => gsap.utils.random(bounds.xMin, bounds.xMax),
-						yPercent: () => gsap.utils.random(bounds.yMin, bounds.yMax),
-						rotation: () => gsap.utils.random(-config.maxRotation, config.maxRotation),
-						scale: () => gsap.utils.random(config.scale),
-						autoAlpha: 1,
-						y: 0,
-						duration: config.transformDuration,
-						ease: "power3.out",
-						stagger: { amount: config.stagger, from: "random" },
-					}
-				).fromTo(
-					component.querySelectorAll(".scatter-hero_media-wrap.is-main .scatter-img"),
-					{ opacity: 0, y: config.posYOffset.desktop },
-					{
-						opacity: 1,
-						yPercent: () => gsap.utils.random(centerBounds.yMin, centerBounds.yMax),
-						rotation: () => gsap.utils.random(-2, 2),
-						y: 0,
-						scale: 1,
-						duration: config.fadeDuration,
-						ease: "power3.out",
-					},
-					"<"
-				);
+				tl.from(component.querySelectorAll(".scatter-img"), {
+					y: config.posYOffset.desktop,
+					autoAlpha: 0,
+					rotation: 0,
+					duration: config.transformDuration,
+					ease: "power3.out",
+					stagger: { amount: config.stagger, from: "random" },
+				});
 			}
 
 			tl.eventCallback("onComplete", () => {
@@ -3800,34 +3779,19 @@ function main() {
 			});
 		}
 
-		const animateOutTl = (componentObj) =>
-			gsap
-				.timeline({ paused: true })
-				.to(componentObj.component.querySelectorAll(".scatter-hero_media-wrap"), {
-					y: -200,
-					autoAlpha: 0,
-					duration: config.transformDuration,
-					ease: "power2.in",
-					stagger: { amount: config.stagger, from: "random" },
-				});
-
 		document.querySelectorAll(".c-scatter-hero").forEach((component) => {
 			const allImages = gsap.utils.toArray(".scatter-img", component);
-			const mobileImages = allImages.filter(
-				(el) => el.getAttribute("data-scatter-image") === "mbl"
-			);
 
 			const componentObj = {
 				component,
 				section: component.closest(".section"),
-				images: isMobile() ? mobileImages : allImages,
+				images: allImages,
 				inAnimationCompleted: false,
 				outAnimationToRun: false,
 			};
 
 			componentObj.tl_in = animateInTl(componentObj);
 
-			// Load only the targeted images (mobile: filtered; desktop: all)
 			const loadPromises = componentObj.images.map((imgWrap) => {
 				const img = imgWrap.querySelector("img") || imgWrap;
 				if (!img) return Promise.resolve();
@@ -3849,7 +3813,6 @@ function main() {
 				onEnter: () => {
 					componentObj.outAnimationToRun = true;
 					if (!componentObj.inAnimationCompleted) return;
-					// (out animation currently disabled)
 				},
 			});
 		});
@@ -4050,33 +4013,65 @@ function main() {
 	}
 
 	function jobScroll() {
-		return;
-		/* add vertical infinite Splide slider to each c-job-scroll instance (assuming appropriate _track, _list, _item elements). Also run the shrinkWrap helper on each job-scroll_name item */
+		/*
+			Job Scroll
+			- Desktop: GSAP vertical loop (draggable)
+			- Tablet/mobile (<= 991px): two GSAP horizontal marquees, opposite directions
+		*/
+
+		const DEBUG = window.__LENUS_JOBSCROLL_DEBUG__ ?? true;
+		const LOG_PREFIX = "[jobScroll]";
+		const log = (...args) => DEBUG && console.log(LOG_PREFIX, ...args);
+		const warn = (...args) => DEBUG && console.warn(LOG_PREFIX, ...args);
+		const error = (...args) => DEBUG && console.error(LOG_PREFIX, ...args);
 
 		const bp_tab = 991;
 		const mm = window.matchMedia(`(max-width: ${bp_tab}px)`);
+		const components = document.querySelectorAll(".c-job-scroll");
+		log(`init: found ${components.length} component(s)`, { bp_tab, matches: mm.matches });
 
-		document.querySelectorAll(".c-job-scroll").forEach((component) => {
+		components.forEach((component, index) => {
+			const componentLabel = component.id
+				? `#${component.id}`
+				: component.getAttribute("data-component")
+					? `[data-component='${component.getAttribute("data-component")}']`
+					: `.c-job-scroll[${index}]`;
+
+			log("component init", componentLabel, component);
 			const state = {
 				mode: null,
 				loop: null, //GSAP timeline
-				splides: [], // splide instances
 				cloneItems: [],
 				cloneInstance: [],
+				dupInstance: null,
+				_resizeHandler: null,
+				_mqHandler: null,
+				_timeouts: [],
+				tabletLoops: [],
+				tabletCloneItems: [],
+				tabletHoverUnsubs: [],
 			};
 
 			component._jobScroll = state;
+			if (DEBUG) {
+				console.groupCollapsed(`${LOG_PREFIX} ${componentLabel}`);
+				console.log("component state (initial)", state);
+				console.groupEnd();
+			}
 
 			const init = () => {
 				const isTablet = mm.matches;
+				log(`${componentLabel} init()`, { isTablet, prevMode: state.mode });
 				if (isTablet && state.mode !== "tablet") {
-					console.log("Switching to tablet");
+					log(`${componentLabel} switching -> tablet`);
 					teardownDesktop(component);
 					initTablet(component);
 				} else if (!isTablet && state.mode !== "desktop") {
-					console.log("Switching to desktop");
+					log(`${componentLabel} switching -> desktop`);
 					teardownTablet(component);
 					initDesktop(component);
+				} else {
+					log(`${componentLabel} no mode change`, { mode: state.mode });
 				}
 			};
 
@@ -4084,14 +4079,36 @@ function main() {
 				const instance = root.querySelector(".job-scroll_instance");
 				const list = root.querySelector(".job-scroll_list");
 				let items = gsap.utils.toArray(".job-scroll_item", root);
-				if (!instance || !list || items.length === 0) return;
+				if (!instance || !list || items.length === 0) {
+					warn(`${componentLabel} desktop init aborted: missing DOM`, {
+						hasInstance: !!instance,
+						hasList: !!list,
+						items: items.length,
+					});
+					return;
+				}
+
+				log(`${componentLabel} initDesktop`, {
+					items: items.length,
+					instanceHeight: instance.offsetHeight,
+					componentHeight: component.offsetHeight,
+				});
 
 				// if instance is not tall enough to cover component, duplicate items
 				if (instance.offsetHeight < component.offsetHeight) {
 					const cloneCount = Math.ceil(component.offsetHeight / instance.offsetHeight) - 1;
+					log(`${componentLabel} desktop: duplicating items`, {
+						cloneCount,
+						instanceHeight: instance.offsetHeight,
+						componentHeight: component.offsetHeight,
+					});
 					const clonesAdded = [];
 					for (let i = 0; i < cloneCount; i++) {
 						const current = Array.from(list.querySelectorAll(".job-scroll_item:not(.clone)"));
+						log(`${componentLabel} desktop: clone pass`, {
+							pass: i + 1,
+							sourceItems: current.length,
+						});
 
 						current.forEach((item) => {
 							const clone = item.cloneNode(true);
@@ -4102,98 +4119,238 @@ function main() {
 					}
 					// track clones so they can be removed on teardown
 					state.cloneItems.push(...clonesAdded);
+					log(`${componentLabel} desktop: clones added`, { clones: clonesAdded.length });
 					// refresh items to include clones
 					items = gsap.utils.toArray(".job-scroll_item", root);
+					log(`${componentLabel} desktop: items after clone`, { items: items.length });
+				} else {
+					log(`${componentLabel} desktop: no clones needed`);
 				}
 
-				state.loop = lenus.helperFunctions.verticalLoop(items, {
-					draggable: true,
-					center: true,
-					repeat: -1,
-					speed: 0.5,
-				});
+				try {
+					state.loop = lenus.helperFunctions.verticalLoop(items, {
+						draggable: true,
+						center: true,
+						repeat: -1,
+						speed: 0.5,
+					});
+					log(`${componentLabel} desktop: GSAP loop created`, state.loop);
+				} catch (e) {
+					error(`${componentLabel} desktop: failed to create GSAP loop`, e);
+				}
 
 				state.mode = "desktop";
+				log(`${componentLabel} mode set`, state.mode);
 			}
 
 			function initTablet(root) {
 				const baseInstance = root.querySelector(".job-scroll_instance");
 				const baseList = root.querySelector(".job-scroll_list");
 				let items = gsap.utils.toArray(".job-scroll_item", root);
-				if (!baseInstance || !baseList || items.length === 0) return;
+				if (!baseInstance || !baseList || items.length === 0) {
+					warn(`${componentLabel} tablet init aborted: missing DOM`, {
+						hasBaseInstance: !!baseInstance,
+						hasBaseList: !!baseList,
+						items: items.length,
+					});
+					return;
+				}
+
+				log(`${componentLabel} initTablet`, { items: items.length });
 
 				// duplicate instance to create second marquee
 				const cloneInstance = baseInstance.cloneNode(true);
 				baseInstance.after(cloneInstance);
 				state.dupInstance = cloneInstance;
+				log(`${componentLabel} tablet: duplicated instance`, cloneInstance);
 
-				const buildSplide = (instanceEl, speed) => {
-					const options = {
-						type: "loop",
-						autoWidth: true,
-						autoplay: false,
-						autoScroll: {
-							speed: speed,
-							pauseOnHover: true,
-						},
-						intersection: {
-							inView: {
-								autoScroll: true,
-							},
-							outView: {
-								autoScroll: false,
-							},
-						},
-						snap: false,
-						drag: false,
-						pagination: false,
-						arrows: false,
-					};
-
-					let splide = new Splide(instanceEl, options).mount(window.splide.Extensions);
-					return splide;
+				// --- GSAP marquee helpers (no Splide JS) ---
+				const ensureMarqueeFill = (instanceEl) => {
+					const list =
+						instanceEl.querySelector(".job-scroll_list") ||
+						instanceEl.querySelector(".splide__list");
+					if (!list) {
+						warn(`${componentLabel} tablet: missing list in instance`, instanceEl);
+						return;
+					}
+					const originals = Array.from(list.querySelectorAll(".job-scroll_item"));
+					if (originals.length === 0) {
+						warn(`${componentLabel} tablet: no .job-scroll_item found for marquee`, instanceEl);
+						return;
+					}
+					const targetWidth = (instanceEl.getBoundingClientRect().width || 0) * 2;
+					if (!targetWidth) return;
+					let safety = 0;
+					while (list.scrollWidth < targetWidth && safety < 6) {
+						safety++;
+						originals.forEach((node) => {
+							const clone = node.cloneNode(true);
+							clone.classList.add("js-marquee-clone");
+							list.appendChild(clone);
+							state.tabletCloneItems.push(clone);
+						});
+					}
+					log(`${componentLabel} tablet: marquee fill`, {
+						listWidth: list.scrollWidth,
+						targetWidth,
+						clonesAdded: state.tabletCloneItems.filter((c) => instanceEl.contains(c)).length,
+					});
 				};
 
-				const splide_1 = buildSplide(baseInstance, 1);
-				const splide_2 = buildSplide(cloneInstance, -1);
-				state.splides = [splide_1, splide_2];
+				const buildGsapMarquee = (instanceEl, { reversed }) => {
+					ensureMarqueeFill(instanceEl);
+					const marqueeItems = gsap.utils.toArray(".job-scroll_item", instanceEl);
+					if (marqueeItems.length === 0) return null;
+
+					// Clear any leftover x/transform from previous inits
+					marqueeItems.forEach((el) => gsap.set(el, { clearProps: "transform" }));
+
+					try {
+						const tl = lenus.helperFunctions.horizontalLoop(marqueeItems, {
+							repeat: -1,
+							speed: 0.6,
+							reversed: !!reversed,
+							paused: false,
+						});
+						log(`${componentLabel} tablet: GSAP horizontalLoop created`, {
+							reversed: !!reversed,
+							items: marqueeItems.length,
+						});
+						return tl;
+					} catch (e) {
+						error(`${componentLabel} tablet: horizontalLoop failed`, e);
+						return null;
+					}
+				};
+
+				const tl1 = buildGsapMarquee(baseInstance, { reversed: false });
+				const tl2 = buildGsapMarquee(cloneInstance, { reversed: true });
+				state.tabletLoops = [tl1, tl2].filter(Boolean);
+				log(`${componentLabel} tablet: GSAP marquees ready`, { count: state.tabletLoops.length });
+
+				// Pause/resume on hover (helps UX and makes it obvious it's running)
+				const bindHoverPause = (instanceEl, timelines) => {
+					const onEnter = () => {
+						log(`${componentLabel} tablet: hover pause`);
+						timelines.forEach((t) => t?.pause?.());
+					};
+					const onLeave = () => {
+						log(`${componentLabel} tablet: hover resume`);
+						timelines.forEach((t) => t?.play?.());
+					};
+					instanceEl.addEventListener("mouseenter", onEnter);
+					instanceEl.addEventListener("mouseleave", onLeave);
+					return () => {
+						instanceEl.removeEventListener("mouseenter", onEnter);
+						instanceEl.removeEventListener("mouseleave", onLeave);
+					};
+				};
+
+				state.tabletHoverUnsubs.push(bindHoverPause(baseInstance, state.tabletLoops));
+				state.tabletHoverUnsubs.push(bindHoverPause(cloneInstance, state.tabletLoops));
 
 				state.mode = "tablet";
+				log(`${componentLabel} mode set`, state.mode);
 			}
 
 			function teardownTablet(root) {
-				// destroy splides
-				state.splides.forEach((splide) => splide.destroy(true));
-				state.splides = [];
+				log(`${componentLabel} teardownTablet()`);
+				// cancel any deferred init timeouts (legacy)
+				if (state._timeouts?.length) {
+					state._timeouts.forEach((id) => clearTimeout(id));
+					state._timeouts = [];
+				}
+
+				// unbind hover listeners
+				if (state.tabletHoverUnsubs?.length) {
+					state.tabletHoverUnsubs.forEach((fn) => {
+						try {
+							fn();
+						} catch (e) {}
+					});
+					state.tabletHoverUnsubs = [];
+				}
+
+				// kill GSAP marquees
+				if (state.tabletLoops?.length) {
+					state.tabletLoops.forEach((tl) => {
+						try {
+							tl.kill();
+						} catch (e) {
+							error(`${componentLabel} tablet: marquee kill failed`, e);
+						}
+					});
+					state.tabletLoops = [];
+					log(`${componentLabel} tablet: marquees killed`);
+				}
+
+				// remove JS clones added for marquee fill
+				if (state.tabletCloneItems?.length) {
+					state.tabletCloneItems.forEach((n) => n.remove());
+					log(`${componentLabel} tablet: removed marquee clones`, {
+						count: state.tabletCloneItems.length,
+					});
+					state.tabletCloneItems = [];
+				}
+
+				// clear any x transforms from items
+				gsap.utils.toArray(".job-scroll_item", root).forEach((item) => {
+					gsap.set(item, { clearProps: "transform" });
+				});
 
 				// remove duplicate instance
 				if (state.dupInstance) {
 					state.dupInstance.remove();
 					state.dupInstance = null;
+					log(`${componentLabel} tablet: duplicate instance removed`);
 				}
 			}
 
 			function teardownDesktop(root) {
+				log(`${componentLabel} teardownDesktop()`);
 				// destroy loop
 				if (state.loop) {
-					console.log("Killing job scroll loop");
-					state.loop.kill();
+					log(`${componentLabel} desktop: killing GSAP loop`);
+					try {
+						// verticalLoop optionally attaches Draggable; explicitly kill it to avoid
+						// lingering pointer handlers during mode switches.
+						state.loop.draggable?.kill?.();
+						state.loop.kill();
+					} catch (e) {
+						error(`${componentLabel} desktop: loop.kill failed`, e);
+					}
 					state.loop = null;
 				}
 
 				// remove any clones
 				state.cloneItems.forEach((item) => item.remove());
+				if (state.cloneItems.length)
+					log(`${componentLabel} desktop: clones removed`, { count: state.cloneItems.length });
 				state.cloneItems = [];
 
 				// remove transforms set by GSAP from all items
 				gsap.utils.toArray(".job-scroll_item", root).forEach((item) => {
 					gsap.set(item, { clearProps: true });
 				});
+				log(`${componentLabel} desktop: cleared GSAP props from items`);
 			}
 
 			init();
 
+			// Prefer breakpoint change events over resize for mode switching
+			state._mqHandler = (e) => {
+				log(`${componentLabel} media query change`, { matches: e.matches });
+				init();
+			};
+			try {
+				if (mm.addEventListener) mm.addEventListener("change", state._mqHandler);
+				else if (mm.addListener) mm.addListener(state._mqHandler);
+			} catch (e) {
+				warn(`${componentLabel} failed to bind media query listener`, e);
+			}
+
 			function handleResize() {
+				log(`${componentLabel} resize`);
 				// hide element temporarily
 				component.style.opacity = "0";
 				init();
@@ -4204,7 +4361,9 @@ function main() {
 			}
 
 			// on resize
-			window.addEventListener("resize", lenus.helperFunctions.debounce(handleResize));
+			state._resizeHandler = lenus.helperFunctions.debounce(handleResize);
+			window.addEventListener("resize", state._resizeHandler);
+			log(`${componentLabel} listeners bound`, { resize: true, mq: true });
 		});
 	}
 
@@ -4286,7 +4445,7 @@ function main() {
 					backgroundColor: color,
 					duration: 0.15,
 					ease: "power2.out",
-				}
+				},
 			);
 		}
 
@@ -4317,7 +4476,7 @@ function main() {
 
 			// get border width and adjust accordingly
 			const borderWidth = parseFloat(
-				getComputedStyle(highlight).getPropertyValue("border-left-width")
+				getComputedStyle(highlight).getPropertyValue("border-left-width"),
 			);
 			adjustedLeft += borderWidth;
 			adjustedWidth -= borderWidth * 2;
@@ -4834,7 +4993,7 @@ function main() {
 					duration: 0.3,
 					ease: "power2.out",
 				},
-				0
+				0,
 			);
 			tl.add(Flip.fit(navBg, megaNavBg, { duration: 0.5 }), 0);
 			tl.add("flipDone", ">-0.1");
@@ -4847,7 +5006,7 @@ function main() {
 					borderTopRightRadius: 0,
 					duration: 0.5,
 				},
-				0
+				0,
 			);
 			tl.to(
 				icon,
@@ -4855,7 +5014,7 @@ function main() {
 					rotation: 45,
 					duration: 0.3,
 				},
-				0
+				0,
 			);
 			if (staggerGroup1_dsk && staggerGroup1_dsk.length > 0) {
 				tl.to(
@@ -4864,7 +5023,7 @@ function main() {
 						autoAlpha: 1,
 						duration: 0.5,
 					},
-					"flipDone"
+					"flipDone",
 				);
 			}
 			if (staggerGroup2_dsk && staggerGroup2_dsk.length > 0) {
@@ -4874,7 +5033,7 @@ function main() {
 						autoAlpha: 1,
 						duration: 0.5,
 					},
-					`flipDone+=${stagger}`
+					`flipDone+=${stagger}`,
 				);
 			}
 			if (staggerGroup3_dsk && staggerGroup3_dsk.length > 0) {
@@ -4884,7 +5043,7 @@ function main() {
 						autoAlpha: 1,
 						duration: 0.5,
 					},
-					`flipDone+=${stagger * 2}`
+					`flipDone+=${stagger * 2}`,
 				);
 			}
 			tl.set(navBg, { autoAlpha: 0 }, "flipDone");
@@ -4893,7 +5052,7 @@ function main() {
 				{
 					autoAlpha: 1,
 				},
-				"flipDone"
+				"flipDone",
 			);
 			return tl;
 		}
@@ -4909,7 +5068,7 @@ function main() {
 					duration: 0.3,
 					ease: "power2.out",
 				},
-				0
+				0,
 			);
 			tl.to(
 				navLayout,
@@ -4918,7 +5077,7 @@ function main() {
 					duration: 0.3,
 					ease: "power2.out",
 				},
-				0
+				0,
 			);
 			tl.to(
 				iconMbl,
@@ -4926,7 +5085,7 @@ function main() {
 					rotation: 45,
 					duration: 0.3,
 				},
-				0
+				0,
 			);
 
 			// Only add animations for groups that have elements
@@ -4937,7 +5096,7 @@ function main() {
 						autoAlpha: 1,
 						duration: 0.5,
 					},
-					0.1
+					0.1,
 				);
 			}
 
@@ -4948,7 +5107,7 @@ function main() {
 						autoAlpha: 1,
 						duration: 0.5,
 					},
-					0.1 + stagger
+					0.1 + stagger,
 				);
 			}
 
@@ -4959,7 +5118,7 @@ function main() {
 						autoAlpha: 1,
 						duration: 0.5,
 					},
-					0.1 + stagger * 2
+					0.1 + stagger * 2,
 				);
 			}
 
@@ -4970,7 +5129,7 @@ function main() {
 						autoAlpha: 1,
 						duration: 0.5,
 					},
-					0.1 + stagger * 3
+					0.1 + stagger * 3,
 				);
 			}
 
@@ -4981,7 +5140,7 @@ function main() {
 						autoAlpha: 1,
 						duration: 0.5,
 					},
-					0.1 + stagger * 4
+					0.1 + stagger * 4,
 				);
 			}
 
@@ -4992,7 +5151,7 @@ function main() {
 						autoAlpha: 1,
 						duration: 0.5,
 					},
-					0.1 + stagger * 5
+					0.1 + stagger * 5,
 				);
 			}
 
@@ -5051,7 +5210,7 @@ function main() {
 							duration: 0.15,
 							ease: "power2.out",
 						},
-						">-0.1"
+						">-0.1",
 					); // Start slightly before height animation completes
 
 					// Build the close timeline
@@ -5069,7 +5228,7 @@ function main() {
 							duration: 0.2, // Faster closing animation
 							ease: "power2.in",
 						},
-						">-0.05"
+						">-0.05",
 					);
 
 					// Store both timelines
@@ -5098,7 +5257,7 @@ function main() {
 										new Promise((resolve) => {
 											// Add onComplete just for this instance
 											tls[otherIndex].close.eventCallback("onComplete", resolve);
-										})
+										}),
 									);
 								}
 							});
@@ -5281,7 +5440,7 @@ function main() {
 						duration: 0.6,
 						ease: "power2.inOut",
 					},
-					0
+					0,
 				);
 
 			// Set initial state based on current status
@@ -5392,8 +5551,8 @@ function main() {
 		const PAGE_TYPE = nav.classList.contains("is-blog")
 			? "blog"
 			: nav.classList.contains("is-store")
-			? "store"
-			: null;
+				? "store"
+				: null;
 
 		const LISTING_PATH = PAGE_TYPE === "blog" ? "/blog" : "/store";
 		const FILTER_INPUT_SELECTOR =
@@ -5632,7 +5791,7 @@ function main() {
 						timeline.reverse();
 						gsap.set(component, { clearProps: "all" });
 					}
-				})
+				}),
 			);
 		});
 
@@ -5656,10 +5815,10 @@ function main() {
 		function hasActiveFilters() {
 			// Check if any category filters are active
 			const activeRadios = document.querySelectorAll(
-				'input[type="radio"][fs-list-field="category"]:checked'
+				'input[type="radio"][fs-list-field="category"]:checked',
 			);
 			const activeSubBlogRadios = document.querySelectorAll(
-				'input[type="radio"][fs-list-field="blog"]:checked'
+				'input[type="radio"][fs-list-field="blog"]:checked',
 			);
 
 			return activeRadios.length > 0 || activeSubBlogRadios.length > 0;
@@ -5680,7 +5839,7 @@ function main() {
 			"Product:",
 			isProductPage,
 			"Blog Post:",
-			isBlogPostPage
+			isBlogPostPage,
 		);
 
 		if (isStorePage) {
@@ -5717,7 +5876,7 @@ function main() {
 					} else {
 						// Find and trigger the matching radio button
 						const matchingRadio = Array.from(hiddenRadios).find(
-							(radio) => radio.getAttribute("fs-list-value") === categoryParam
+							(radio) => radio.getAttribute("fs-list-value") === categoryParam,
 						);
 
 						if (matchingRadio) {
@@ -5734,14 +5893,14 @@ function main() {
 			const visibleForm = document.querySelector(".blog-list_filters-form");
 			const visibleClearBtn = visibleForm?.querySelector('[fs-list-element="clear"]');
 			const categoryRadios = visibleForm?.querySelectorAll(
-				'input[type="radio"][fs-list-field="category"]'
+				'input[type="radio"][fs-list-field="category"]',
 			);
 			const blogRadios = visibleForm?.querySelectorAll('input[type="radio"][fs-list-field="blog"]');
 			const allRadios = visibleForm?.querySelectorAll('input[type="radio"]');
 			const searchInput = visibleForm?.querySelector('input[fs-list-field="*"]');
 			// Get category filter items using a more compatible selector
 			const categoryFilterItems = Array.from(
-				document.querySelectorAll(".filters_list-item")
+				document.querySelectorAll(".filters_list-item"),
 			).filter((item) => item.querySelector('input[fs-list-field="category"]'));
 
 			// Flag to prevent clear button from updating category visibility when triggered programmatically
@@ -5808,7 +5967,7 @@ function main() {
 
 					if (blogParam) {
 						const matchingRadio = Array.from(blogRadios).find(
-							(radio) => radio.getAttribute("fs-list-value") === blogParam
+							(radio) => radio.getAttribute("fs-list-value") === blogParam,
 						);
 
 						if (matchingRadio) {
@@ -6188,7 +6347,7 @@ function main() {
 						ease: ease,
 						stagger: { each: staggerAmount, from: fromSide },
 					},
-					delayTransformCurrent
+					delayTransformCurrent,
 				)
 					.to(
 						charsCurrent,
@@ -6198,7 +6357,7 @@ function main() {
 							ease: ease,
 							stagger: { each: staggerAmount, from: fromSide },
 						},
-						delayBlurCurrent
+						delayBlurCurrent,
 					)
 					.to(
 						charsCurrent,
@@ -6208,7 +6367,7 @@ function main() {
 							ease: ease,
 							stagger: { each: staggerAmount, from: fromSide },
 						},
-						delayOpacityCurrent
+						delayOpacityCurrent,
 					);
 
 				// Animate next chars in
@@ -6226,7 +6385,7 @@ function main() {
 						ease: ease,
 						stagger: { each: staggerAmount, from: fromSide },
 					},
-					delayTransformNext
+					delayTransformNext,
 				)
 					.fromTo(
 						charsNext,
@@ -6239,7 +6398,7 @@ function main() {
 							ease: ease,
 							stagger: { each: staggerAmount, from: fromSide },
 						},
-						delayBlurNext
+						delayBlurNext,
 					)
 					.fromTo(
 						charsNext,
@@ -6252,7 +6411,7 @@ function main() {
 							ease: ease,
 							stagger: { each: staggerAmount, from: fromSide },
 						},
-						delayOpacityNext
+						delayOpacityNext,
 					);
 
 				return tl;
@@ -6355,7 +6514,7 @@ function main() {
 						title,
 						{ y: 50, autoAlpha: 0 },
 						{ y: 0, autoAlpha: 1, duration: 0.3, ease: "power2.out" },
-						0
+						0,
 					)
 					.fromTo(
 						title,
@@ -6367,13 +6526,13 @@ function main() {
 							ease: "power2.out",
 							duration: 2,
 						},
-						0
+						0,
 					)
 					.fromTo(
 						credit,
 						{ y: 30, autoAlpha: 0 },
 						{ y: 0, autoAlpha: 1, duration: 1, ease: "power2.out" },
-						0.2
+						0.2,
 					)
 
 					// Hold the quote on screen
@@ -6383,12 +6542,12 @@ function main() {
 					.to(
 						title,
 						{ y: -50, autoAlpha: 0, duration: transitionTime, ease: "power2.in" },
-						">" // start right after the hold
+						">", // start right after the hold
 					)
 					.to(
 						credit,
 						{ y: -30, autoAlpha: 0, duration: transitionTime, ease: "power2.in" },
-						"<+0.2" // slightly after title
+						"<+0.2", // slightly after title
 					)
 
 					// Hide the item at the end so it's clean for the next cycle
@@ -6548,7 +6707,7 @@ function main() {
 	function handleLocalTimes(scope = document) {
 		// Find all parent location elements first
 		const locationParents = scope.querySelectorAll(
-			"[data-location-element='parent']:not([data-location-processed])"
+			"[data-location-element='parent']:not([data-location-processed])",
 		);
 		if (locationParents.length === 0) return;
 
@@ -6595,7 +6754,7 @@ function main() {
 							timeZone: tz,
 							hour: "2-digit",
 							hour12: false,
-						})
+						}),
 					);
 
 					// Night time is 18:00 (6pm) to 06:00 (6am)
@@ -6686,7 +6845,7 @@ function main() {
 
 			if (!this.jobTemplate) {
 				console.warn(
-					"[Lenus.Greenhouse] No .events-group_list-item found inside .events-group template."
+					"[Lenus.Greenhouse] No .events-group_list-item found inside .events-group template.",
 				);
 				return;
 			}
@@ -6805,7 +6964,7 @@ function main() {
 					// Add any new DOM items not yet tracked
 					const existing = new Set(listInstance.items.value.map((i) => i.element));
 					const newEls = Array.from(container.querySelectorAll('[fs-list-element="item"]')).filter(
-						(el) => !existing.has(el)
+						(el) => !existing.has(el),
 					);
 
 					if (newEls.length) {
@@ -7166,7 +7325,7 @@ function main() {
 		card,
 		videoSelector = "video",
 		imgSelector = "img",
-		bool = true
+		bool = true,
 	) {
 		const video = card.querySelector(videoSelector);
 		const img = imgSelector ? card.querySelector(imgSelector) : null;
@@ -7233,17 +7392,17 @@ function main() {
 		component,
 		cards,
 		splideInstance,
-		splideSlides
+		splideSlides,
 	) {
 		const progress = component.querySelector(".carousel_progress");
 		if (!progress) return;
 
 		// get color variables from component
 		const progressLineColor = getComputedStyle(component).getPropertyValue(
-			"--_theme---progress-line"
+			"--_theme---progress-line",
 		);
 		const progressLineActiveColor = getComputedStyle(component).getPropertyValue(
-			"--_theme---progress-line-active"
+			"--_theme---progress-line-active",
 		);
 
 		progress.innerHTML = ""; // clear existing progress lines
@@ -7541,7 +7700,7 @@ function main() {
 			console.warn(
 				`Skipping Splide initialization due to invalid structure:`,
 				component,
-				validation.missing
+				validation.missing,
 			);
 			return null;
 		}
@@ -7620,8 +7779,8 @@ function main() {
 		const effectiveSets = Number.isFinite(attrSets)
 			? attrSets
 			: Number.isFinite(setsFromConfig)
-			? setsFromConfig
-			: defaultConfig.clones;
+				? setsFromConfig
+				: defaultConfig.clones;
 
 		mergedConfig.clones = getCloneCountFromSets(component, effectiveSets);
 
@@ -7727,7 +7886,7 @@ function main() {
 				console.log(
 					`[initSplideCarousel] syncAutoMode: ${
 						mq.matches ? "mobile (autoplay)" : "desktop (autoscroll)"
-					}`
+					}`,
 				);
 
 				if (mq.matches) {
@@ -8052,7 +8211,7 @@ Features:
 						heights[i] = parseFloat(gsap.getProperty(el, "height", "px"));
 						yPercents[i] = snap(
 							(parseFloat(gsap.getProperty(el, "y", "px")) / heights[i]) * 100 +
-								gsap.getProperty(el, "yPercent")
+								gsap.getProperty(el, "yPercent"),
 						);
 						b2 = el.getBoundingClientRect();
 						spaceBefore[i] = b2.top - (i ? b1.bottom : b1.top);
@@ -8070,7 +8229,9 @@ Features:
 					center &&
 						times.forEach((t, i) => {
 							times[i] = timeWrap(
-								tl.labels["label" + i] + (tl.duration() * heights[i]) / 2 / totalHeight - timeOffset
+								tl.labels["label" + i] +
+									(tl.duration() * heights[i]) / 2 / totalHeight -
+									timeOffset,
 							);
 						});
 				},
@@ -8105,7 +8266,7 @@ Features:
 								yPercent: snap(((curY - distanceToLoop) / heights[i]) * 100),
 								duration: distanceToLoop / pixelsPerSecond,
 							},
-							0
+							0,
 						)
 							.fromTo(
 								item,
@@ -8115,7 +8276,7 @@ Features:
 									duration: (curY - distanceToLoop + totalHeight - curY) / pixelsPerSecond,
 									immediateRender: false,
 								},
-								distanceToLoop / pixelsPerSecond
+								distanceToLoop / pixelsPerSecond,
 							)
 							.add("label" + i, distanceToStart / pixelsPerSecond);
 						times[i] = distanceToStart / pixelsPerSecond;
@@ -8188,7 +8349,7 @@ Features:
 					syncIndex = () => tl.closestIndex(true);
 				typeof InertiaPlugin === "undefined" &&
 					console.warn(
-						"InertiaPlugin required for momentum-based scrolling and snapping. https://greensock.com/club"
+						"InertiaPlugin required for momentum-based scrolling and snapping. https://greensock.com/club",
 					);
 				draggable = Draggable.create(proxy, {
 					trigger: items[0].parentNode,
@@ -8251,6 +8412,116 @@ Features:
 			};
 		}
 		return timeline;
+	};
+
+	lenus.helperFunctions.horizontalLoop = function (items, config) {
+		/*
+This helper function makes a group of elements animate along the x-axis in a seamless, responsive loop.
+
+Features:
+- Uses xPercent so that even if the widths change (like if the window gets resized), it should still work in most cases.
+- When each item animates to the left or right enough, it will loop back to the other side
+- Optionally pass in a config object with values like "speed" (default: 1, which travels at roughly 100 pixels per second), paused (boolean),  repeat, reversed, and paddingRight.
+- The returned timeline will have the following methods added to it:
+- next() - animates to the next element using a timeline.tweenTo() which it returns. You can pass in a vars object to control duration, easing, etc.
+- previous() - animates to the previous element using a timeline.tweenTo() which it returns. You can pass in a vars object to control duration, easing, etc.
+- toIndex() - pass in a zero-based index value of the element that it should animate to, and optionally pass in a vars object to control duration, easing, etc. Always goes in the shortest direction
+- current() - returns the current index (if an animation is in-progress, it reflects the final index)
+- times - an Array of the times on the timeline where each element hits the "starting" spot. There's also a label added accordingly, so "label1" is when the 2nd element reaches the start.
+*/
+		items = gsap.utils.toArray(items);
+		config = config || {};
+		let tl = gsap.timeline({
+				repeat: config.repeat,
+				paused: config.paused,
+				defaults: { ease: "none" },
+				onReverseComplete: () => tl.totalTime(tl.rawTime() + tl.duration() * 100),
+			}),
+			length = items.length,
+			startX = items[0].offsetLeft,
+			times = [],
+			widths = [],
+			xPercents = [],
+			curIndex = 0,
+			pixelsPerSecond = (config.speed || 1) * 100,
+			snap = config.snap === false ? (v) => v : gsap.utils.snap(config.snap || 1), // some browsers shift by a pixel to accommodate flex layouts, so for example if width is 20% the first element's width might be 242px, and the next 243px, alternating back and forth. So we snap to 5 percentage points to make things look more natural
+			totalWidth,
+			curX,
+			distanceToStart,
+			distanceToLoop,
+			item,
+			i;
+		gsap.set(items, {
+			// convert "x" to "xPercent" to make things responsive, and populate the widths/xPercents Arrays to make lookups faster.
+			xPercent: (i, el) => {
+				let w = (widths[i] = parseFloat(gsap.getProperty(el, "width", "px")));
+				xPercents[i] = snap(
+					(parseFloat(gsap.getProperty(el, "x", "px")) / w) * 100 +
+						gsap.getProperty(el, "xPercent"),
+				);
+				return xPercents[i];
+			},
+		});
+		gsap.set(items, { x: 0 });
+		totalWidth =
+			items[length - 1].offsetLeft +
+			(xPercents[length - 1] / 100) * widths[length - 1] -
+			startX +
+			items[length - 1].offsetWidth * gsap.getProperty(items[length - 1], "scaleX") +
+			(parseFloat(config.paddingRight) || 0);
+		for (i = 0; i < length; i++) {
+			item = items[i];
+			curX = (xPercents[i] / 100) * widths[i];
+			distanceToStart = item.offsetLeft + curX - startX;
+			distanceToLoop = distanceToStart + widths[i] * gsap.getProperty(item, "scaleX");
+			tl.to(
+				item,
+				{
+					xPercent: snap(((curX - distanceToLoop) / widths[i]) * 100),
+					duration: distanceToLoop / pixelsPerSecond,
+				},
+				0,
+			)
+				.fromTo(
+					item,
+					{
+						xPercent: snap(((curX - distanceToLoop + totalWidth) / widths[i]) * 100),
+					},
+					{
+						xPercent: xPercents[i],
+						duration: (curX - distanceToLoop + totalWidth - curX) / pixelsPerSecond,
+						immediateRender: false,
+					},
+					distanceToLoop / pixelsPerSecond,
+				)
+				.add("label" + i, distanceToStart / pixelsPerSecond);
+			times[i] = distanceToStart / pixelsPerSecond;
+		}
+		function toIndex(index, vars) {
+			vars = vars || {};
+			Math.abs(index - curIndex) > length / 2 && (index += index > curIndex ? -length : length); // always go in the shortest direction
+			let newIndex = gsap.utils.wrap(0, length, index),
+				time = times[newIndex];
+			if (time > tl.time() !== index > curIndex) {
+				// if we're wrapping the timeline's playhead, make the proper adjustments
+				vars.modifiers = { time: gsap.utils.wrap(0, tl.duration()) };
+				time += tl.duration() * (index > curIndex ? 1 : -1);
+			}
+			curIndex = newIndex;
+			vars.overwrite = true;
+			return tl.tweenTo(time, vars);
+		}
+		tl.next = (vars) => toIndex(curIndex + 1, vars);
+		tl.previous = (vars) => toIndex(curIndex - 1, vars);
+		tl.current = () => curIndex;
+		tl.toIndex = (index, vars) => toIndex(index, vars);
+		tl.times = times;
+		tl.progress(1, true).progress(0, true); // pre-render for performance
+		if (config.reversed) {
+			tl.vars.onReverseComplete();
+			tl.reverse();
+		}
+		return tl;
 	};
 
 	// Calculate the number of clones needed for a Splide carousel based on slides and sets
