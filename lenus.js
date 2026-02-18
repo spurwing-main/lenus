@@ -3324,8 +3324,7 @@ function main() {
 
 	function mapbox() {
 		// Set your Mapbox access token
-		mapboxgl.accessToken =
-			"pk.eyJ1Ijoic3B1cndpbmctc3AiLCJhIjoiY21kc3I1MmV1MHV3MzJscjN5MDF6ZGFxMSJ9.5EnxurStX-M_QZovcUegZw";
+		mapboxgl.accessToken = lenus.mapboxToken; // set in WF site header
 
 		// Find all map components on the page
 		const mapComponents = document.querySelectorAll(".c-map");
