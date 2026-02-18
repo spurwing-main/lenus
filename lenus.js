@@ -8,6 +8,68 @@ function main() {
 		duration: 0.5,
 	});
 
+	// ---------------------------------------------------------------------------
+	// DEV LOGGING FLAG
+	// - Persisted via localStorage (survives `location.reload()`)
+	//   Enable:  localStorage.setItem("__LENUS_DEV__", "true"); location.reload()
+	//   Disable: localStorage.removeItem("__LENUS_DEV__"); location.reload()
+	// When disabled, we silence console.log/info/debug to avoid noisy production logs.
+	// ---------------------------------------------------------------------------
+	const __LENUS_DEV_STORAGE_KEY__ = "__LENUS_DEV__";
+
+	function _readLenusDevFromStorage() {
+		try {
+			if (typeof window === "undefined" || !window.localStorage) return null;
+			const raw = window.localStorage.getItem(__LENUS_DEV_STORAGE_KEY__);
+			if (raw == null) return null;
+			const v = String(raw).toLowerCase().trim();
+			if (v === "" || v === "true" || v === "1" || v === "yes") return true;
+			if (v === "false" || v === "0" || v === "no") return false;
+			return null;
+		} catch {
+			return null;
+		}
+	}
+
+	const __LENUS_DEV__ = (() => {
+		if (typeof window === "undefined") return false;
+		if (typeof window.__LENUS_DEV__ === "boolean") return window.__LENUS_DEV__;
+		const stored = _readLenusDevFromStorage();
+		if (typeof stored === "boolean") return stored;
+		return false;
+	})();
+
+	// Always show a DevTools hint when logs are disabled (use warn so it won't be gated).
+	if (!__LENUS_DEV__ && !window.__LENUS_DEV_HINT_SHOWN__) {
+		window.__LENUS_DEV_HINT_SHOWN__ = true;
+		console.warn(
+			'[Lenus] Debug logs are currently DISABLED. Enable them by running: localStorage.setItem("__LENUS_DEV__", "true"); location.reload()',
+		);
+	}
+
+	// expose flag for other modules/components
+	window.__LENUS_DEV__ = __LENUS_DEV__;
+	lenus.dev = lenus.dev || {};
+	lenus.dev.enabled = __LENUS_DEV__;
+
+	// Default jobScroll debug to the global dev flag (unless explicitly set)
+	if (typeof window.__LENUS_JOBSCROLL_DEBUG__ !== "boolean") {
+		window.__LENUS_JOBSCROLL_DEBUG__ = __LENUS_DEV__;
+	}
+
+	// Gate noisy console output in non-dev environments
+	if (!__LENUS_DEV__ && !window.__LENUS_CONSOLE_GATED__) {
+		window.__LENUS_CONSOLE_GATED__ = true;
+		window.__LENUS_CONSOLE_ORIGINAL__ = window.__LENUS_CONSOLE_ORIGINAL__ || {
+			log: console.log.bind(console),
+			info: console.info.bind(console),
+			debug: (console.debug || console.log).bind(console),
+		};
+		console.log = () => {};
+		console.info = () => {};
+		console.debug = () => {};
+	}
+
 	// Global ScrollTrigger defaults to mitigate pin jumps across the site
 	ScrollTrigger.defaults({
 		anticipatePin: 1, // pre-offsets before the pin engages -> no “snap” at start
