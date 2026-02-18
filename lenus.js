@@ -832,52 +832,6 @@ function main() {
 		});
 	}
 
-	// function parallax() {
-	// 	const parallaxTriggers = document.querySelectorAll(".anim-parallax-trigger");
-	// 	if (parallaxTriggers.length === 0) return;
-	// 	parallaxTriggers.forEach((trigger) => {
-	// 		const parallaxElements = trigger.querySelectorAll("[data-parallax]");
-	// 		if (parallaxElements.length === 0) return;
-
-	// 		gsap.utils.toArray(parallaxElements).forEach((el) => {
-	// 			// Set the initial position of the element based on the speed
-	// 			const speed = parseFloat(el.getAttribute("data-parallax")) || 0.5;
-	// 			const scalingFactor = 5; // just to tweak feel
-	// 			let startY = 50 * speed * scalingFactor;
-	// 			let endY = -50 * speed * scalingFactor;
-	// 			const xSpeed = parseFloat(el.getAttribute("data-parallax-x")) || 0;
-	// 			let startX = 50 * xSpeed;
-	// 			let endX = -50 * xSpeed;
-
-	// 			// Check if mobile (768px and below)
-	// 			const isMobile = window.matchMedia("(max-width: 768px)").matches;
-
-	// 			// Mobile-specific adjustments
-	// 			if (isMobile) {
-	// 				// On mobile, animate from startX to natural position (0)
-	// 				startX = startY = endX = endY = 0;
-	// 			}
-
-	// 			gsap.fromTo(
-	// 				el,
-	// 				{ yPercent: startY, xPercent: startX },
-	// 				{
-	// 					yPercent: endY,
-	// 					xPercent: endX,
-	// 					ease: "none",
-	// 					scrollTrigger: {
-	// 						trigger: trigger,
-	// 						start: "top bottom",
-	// 						// On mobile, end when trigger is 20% from top of viewport
-	// 						// This means element reaches natural position at 20% from top
-	// 						end: isMobile ? "top 20%" : "bottom top",
-	// 						// scrub: true,
-	// 					},
-	// 				}
-	// 			);
-	// 		});
-	// 	});
-	// }
 	function parallax() {
 		const sections = document.querySelectorAll(".anim-parallax-trigger");
 		if (!sections.length) return;
@@ -958,207 +912,6 @@ function main() {
 		const respondImmediately = true; // strategy for rapid scroll direction changes
 
 		const isMobile = () => mediaQuery.matches;
-
-		// --- offset helpers --------------------------------------------------------
-
-		function setOffset(video) {
-			const rect = video.getBoundingClientRect();
-			const isAtTop = rect.top < 5;
-			// If the video is already at the very top of the page, push the resume point DOWN
-			// otherwise, use the normal "top above viewport" offset
-			video._resumeOffset = isAtTop ? defaultOffsetPx : -defaultOffsetPx;
-		}
-
-		function isPastResumePoint(video) {
-			// Always recompute; layout + refresh can change "at top" status
-			setOffset(video);
-
-			const r = video.getBoundingClientRect();
-			const offset = video._resumeOffset ?? -RESUME_OFFSET_PX;
-
-			// Both start styles correspond to the same condition in rect-space:
-			// - "top+=20 top"  => r.top <= -20
-			// - "top top-=20"  => r.top <= -20
-			const threshold = offset > 0 ? -offset : offset; // always negative
-			return r.top <= threshold;
-		}
-
-		// --- segment2 <-> reverse helpers -----------------------------------------
-
-		function killReverseTween(video) {
-			if (video._reverseTween) {
-				video._reverseTween.kill();
-				video._reverseTween = null;
-			}
-		}
-
-		function handleScrollAdvance(video) {
-			const state = video.dataset.segmentState;
-			if (!state) return;
-
-			const pauseTime = parseFloat(video.dataset.pauseAt || "0");
-
-			if (state === "pausedAt") {
-				// Resume forward playback (native)
-				video.currentTime = pauseTime;
-				video.play();
-				video.dataset.segmentState = "segment2";
-				killReverseTween(video);
-			} else if (state === "reversing") {
-				// Interrupt reverse and go forward
-				if (respondImmediately) {
-					killReverseTween(video);
-					video.play();
-					video.dataset.segmentState = "segment2";
-				} else {
-					video._queuedAction = "playForward";
-				}
-			}
-		}
-
-		function handleScrollReverse(video) {
-			const state = video.dataset.segmentState;
-			const pauseTime = parseFloat(video.dataset.pauseAt || "0");
-
-			if (state === "segment2") {
-				// Reverse from current (or end) back to pauseTime (never earlier)
-				if (respondImmediately) {
-					video.pause();
-					killReverseTween(video);
-
-					const dist = Math.max(0, video.currentTime - pauseTime);
-					const dur = dist || 0.001;
-
-					video.dataset.segmentState = "reversing";
-
-					video._reverseTween = gsap.to(video, {
-						currentTime: pauseTime,
-						duration: dur,
-						ease: "none",
-						onComplete: () => {
-							video.dataset.segmentState = "pausedAt";
-							video._reverseTween = null;
-							if (video._queuedAction === "playForward") {
-								video._queuedAction = null;
-								handleScrollAdvance(video);
-							}
-						},
-					});
-				} else {
-					// queue reverse until forward finishes
-					video._queuedAction = "reverseToPause";
-				}
-			} else if (state === "segment2-pending" && respondImmediately) {
-				// Edge state if we introduce buffering logic later
-				video._queuedAction = "reverseToPause";
-			}
-		}
-
-		// Expose segment controls for tabs/shared timeline if needed
-		lenus.helperFunctions = lenus.helperFunctions || {};
-		lenus.helperFunctions.advancePausableVideo = handleScrollAdvance;
-		lenus.helperFunctions.reversePausableVideo = handleScrollReverse;
-
-		// --- pause attribute parsing -----------------------------------------------
-
-		function parsePauseTimeAttr(video) {
-			const raw = video.getAttribute("data-video-pause");
-			if (!raw) return null;
-			const val = parseFloat(raw);
-			if (!isFinite(val) || val <= 0) {
-				console.warn(`[loadVideos] Invalid data-video-pause "${raw}" on`, video);
-				return null;
-			}
-			return val;
-		}
-
-		// --- core setup for a pausable video ---------------------------------------
-
-		function setupPauseAndScrollLogic(video, pauseTime, { createScrollTrigger = true } = {}) {
-			// Ensure metadata loaded
-			if (!Number.isFinite(video.duration) || video.duration <= 0) {
-				video.addEventListener(
-					"loadedmetadata",
-					() => setupPauseAndScrollLogic(video, pauseTime, { createScrollTrigger }),
-					{ once: true },
-				);
-				return;
-			}
-
-			if (pauseTime >= video.duration) {
-				console.warn(
-					`[loadVideos] data-video-pause (${pauseTime}s) >= duration (${video.duration}s) for`,
-					video,
-				);
-				return;
-			}
-
-			// If video has a loop attribute, we disable the pause-and-scroll logic
-			if (video.hasAttribute("loop")) {
-				console.warn(
-					`[loadVideos] Video has loop attribute; removing loop + skipping pause-and-scroll for`,
-					video,
-				);
-				video.removeAttribute("loop");
-			}
-
-			video.dataset.pauseAt = pauseTime;
-			video.dataset.segmentState = "segment1"; // states: segment1, pausedAt, segment2, reversing
-			setOffset(video);
-
-			// Timeupdate listener for first segment
-			const onTimeUpdate = () => {
-				if (video.dataset.segmentState !== "segment1") return;
-				if (video.currentTime >= pauseTime) {
-					if (isPastResumePoint(video)) {
-						// already beyond resume point – skip pause, continue into second segment
-						video.dataset.segmentState = "segment2";
-						video.removeEventListener("timeupdate", onTimeUpdate);
-						return;
-					}
-					video.pause();
-					video.currentTime = pauseTime;
-					video.dataset.segmentState = "pausedAt";
-					video.removeEventListener("timeupdate", onTimeUpdate);
-				}
-			};
-			video.addEventListener("timeupdate", onTimeUpdate);
-
-			// Optionally create ScrollTrigger for the second segment
-			if (!createScrollTrigger) return;
-
-			const st = ScrollTrigger.create({
-				trigger: video,
-				start: () => {
-					// recompute offset when ST is evaluated
-					setOffset(video);
-					const offset = video._resumeOffset;
-					if (offset > 0) {
-						// push start DOWN into viewport
-						return `top+=${offset} top`;
-					}
-					// negative offset → classic "top above viewport by N px"
-					return `top top-=${-offset}`;
-				},
-				end: "bottom top",
-				onEnter: () => handleScrollAdvance(video),
-				onLeaveBack: () => handleScrollReverse(video),
-				// markers: true,
-			});
-			video._secondSegmentST = st;
-		}
-
-		function setupVideoControls(video) {
-			const pauseTime = parsePauseTimeAttr(video);
-			if (pauseTime === null) return;
-			if (!video.hasAttribute("autoplay") && !video.getAttribute("data-video-pause")) return; // no autoplay and no pause time
-
-			const isSharedTimeline = video.dataset.videoSharedTimeline === "true";
-
-			setupPauseAndScrollLogic(video, pauseTime, {
-				createScrollTrigger: !isSharedTimeline, // set to false if tabs drive the timeline themselves
-			});
-		}
 
 		// --- source selection / alpha variants -------------------------------------
 
@@ -1257,7 +1010,19 @@ function main() {
 
 			video.load();
 			video.dataset.videoLoaded = "true";
-			setupVideoControls(video);
+		}
+
+		// Expose a safe hook for components (e.g. tabs) to force lazy source assignment.
+		// Keeping this inside loadVideos() lets it reuse the same UA/mode selection logic.
+		lenus.helperFunctions = lenus.helperFunctions || {};
+		if (!lenus.helperFunctions.ensureVideoSources) {
+			lenus.helperFunctions.ensureVideoSources = (video, mode) => {
+				try {
+					updateSources(video, mode || (isMobile() ? "mobile" : "desktop"));
+				} catch (err) {
+					console.warn("[ensureVideoSources] failed", err);
+				}
+			};
 		}
 
 		// --- small helpers ---------------------------------------------------------
@@ -1303,8 +1068,6 @@ function main() {
 						: video.play().catch(() => {});
 				},
 				onLeave: () => {
-					// If in second segment and beyond resume point, let it keep playing
-					if (video.dataset.segmentState === "segment2" && isPastResumePoint(video)) return;
 					if (!video.paused) video.pause();
 				},
 				onEnterBack: () => {
@@ -1313,7 +1076,6 @@ function main() {
 						: video.play().catch(() => {});
 				},
 				onLeaveBack: () => {
-					if (video.dataset.segmentState === "segment2" && isPastResumePoint(video)) return;
 					if (!video.paused) video.pause();
 				},
 			});
@@ -1325,17 +1087,6 @@ function main() {
 
 			videos.forEach((video) => {
 				delete video.dataset.videoLoaded;
-
-				// clean second segment triggers & tweens
-				if (video._secondSegmentST) {
-					video._secondSegmentST.kill();
-					video._secondSegmentST = null;
-				}
-				killReverseTween(video);
-				video._queuedAction = null;
-				delete video.dataset.segmentState;
-				delete video.dataset.pauseAt;
-				video._resumeOffset = null;
 			});
 
 			preloadTriggers.forEach((t) => t.kill());
@@ -2519,45 +2270,6 @@ function main() {
 		};
 	}
 
-	/* helper for tabs components to determine if multiple videos exist and if they should share a timeline */
-	lenus.helperFunctions.prepareTabsWithVideos = function () {
-		lenus.tabs = [] || lenus.tabs;
-		document.querySelectorAll("[data-tabs-element='component']").forEach((component) => {
-			let obj = {};
-			obj.controls = component.querySelector("[data-tabs-element='controls']");
-			obj.track = component.querySelector("[data-tabs-element='controls-track']");
-			obj.list = component.querySelector("[data-tabs-element='controls-list']");
-			obj.panelsList = component.querySelector("[data-tabs-element='panel-list']");
-			obj.component = component;
-
-			// if missing any required elements, component is invalid
-			if (!obj.controls || !obj.track || !obj.list || !obj.panelsList) return null;
-
-			// get all panels
-			obj.panels = Array.from(obj.panelsList.querySelectorAll("[data-tabs-element='panel']"));
-
-			// if no panels or only one, exit
-			if (!obj.panels.length || obj.panels.length == 1) return null;
-
-			// get all videos and those marked pausable
-			obj.allVideos = Array.from(component.querySelectorAll("video"));
-			obj.pausableVideos = obj.allVideos.filter((v) => v.hasAttribute("data-video-pause"));
-			// determine if we use a shared timeline for all videos
-			obj.useSharedTimeline =
-				obj.pausableVideos.length > 1 && obj.pausableVideos.length === obj.allVideos.length;
-
-			// add data attr to each video to indicate using shared timeline
-			obj.allVideos.forEach((v) => {
-				if (obj.useSharedTimeline) {
-					v.setAttribute("data-video-shared-timeline", "true");
-				} else {
-					v.setAttribute("data-video-shared-timeline", "false");
-				}
-			});
-			lenus.tabs.push(obj);
-		});
-	};
-
 	function tabsWithToggleSlider() {
 		// global store if you want to inspect/tab debug in DevTools
 		if (!lenus.toggleTabs) lenus.toggleTabs = [];
@@ -2594,30 +2306,26 @@ function main() {
 			// --- videos & shared timeline detection -----------------------------------
 
 			const allVideos = Array.from(component.querySelectorAll("video"));
-			const pausableVideos = allVideos.filter((v) => v.hasAttribute("data-video-pause"));
-
-			const useSharedTimeline =
-				pausableVideos.length > 1 && pausableVideos.length === allVideos.length;
+			const isVideoTabs = allVideos.length > 0;
 
 			obj.videos = allVideos;
-			obj.pausableVideos = pausableVideos;
-			obj.useSharedTimeline = useSharedTimeline;
+			obj.isVideoTabs = isVideoTabs;
 
-			// let loadVideos know which videos belong to a shared-timeline tab component
-			allVideos.forEach((v) => {
-				if (useSharedTimeline && v.hasAttribute("data-video-pause")) {
-					v.setAttribute("data-video-shared-timeline", "true");
-				} else {
-					v.setAttribute("data-video-shared-timeline", "false");
-				}
-			});
-
-			// shared timeline state (only meaningful if useSharedTimeline === true)
-			const sharedState = {
-				time: 0,
-				segment: "segment1",
-				wasPlaying: false,
-			};
+			// If a tabbed-hero video reaches the end, it should never be auto-restarted
+			// by scroll-based triggers. We track this per-video.
+			if (isVideoTabs) {
+				obj.videos.forEach((video) => {
+					if (!video || video._lenusEndedHandlerAttached) return;
+					video._lenusEndedHandlerAttached = true;
+					video.addEventListener(
+						"ended",
+						() => {
+							video.dataset.lenusAutoplayEnded = "true";
+						},
+						{ passive: true },
+					);
+				});
+			}
 
 			// --- build or reuse buttons ----------------------------------------------
 
@@ -2662,49 +2370,6 @@ function main() {
 			});
 			panels.forEach((p) => p.setAttribute("role", "tabpanel"));
 
-			// --- video state persistence ---------------------------------------------
-
-			const videoState = new WeakMap(); // key: video => { time, wasPlaying }
-
-			function saveVideoState(panel) {
-				const v = panel?.querySelector?.("video");
-				if (!v) return;
-
-				if (useSharedTimeline && v.hasAttribute("data-video-pause")) {
-					const time = v.currentTime || 0;
-					const rawSegment = v.dataset.segmentState || "segment1";
-
-					const pauseAt = parseFloat(
-						v.dataset.pauseAt || v.getAttribute("data-video-pause") || "0",
-					);
-
-					let segment = rawSegment;
-
-					// normalise segment based on time vs pause point
-					if (pauseAt && time < pauseAt) {
-						segment = "segment1";
-					} else if (pauseAt && time >= pauseAt && rawSegment === "segment1") {
-						segment = "pausedAt";
-					}
-
-					sharedState.time = time;
-					sharedState.segment = segment;
-					sharedState.wasPlaying = !v.paused && !v.ended;
-
-					// clean up any reverse tween
-					if (v._reverseTween) {
-						v._reverseTween.kill();
-						v._reverseTween = null;
-					}
-
-					v.pause();
-				} else {
-					const wasPlaying = !v.paused && !v.ended;
-					videoState.set(v, { time: v.currentTime || 0, wasPlaying });
-					v.pause();
-				}
-			}
-
 			function ensureMetadata(video) {
 				if (Number.isFinite(video.duration) && video.duration > 0) {
 					return Promise.resolve();
@@ -2723,89 +2388,111 @@ function main() {
 				});
 			}
 
-			async function restoreVideoState(panel, { autoplay = true } = {}) {
-				const v = panel?.querySelector?.("video");
-				if (!v) return;
-
-				try {
-					await ensureMetadata(v);
-
-					if (useSharedTimeline && v.hasAttribute("data-video-pause")) {
-						const pauseAt = parseFloat(
-							v.dataset.pauseAt || v.getAttribute("data-video-pause") || "0",
-						);
-						const duration = v.duration || 0;
-
-						let targetTime = Math.min(sharedState.time, duration > 0 ? duration - 0.05 : 0);
-						if (!isFinite(targetTime) || targetTime < 0) targetTime = 0;
-
-						let segment = sharedState.segment || "segment1";
-
-						// normalise again against pauseAt
-						if (pauseAt && targetTime < pauseAt) {
-							segment = "segment1";
-						} else if (pauseAt && targetTime >= pauseAt && segment === "segment1") {
-							segment = "pausedAt";
-						}
-
-						v.dataset.segmentState = segment;
-						v.currentTime = targetTime;
-
-						const shouldPlay = autoplay && sharedState.wasPlaying && segment !== "pausedAt";
-						if (shouldPlay) {
-							await v.play().catch((err) => {
-								console.warn("[tabsWithToggleSlider] Failed to autoplay shared video:", err);
-							});
-						}
-					} else {
-						// normal independent video behaviour
-						const state = videoState.get(v) || { time: 0, wasPlaying: false };
-						let targetTime = Math.min(state.time, v.duration > 0 ? v.duration - 0.05 : 0);
-						if (!isFinite(targetTime) || targetTime < 0) targetTime = 0;
-						v.currentTime = targetTime;
-
-						if (autoplay && state.wasPlaying) {
-							await v.play().catch((err) => {
-								console.warn("[tabsWithToggleSlider] Failed to autoplay video:", err);
-							});
-						}
-					}
-				} catch (err) {
-					console.warn("[tabsWithToggleSlider] Failed to restore video state:", err);
-				}
-			}
-
 			async function primeAndPlay(video) {
+				if (!video) return;
+				// Never auto-restart a video that has ended
+				if (video.ended || video.dataset.lenusAutoplayEnded === "true") return;
+
+				// Avoid concurrent priming attempts on the same element
+				if (video._lenusPrimeInFlight) return;
+				video._lenusPrimeInFlight = true;
+
 				console.log("[tabsWithToggleSlider] Priming and playing video:", video);
-				video.preload = "auto";
-				video.playsInline = true;
-				if (!video.hasAttribute("muted")) video.muted = true;
-				await ensureMetadata(video);
 				try {
-					await video.play();
+					lenus?.helperFunctions?.ensureVideoSources?.(video);
+					video.preload = "auto";
+					video.playsInline = true;
+					if (!video.hasAttribute("muted")) video.muted = true;
+					await ensureMetadata(video);
+					try {
+						await video.play();
+					} catch {
+						// ignore autoplay failures
+					}
 				} catch {
-					// ignore autoplay failures
+					// ignore metadata failures
+				} finally {
+					video._lenusPrimeInFlight = false;
 				}
 			}
 
 			// --- content switching ----------------------------------------------------
 
+			const panelDisplayFallback =
+				panels.map((p) => p.style.display).find((d) => d && d !== "none") ||
+				panels
+					.map((p) => {
+						try {
+							return getComputedStyle(p).display;
+						} catch {
+							return "";
+						}
+					})
+					.find((d) => d && d !== "none") ||
+				"block";
+
+			// For video-tabs, keep panels out of `display:none` so videos can continue playing.
+			// To avoid layout growth, stack panels on top of each other.
+			if (isVideoTabs) {
+				try {
+					if (getComputedStyle(panelsList).position === "static") {
+						gsap.set(panelsList, { position: "relative" });
+					}
+				} catch {
+					gsap.set(panelsList, { position: "relative" });
+				}
+				panels.forEach((p) => {
+					const display =
+						(p.style.display && p.style.display !== "none" ? p.style.display : null) ||
+						panelDisplayFallback;
+					p.dataset.tabsDisplay = display;
+					p.style.removeProperty("display");
+					gsap.set(p, { position: "absolute", inset: 0, width: "100%", display });
+				});
+			} else {
+				// For non-video tabs, we keep legacy `display:none` switching to avoid layout expansion.
+				panels.forEach((p) => {
+					const display =
+						(p.style.display && p.style.display !== "none" ? p.style.display : null) ||
+						panelDisplayFallback;
+					p.dataset.tabsDisplay = display;
+				});
+			}
+
 			function showPanel(i, { immediate = false } = {}) {
+				const duration = immediate ? 0 : 0.28;
 				panels.forEach((p, idx) => {
 					const active = idx === i;
 					p.classList.toggle("is-active", active);
+
+					if (isVideoTabs) {
+						// Never `display:none` for video tabs.
+						gsap.set(p, { display: p.dataset.tabsDisplay || panelDisplayFallback });
+						if (active) {
+							gsap.set(p, { pointerEvents: "auto" });
+							gsap.to(p, { autoAlpha: 1, duration, ease: "power2.out" });
+							refreshSplideInPanel(p, immediate);
+						} else {
+							gsap.to(p, { autoAlpha: 0, duration, ease: "power2.out" });
+							gsap.set(p, { pointerEvents: "none", delay: duration });
+						}
+						return;
+					}
+
+					// Non-video tabs: fade + toggle display
 					if (active) {
-						gsap.set(p, { display: "flex" });
-						gsap.to(p, { autoAlpha: 1, duration: immediate ? 0 : 0.28, ease: "power2.out" });
+						gsap.set(p, {
+							display: p.dataset.tabsDisplay || panelDisplayFallback,
+							pointerEvents: "auto",
+						});
+						gsap.to(p, { autoAlpha: 1, duration, ease: "power2.out" });
 						refreshSplideInPanel(p, immediate);
 					} else {
-						gsap.to(p, { autoAlpha: 0, duration: immediate ? 0 : 0.28, ease: "power2.out" });
-						gsap.set(p, { display: "none", delay: immediate ? 0 : 0.28 });
+						gsap.to(p, { autoAlpha: 0, duration, ease: "power2.out" });
+						gsap.set(p, { pointerEvents: "none", delay: duration });
+						gsap.set(p, { display: "none", delay: duration });
 					}
 				});
-
-				// restore video state on the new panel (if any)
-				restoreVideoState(panels[i], { autoplay: true });
 			}
 
 			function refreshSplideInPanel(panel, immediate = false) {
@@ -2861,9 +2548,6 @@ function main() {
 			function activate(i, { immediate = false, source = "program" } = {}) {
 				if (i === activeIndex) return;
 
-				// save video state on outgoing panel
-				saveVideoState(panels[activeIndex]);
-
 				// UI + aria
 				tabs.forEach((t, n) => {
 					const isActive = n === i;
@@ -2890,22 +2574,52 @@ function main() {
 				t.classList.toggle("is-active", isActive);
 				t.setAttribute("aria-selected", isActive ? "true" : "false");
 			});
-			panels.forEach((p, n) => gsap.set(p, { autoAlpha: n === activeIndex ? 1 : 0 }));
+			if (isVideoTabs) {
+				panels.forEach((p, n) =>
+					gsap.set(p, {
+						display: p.dataset.tabsDisplay || panelDisplayFallback,
+						autoAlpha: n === activeIndex ? 1 : 0,
+						pointerEvents: n === activeIndex ? "auto" : "none",
+					}),
+				);
+			} else {
+				panels.forEach((p, n) =>
+					gsap.set(p, {
+						display: n === activeIndex ? p.dataset.tabsDisplay || panelDisplayFallback : "none",
+						autoAlpha: n === activeIndex ? 1 : 0,
+						pointerEvents: n === activeIndex ? "auto" : "none",
+					}),
+				);
+			}
 			controller.select(activeIndex, { immediate: true, center: true });
 			showPanel(activeIndex, { immediate: true });
 
 			const mediaWrap = component.querySelector(".tabbed-hero_media");
 			if (mediaWrap) {
-				let enterST, segmentST;
+				let enterST;
 
 				const END_OFFSET_PX = 10;
-				const RESUME_OFFSET_PX = 20;
 
-				const getActiveVideo = () => panels[activeIndex]?.querySelector("video");
+				const isComponentInViewport = (el) => {
+					if (!el) return false;
+					const rect = el.getBoundingClientRect();
+					// Treat as visible if it intersects the viewport at all.
+					// (Full-visibility checks can fail forever when the component is taller than the viewport.)
+					return rect.bottom > 0 && rect.top < window.innerHeight;
+				};
+
+				const primeAll = () => {
+					obj.videos.forEach((video) => {
+						primeAndPlay(video);
+					});
+				};
+
+				const primeIfVisible = () => {
+					if (isComponentInViewport(component)) primeAll();
+				};
 
 				const buildHeroSTs = () => {
 					if (enterST) enterST.kill();
-					if (segmentST) segmentST.kill();
 
 					// 1) In/out: only handle priming + saving (no early "top+=50" leave)
 					enterST = ScrollTrigger.create({
@@ -2914,62 +2628,34 @@ function main() {
 						end: `bottom top-=${END_OFFSET_PX}`,
 						invalidateOnRefresh: true,
 						onEnter: () => {
-							const vid = getActiveVideo();
-							if (vid) primeAndPlay(vid);
+							// prime and play all videos in component
+							primeAll();
 						},
 						onEnterBack: () => {
-							const vid = getActiveVideo();
-							// Important: don’t blindly restart if we’re already pausedAt/segment2
-							if (vid && (vid.dataset.segmentState || "segment1") === "segment1") {
-								primeAndPlay(vid);
-							}
+							primeAll();
 						},
-						onLeave: () => saveVideoState(panels[activeIndex]),
-					});
-
-					// 2) Segment control: drive segment2 forward + reverse for shared timeline
-					segmentST = ScrollTrigger.create({
-						trigger: component,
-						start: `top+=${RESUME_OFFSET_PX} top`,
-						end: `bottom top-=${END_OFFSET_PX}`,
-						invalidateOnRefresh: true,
-						onEnter: () => {
-							const vid = getActiveVideo();
-							if (!vid) return;
-
-							// keep shared timeline state consistent
-							sharedState.segment = "segment2";
-							sharedState.wasPlaying = true;
-							sharedState.time = vid.currentTime || sharedState.time || 0;
-
-							lenus?.helperFunctions?.advancePausableVideo?.(vid);
-						},
-						onLeaveBack: () => {
-							const vid = getActiveVideo();
-							if (!vid) return;
-
-							sharedState.segment = "reversing";
-							sharedState.wasPlaying = false;
-							sharedState.time = vid.currentTime || sharedState.time || 0;
-
-							lenus?.helperFunctions?.reversePausableVideo?.(vid);
-						},
+						onLeave: () => {},
 					});
 				};
 
 				buildHeroSTs();
 				ScrollTrigger.refresh();
+				// If the hero is already visible on load, ScrollTrigger may not fire onEnter
+				// until the first scroll update. Prime immediately in that case.
+				requestAnimationFrame(() => requestAnimationFrame(primeIfVisible));
 
 				const onResize = lenus?.helperFunctions?.debounce
 					? lenus.helperFunctions.debounce(() => {
 							controller.update();
 							buildHeroSTs();
 							ScrollTrigger.refresh();
+							requestAnimationFrame(() => requestAnimationFrame(primeIfVisible));
 						}, 150)
 					: () => {
 							controller.update();
 							buildHeroSTs();
 							ScrollTrigger.refresh();
+							requestAnimationFrame(() => requestAnimationFrame(primeIfVisible));
 						};
 
 				window.addEventListener("resize", onResize);
@@ -8590,8 +8276,6 @@ Features:
 			});
 		}
 	}
-
-	lenus.helperFunctions.prepareTabsWithVideos();
 
 	parallax();
 	loadVideos();
