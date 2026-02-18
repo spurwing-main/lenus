@@ -1032,6 +1032,61 @@ function main() {
 			return rect.bottom > 0 && rect.top < window.innerHeight;
 		}
 
+		function isTruthyAttr(value) {
+			if (value == null) return false;
+			const v = String(value).toLowerCase().trim();
+			return v === "" || v === "true" || v === "1" || v === "yes";
+		}
+
+		function canReplayOnEnter(video) {
+			return isTruthyAttr(video.getAttribute("data-video-replay-on-enter"));
+		}
+
+		function hasAutoplayEnded(video) {
+			return video.ended || video.dataset.lenusAutoplayEnded === "true";
+		}
+
+		function markAutoplayEnded(video) {
+			video.dataset.lenusAutoplayEnded = "true";
+		}
+
+		function clearAutoplayEnded(video) {
+			video.removeAttribute("data-lenus-autoplay-ended");
+		}
+
+		function playOnEnter(video) {
+			// If a non-looping video has finished, don't auto-replay it on re-enter
+			// unless explicitly opted in via `data-video-replay-on-enter`.
+			if (hasAutoplayEnded(video) && !canReplayOnEnter(video)) return;
+
+			if (hasAutoplayEnded(video) && canReplayOnEnter(video)) {
+				// Attempt to rewind so replay-on-enter behaves consistently.
+				try {
+					video.currentTime = 0;
+				} catch {
+					// ignore seek failures
+				}
+				clearAutoplayEnded(video);
+			}
+
+			lenus.helperFunctions.playVideo
+				? lenus.helperFunctions.playVideo(video)
+				: video.play().catch(() => {});
+		}
+
+		// Track ended state so scroll-based autoplay can respect it.
+		videos.forEach((video) => {
+			if (!video || video._lenusEndedHandlerAttached) return;
+			video._lenusEndedHandlerAttached = true;
+			video.addEventListener(
+				"ended",
+				() => {
+					markAutoplayEnded(video);
+				},
+				{ passive: true },
+			);
+		});
+
 		// Immediately load sources for videos already in viewport
 		videos.forEach((video) => {
 			if (isInViewport(video)) {
@@ -1062,19 +1117,11 @@ function main() {
 				trigger: video,
 				start: "top 90%",
 				end: "bottom 10%",
-				onEnter: () => {
-					lenus.helperFunctions.playVideo
-						? lenus.helperFunctions.playVideo(video)
-						: video.play().catch(() => {});
-				},
+				onEnter: () => playOnEnter(video),
 				onLeave: () => {
 					if (!video.paused) video.pause();
 				},
-				onEnterBack: () => {
-					lenus.helperFunctions.playVideo
-						? lenus.helperFunctions.playVideo(video)
-						: video.play().catch(() => {});
-				},
+				onEnterBack: () => playOnEnter(video),
 				onLeaveBack: () => {
 					if (!video.paused) video.pause();
 				},
